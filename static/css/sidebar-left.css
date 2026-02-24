@@ -1,0 +1,38 @@
+/* Sidebar izquierdo específico */
+#sidebar-left {
+    background-color: #ddd;
+    padding: 10px;
+}
+
+/* Título del sidebar izquierdo */
+#sidebar-left h3 {
+    background-color: rgb(0, 102, 204); /* azul */
+    color: rgb(255, 153, 0);           /* naranja */
+    text-align: center;
+    padding: 8px 0;
+    margin: 0 0 10px 0;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Lista dentro del sidebar izquierdo */
+#sidebar-left ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+/* Ítems de la lista con separación */
+#sidebar-left li {
+    padding: 6px 8px;
+    margin-bottom: 10px; /* espacio entre elementos */
+    /* border-bottom: 1px solid #ccc; */ /* opcional */
+}
+
+/* Sidebar izquierdo - hover en items */
+#sidebar-left li:hover {
+    background-color: #7c7c7c;  /* gris más oscuro al pasar el ratón */
+    color: white;             /* texto blanco */
+    cursor: pointer;         /* indica que es interactivo */
+}

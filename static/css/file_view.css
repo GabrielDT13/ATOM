@@ -1,0 +1,32 @@
+/* Caja principal que ocupa todo el ancho y altura del panel central */
+
+.create-project-box {
+    background: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+    width: 100%;       /* ancho completo del contenedor padre */
+    max-width: none;   /* elimina cualquier límite de ancho */
+    height: 100%;      /* ocupa toda la altura disponible */
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.file-view-box {
+    flex: 1;                 /* ocupa el espacio libre vertical */
+    width: 100%;             /* ocupa todo el ancho */
+    height: 100%;            /* ocupa toda la altura disponible */
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.1);
+    padding: 20px;
+    box-sizing: border-box;
+    overflow: auto;          /* scroll en ambas direcciones */
+}
+
+.file-view-box pre {
+    margin: 0;
+    white-space: pre;        /* mantener formato de archivo */
+}
+

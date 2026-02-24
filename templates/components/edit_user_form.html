@@ -1,0 +1,46 @@
+<div class="create-project-box">
+    <h2>Editar Usuario</h2>
+
+    <form id="edit_user_form" method="POST" style="display: flex; flex-direction: column;">
+        <input type="text" name="username" placeholder="Nombre de usuario" value="{{ username_form }}" required>
+        <input type="email" name="email" placeholder="Email" value="{{ user.email }}" required>
+        <input type="password" name="password" placeholder="Nueva contraseña (dejar en blanco si no cambia)">
+
+        <div class="form-actions">
+            <button type="submit" class="btn-submit">Guardar cambios</button>
+            <a href="{{ url_for('dashboard') }}" class="btn-cancel">Cancelar</a>
+        </div>
+    </form>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="message {% if category == 'success' %}success{% else %}error{% endif %}">
+              {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const buttons = document.querySelectorAll(".form-actions .btn-submit, .form-actions .btn-cancel");
+    if (buttons.length > 0) {
+        let maxWidth = 0;
+        let maxHeight = 0;
+
+        // medir ancho y alto reales de cada botón
+        buttons.forEach(btn => {
+            maxWidth = Math.max(maxWidth, btn.offsetWidth);
+            maxHeight = Math.max(maxHeight, btn.offsetHeight);
+        });
+
+        // aplicar el mismo ancho y altura a todos
+        buttons.forEach(btn => {
+            btn.style.width = maxWidth + "px";
+            btn.style.height = maxHeight + "px";
+        });
+    }
+});
+</script>

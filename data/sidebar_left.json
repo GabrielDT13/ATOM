@@ -1,0 +1,10 @@
+{
+  "title": "Menú de Acciones",
+  "items": [
+    {"name": "Inicio", "url": "/dashboard"},
+    {"name": "Registrar Usuario", "url": "/dashboard/register", "admin_only": true},
+    {"name": "Editar Usuario", "url": "/dashboard/edit_users"},
+    {"name": "Crear Proyecto", "url": "/dashboard/create_project"},
+    {"name": "Editar Proyecto", "url": "/dashboard/edit_projects"}   
+  ]
+}

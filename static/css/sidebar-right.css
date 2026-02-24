@@ -1,0 +1,73 @@
+/* Sidebar derecho específico */
+#sidebar-right {
+    background-color: #ddd;
+    padding: 10px;
+}
+
+/* Título del sidebar derecho */
+#sidebar-right h3 {
+    background-color: rgb(0, 102, 204); /* azul */
+    color: rgb(255, 153, 0);           /* naranja */
+    text-align: center;
+    padding: 8px 0;
+    margin: 0 0 10px 0;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Lista dentro del sidebar derecho */
+#sidebar-right ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+
+#sidebar-right li {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0px;
+    margin-bottom: 5px;
+}
+
+
+/* Carpetas */
+#sidebar-right li.folder {
+    font-weight: bold;
+}
+
+/* Archivos */
+#sidebar-right li.file {
+    font-weight: normal;
+}
+
+
+.file-container, .folder-header {
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 6px;
+    border-radius: 4px;
+}
+
+
+/* Carpetas */
+.folder-header:hover,
+.file-container:hover {
+    background-color: #7c7c7c;
+    color: white;
+}
+
+/* Primer elemento de cada carpeta */
+#sidebar-right div > ul > li:first-child {
+    margin-top: 8px;        /* un poco más de separación arriba */
+}
+
+#sidebar-right img {
+    width: 16px;
+    height: auto;       /* mantiene proporción */
+    object-fit: contain; /* evita deformación */
+}

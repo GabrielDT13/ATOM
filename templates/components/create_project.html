@@ -1,0 +1,21 @@
+<div class="create-project-box">
+    <h2>Crear Nuevo Proyecto</h2>
+
+    <form id="create_project_form" method="POST" enctype="multipart/form-data">
+        <input type="text" name="project_name" placeholder="Nombre del proyecto" required>
+
+        <label>Archivo Template (Excel):</label>
+        <input type="file" name="template_file" accept=".xls,.xlsx" required>
+
+        <label>Archivos adicionales:</label>
+        <input type="file" name="additional_files" multiple>
+
+        <button type="submit" class="btn-submit">Crear Proyecto</button>
+    </form>
+
+    {% if message %}
+        <div class="register-message {% if success %}success{% else %}error{% endif %}">
+            {{ message }}
+        </div>
+    {% endif %}
+</div>
