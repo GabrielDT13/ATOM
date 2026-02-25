@@ -1,6 +1,6 @@
 ---
 title: >
-  ![](/home/jvdlrm/modATOM/static/images/logo.png){width=3in} &emsp; Análisis de RNA-seq
+  ![](../static/images/logo.png){width=3in} &emsp; Análisis de RNA-seq
 author: "Juan Vladimir de la Rosa Medina"
 date: "`r Sys.Date()`"
 params:
@@ -1474,7 +1474,7 @@ if (nrow(edo_results) == 0) {
 } else {
 
   # Crear gráfico tipo red
-  p <- cnetplot(edo_symbol, categorySize = "pvalue", foldChange = geneList)
+  p <- cnetplot(edo_symbol, foldChange = geneList)
   # Guardamos el gráfico
   ggsave(filename=file.path(out_dir,"GO_bp_dp.jpeg"), plot=p, width=10, height=10, dpi=100)
   
@@ -1738,9 +1738,7 @@ respuesta_clean <- gsub("^### Results\\n\\n", "", respuesta_clean)
 
 # Crear archivo Rmd automáticamente
 
-rmd_file <- file.path(out_dir, paste(designID, ".Rmd"))
-
-rmd_file <- paste0(designID, ".Rmd")
+rmd_file <- file.path(out_dir, paste0(designID, ".Rmd"))
 cat("---\ntitle: 'Results'\noutput: word_document\n---\n\n",
     respuesta_clean,
     file = rmd_file)

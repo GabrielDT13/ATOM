@@ -15,7 +15,7 @@ app.secret_key = 'your_secret_key'
 
 # Carpeta raiz
 #BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-BASE_DIR = Path(__file__).parent  # esto es un Path
+BASE_DIR = Path(__file__).resolve().parent  # ruta absoluta del proyecto
 
 
 # Carpeta base para proyectos
