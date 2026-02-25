@@ -6,3 +6,6 @@ __pycache__/
 
 # Local testing samples
 samples/
+
+# Projects
+projects/
