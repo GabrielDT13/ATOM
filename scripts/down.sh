@@ -14,6 +14,12 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-docker compose --env-file "$ENV_FILE" down
+if ! command -v supabase >/dev/null 2>&1; then
+  echo "No se encontro Supabase CLI en PATH." >&2
+  exit 1
+fi
 
-echo "Servidor detenido."
+docker compose --env-file "$ENV_FILE" down
+supabase stop
+
+echo "Servidor y Supabase detenidos."

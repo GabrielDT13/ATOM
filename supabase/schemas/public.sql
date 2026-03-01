@@ -1,6 +1,0 @@
--- Define aqui tablas, indices, RLS y demas objetos del schema public.
--- Ejemplo:
--- CREATE TABLE IF NOT EXISTS public.example (
---   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
---   created_at timestamptz NOT NULL DEFAULT now()
--- );
