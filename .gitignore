@@ -9,3 +9,7 @@ samples/
 
 # Projects
 projects/
+
+# Local environment files
+.env.local
+.env.*.local

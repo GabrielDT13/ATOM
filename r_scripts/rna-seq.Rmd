@@ -22,18 +22,18 @@ output:
 # Iniciamos un temporizador
 start_time <- Sys.time()
 
-library(readxl)       # Librearia para leer archivos de excel
-library(DT)           # Libreria para crear tablas formateadas
-library(org.Mm.eg.db) #Libreria para cargar la base de datos de raton
-library(org.Hs.eg.db) #Libreria para cargar la base de datos de humanos
-library(dplyr)        # Libreria para la manipulacion de datos
-library(DESeq2)       # Libreria para el análisis de datos de RNA-seq
-library(ggplot2)      # Libreria para visialización de datos
-library(gridExtra)    # Libreria para combinar graficos en un lienzo
+library(readxl)       # Librería para leer archivos de excel
+library(DT)           # Librería para crear tablas formateadas
+library(org.Mm.eg.db) # Librería para cargar la base de datos de raton
+library(org.Hs.eg.db) # Librería para cargar la base de datos de humanos
+library(dplyr)        # Librería para la manipulacion de datos
+library(DESeq2)       # Librería para el análisis de datos de RNA-seq
+library(ggplot2)      # Librería para visualización de datos
+library(gridExtra)    # Librería para combinar gráficos en un lienzo
 library(PoiClaClu)    # Librería para el análisis de datos de contaje
-library(RColorBrewer) # Libreria para proporcionar paletas de colores
-library(pheatmap)     # Libreria para generar mapas de calor de matrices de datos
-library(factoextra)   # Libreria para visualizar y extraer resultados de análisis multivariantes
+library(RColorBrewer) # Librería para proporcionar paletas de colores
+library(pheatmap)     # Librería para generar mapas de calor de matrices de datos
+library(factoextra)   # Librería para visualizar y extraer resultados de análisis multivariantes
 library(EnhancedVolcano)
 library(ComplexHeatmap)
 library(ggvenn)
@@ -322,7 +322,10 @@ pageLength = 10
 
 ```{r start_analysis, include=FALSE}
 
-# Iniciamos el flujo del analisis dependiendo del archivo del que vayamos a partir
+# Iniciamos el flujo del análisis dependiendo del tipo de archivo del que vayamos 
+# a partir
+
+# Si partimos de una matriz de contajes de lecturas.
 if ("counts_file" %in% colnames(metadata) && any(!is.na(metadata$counts_file))) {
   
   message("Se encontró una columna de archivos Counts: iniciar análisis desde archivos Counts (matriz de contajes).")
@@ -338,10 +341,24 @@ if ("counts_file" %in% colnames(metadata) && any(!is.na(metadata$counts_file))) 
   cts <- cts[, as.character(metadata$sample_id)]  
 
   
-} else if ("bam_file" %in% colnames(metadata) && any(!is.na(metadata$counts_file))) {
+# Si partimos de archivos alineados bam.  
+} else if ("bam_file" %in% colnames(metadata) && any(!is.na(metadata$bam_file))) {
   
   
   message("Se encontró una columna de archivos BAM: iniciar análisis desde archivos BAM (alineados).")
+
+  # Definir BAMs de entrada
+  bam_files <- file.path(project_dir, metadata$bam_file)
+
+  # Definir anotación GTF según organismo (común a todos los flujos)
+  if (organism == "mus musculus") {
+    ref_gtf <- file.path(base_dir, "genomes/mm10/mm10.gtf")
+  } else if (organism == "homo sapiens") {
+    ref_gtf <- file.path(base_dir, "genomes/hg19/hg19.gtf")
+  } else {
+    stop("Organismo no soportado: ", organism)
+  }
+
   
   # ==========================================================
   # Preprocesamiento de BAMs tras alineamiento con Rsubread
@@ -447,7 +464,8 @@ if ("counts_file" %in% colnames(metadata) && any(!is.na(metadata$counts_file))) 
     # Convertir a matriz de enteros
     cts <- as.matrix(counts_clean)
   
-
+    
+# Si partimos de archivos crudos sin alinear fastq.
 } else if ("fastq1_file" %in% colnames(metadata) && any(!is.na(metadata$fastq1_file))) {
   
   
@@ -608,6 +626,16 @@ storage.mode(cts) <- "integer"
 # Omitir filas con valores NA en cts
 cts <- na.omit(cts)  
 
+# Save as a tab-delimited text file
+write.table(
+  cts,
+  file = "counts.txt",
+  sep = "\t",
+  quote = FALSE,
+  row.names = TRUE,
+  col.names = NA
+)
+
 # Extraemos el diseño del experimento
 design_var <- unique(design$analysis_design)  
   
@@ -663,83 +691,111 @@ metadata[[design_var]] <- factor(metadata[[design_var]])
 design_levels <- levels(metadata[[design_var]])
 
 # Inicializar contador global de índices de muestra
-global_indices <- 1:nrow(metadata)
-names(global_indices) <- metadata$sample_id
+#global_indices <- 1:nrow(metadata)
+#names(global_indices) <- metadata$sample_id
 
 # Dividir los índices globales por tratamiento
-design_groups <- split(global_indices, metadata[[design_var]])
+#design_groups <- split(global_indices, metadata[[design_var]])
 
 # Bucle para generar combinaciones y mantener numeración continua
-for (treat in design_levels) {
-  idx <- design_groups[[treat]]
-  if (length(idx) >= 2) {
-    combs <- combn(idx, 2, simplify = FALSE)
-    combinations_by_design[[treat]] <- combs
-  } else {
-    combinations_by_design[[treat]] <- list()
-  }
-}
+#for (treat in design_levels) {
+#  idx <- design_groups[[treat]]
+#  if (length(idx) >= 2) {
+#    combs <- combn(idx, 2, simplify = FALSE)
+#    combinations_by_design[[treat]] <- combs
+#  } else {
+#    combinations_by_design[[treat]] <- list()
+#  }
+#}
 
-# Combinar todas las combinaciones en una única lista
-lista_total_combinaciones <- unlist(combinations_by_design[1], recursive = FALSE)
+# Crear una única lista con todas las combinaciones posibles
+#lista_total_combinaciones <- unlist(combinations_by_design[1], recursive = FALSE)
 
-n_plots <- length(lista_total_combinaciones)
-n_filas <- ceiling(n_plots / 3)
+#n_plots <- length(lista_total_combinaciones)
+#n_filas <- ceiling(n_plots / 3)
 
-plots <- lapply(lista_total_combinaciones, function(samples) {
+#plots <- lapply(lista_total_combinaciones, function(samples) {
   # Construir data.frame con los dos samples de la combinación
-  df <- data.frame(
-    x = log2(counts(dds, normalized = TRUE)[, samples[1]] + 1),
-    y = log2(counts(dds, normalized = TRUE)[, samples[2]] + 1)
-  )
+#  df <- data.frame(
+#    x = log2(counts(dds, normalized = TRUE)[, samples[1]] + 1),
+#    y = log2(counts(dds, normalized = TRUE)[, samples[2]] + 1)
+#  )
   
   # Crear scatterplot de comparación
-  ggplot(df, aes(x = x, y = y)) +
-    geom_point(size = 0.3, alpha = 0.6) +
-    labs(
-      x = paste0("Sample ", colnames(counts(dds))[samples[1]]),
-      y = paste0("Sample ", colnames(counts(dds))[samples[2]])
-    ) +
-    theme_minimal(base_size = 10)
-})
+#  ggplot(df, aes(x = x, y = y)) +
+#    geom_point(size = 0.3, alpha = 0.6) +
+#    labs(
+#      x = paste0("Sample ", colnames(counts(dds))[samples[1]]),
+#      y = paste0("Sample ", colnames(counts(dds))[samples[2]])
+#    ) +
+#    theme_minimal(base_size = 10)
+#})
 
 # Combinar en un panel de 3 columnas
-QC_sp1 <- grid.arrange(grobs = plots, ncol = 3)
+#QC_sp1 <- grid.arrange(grobs = plots, ncol = 3)
 
 # Guardar en archivo
-out_file <- file.path(out_dir, "QC_sp1.jpeg")
-ggsave(out_file, QC_sp1, width = n_plots * 4, height = n_filas * 4, dpi = 300)
+#out_file <- file.path(out_dir, "QC_sp1.jpeg")
+
+#plots_split <- split(plots, ceiling(seq_along(plots) / 9))
+
+#for (i in seq_along(plots_split)) {
+#  p <- grid.arrange(grobs = plots_split[[i]], ncol = 3)
+#  ggsave(
+#    file.path(out_dir, paste0("QC_sp1_part", i, ".jpeg")),
+#    p,
+#    width = 12,
+#    height = 12,
+#    dpi = 300
+#  )
+#}
+
+#ggsave(out_file, QC_sp1, width = n_plots * 4, height = n_filas * 4, dpi = 300)
 
 
 # Combinar todas las combinaciones en una única lista
-lista_total_combinaciones <- unlist(combinations_by_design[2], recursive = FALSE)
+#lista_total_combinaciones <- unlist(combinations_by_design[2], recursive = FALSE)
 
-n_plots <- length(lista_total_combinaciones)
-n_filas <- ceiling(n_plots / 3)
+#n_plots <- length(lista_total_combinaciones)
+#n_filas <- ceiling(n_plots / 3)
 
-plots <- lapply(lista_total_combinaciones, function(samples) {
+#plots <- lapply(lista_total_combinaciones, function(samples) {
   # Construir data.frame con los dos samples de la combinación
-  df <- data.frame(
-    x = log2(counts(dds, normalized = TRUE)[, samples[1]] + 1),
-    y = log2(counts(dds, normalized = TRUE)[, samples[2]] + 1)
-  )
+#  df <- data.frame(
+#    x = log2(counts(dds, normalized = TRUE)[, samples[1]] + 1),
+#    y = log2(counts(dds, normalized = TRUE)[, samples[2]] + 1)
+#  )
   
   # Crear scatterplot de comparación
-  ggplot(df, aes(x = x, y = y)) +
-    geom_point(size = 0.3, alpha = 0.6) +
-    labs(
-      x = paste0("Sample ", colnames(counts(dds))[samples[1]]),
-      y = paste0("Sample ", colnames(counts(dds))[samples[2]])
-    ) +
-    theme_minimal(base_size = 10)
-})
+#  ggplot(df, aes(x = x, y = y)) +
+#    geom_point(size = 0.3, alpha = 0.6) +
+#    labs(
+#      x = paste0("Sample ", colnames(counts(dds))[samples[1]]),
+#      y = paste0("Sample ", colnames(counts(dds))[samples[2]])
+#    ) +
+#    theme_minimal(base_size = 10)
+#})
 
 # Combinar en un panel de 3 columnas
-QC_sp2 <- grid.arrange(grobs = plots, ncol = 3)
+#QC_sp2 <- grid.arrange(grobs = plots, ncol = 3)
 
 # Guardar en archivo
-out_file <- file.path(out_dir, "QC_sp2.jpeg")
-ggsave(out_file, QC_sp2, width = n_plots * 4, height = n_filas * 4, dpi = 300)
+#out_file <- file.path(out_dir, "QC_sp2.jpeg")
+
+#plots_split <- split(plots, ceiling(seq_along(plots) / 9))
+
+#for (i in seq_along(plots_split)) {
+#  p <- grid.arrange(grobs = plots_split[[i]], ncol = 3)
+#  ggsave(
+#    file.path(out_dir, paste0("QC_sp2_part", i, ".jpeg")),
+#    p,
+#    width = 12,
+#    height = 12,
+#    dpi = 300
+#  )
+#}
+
+#ggsave(out_file, QC_sp2, width = n_plots * 4, height = n_filas * 4, dpi = 300)
 
 ```
 
@@ -749,9 +805,11 @@ Muestras tratadas con: `r paste(design_levels[1], collapse = ", ")`.
 
 <br>
 
-```{r QC_Scatter_Plots_2, echo=FALSE, fig.width=n_plots * 3, fig.height=n_filas * 3, fig.align='center'}
+```{r QC_Scatter_Plots_2, echo=FALSE, eval=FALSE}
 
-grid::grid.draw(QC_sp1)
+#{r QC_Scatter_Plots_2, echo=FALSE, fig.width=n_plots * 3, fig.height=n_filas * 3, fig.align='center', eval=FALSE}
+
+#grid::grid.draw(QC_sp1)
 
 ```
 
@@ -761,9 +819,11 @@ Muestras tratadas con: `r paste(design_levels[2], collapse = ", ")`.
 
 <br>
 
-```{r QC_Scatter_Plots_3, echo=FALSE, fig.width=n_plots * 3, fig.height=n_filas * 3, fig.align='center'}
+```{r QC_Scatter_Plots_3, echo=FALSE, eval=FALSE}
 
-grid::grid.draw(QC_sp2)
+#{r QC_Scatter_Plots_3, echo=FALSE, fig.width=n_plots * 3, fig.height=n_filas * 3, fig.align='center', eval=FALSE}
+
+#grid::grid.draw(QC_sp2)
 
 ```
 
@@ -1371,7 +1431,7 @@ if (nrow(gse_mf_results) == 0) {
     pageLength = 10
   ))
   
-  p <- dotplotGsea(data = gse_bp, topn = 10, order.by = 'NES')$plot +
+  p <- dotplotGsea(data = gse_mf, topn = 10, order.by = 'NES')$plot +
   ggtitle("Molecular Function (MF)")
 
   # Lo imprimimos para mostrarlo en HTML
@@ -1428,7 +1488,7 @@ if (nrow(gse_cc_results) == 0) {
     pageLength = 10
   ))
   
-  p <- dotplotGsea(data = gse_bp, topn = 10, order.by = 'NES')$plot +
+  p <- dotplotGsea(data = gse_cc, topn = 10, order.by = 'NES')$plot +
   ggtitle("Celular Component (CC)")
 
   # Lo imprimimos para mostrarlo en HTML
@@ -1474,7 +1534,7 @@ if (nrow(edo_results) == 0) {
 } else {
 
   # Crear gráfico tipo red
-  p <- cnetplot(edo_symbol, foldChange = geneList)
+  p <- cnetplot(edo_symbol, categorySize = "pvalue", foldChange = geneList)
   # Guardamos el gráfico
   ggsave(filename=file.path(out_dir,"GO_bp_dp.jpeg"), plot=p, width=10, height=10, dpi=100)
   
