@@ -4,9 +4,27 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
-PORT="${ATOM_PORT:-8080}"
+ENV_FILE="${ENV_FILE:-.env.local}"
+if [[ ! -f "$ENV_FILE" ]]; then
+  ENV_FILE=".env"
+fi
 
-docker compose up --build -d
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "No se encontro archivo de entorno (.env.local o .env)." >&2
+  exit 1
+fi
+
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+PORT="${ATOM_PORT}"
+
+docker compose --env-file "$ENV_FILE" up --build -d
 
 echo "Servidor levantado en http://127.0.0.1:${PORT}"
+echo "Supabase (Gateway): http://127.0.0.1:${SUPABASE_PORT}"
+echo "Supabase (Postgres): postgresql://${SUPABASE_DB_USER}:${SUPABASE_DB_PASSWORD}@127.0.0.1:${SUPABASE_DB_PORT}/${SUPABASE_DB_NAME}"
+echo "Supabase Studio: http://127.0.0.1:${SUPABASE_STUDIO_PORT}"
 echo "Logs: ./scripts/logs.sh"
