@@ -14,4 +14,4 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-docker compose --env-file "$ENV_FILE" logs -f atom-app supabase-kong supabase-auth supabase-rest supabase-db supabase-meta supabase-studio
+docker compose --env-file "$ENV_FILE" logs -f atom-app
