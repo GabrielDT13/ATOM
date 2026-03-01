@@ -4,19 +4,18 @@ Esta carpeta concentra todo lo relacionado con Supabase en local.
 
 ## Estructura
 
-- `init/`: bootstrap de base de datos al primer arranque del volumen.
 - `schemas/`: definicion SQL base de tablas/indices/policies.
 - `migrations/`: migraciones SQL versionadas del proyecto.
 - `functions/`: funciones edge/serverless o funciones SQL auxiliares.
 - `seeds/`: datos iniciales para entorno local/dev.
 - `tests/`: tests SQL e integracion.
-- `kong/`: enrutamiento local hacia `/auth/v1` y `/rest/v1`.
+- `config.toml`: configuracion de Supabase CLI para exponer API y seeds.
 
-## Diferencia clave: `init` vs `migrations`
+## Diferencia clave: `schemas` vs `migrations`
 
-- `init`:
-  - Se ejecuta solo una vez cuando la DB esta vacia.
-  - Prepara roles/esquemas base para que Supabase arranque.
+- `schemas`:
+  - Es tu fuente de verdad organizada para diseñar cambios.
+  - No se aplica automaticamente por la CLI.
 - `migrations`:
   - Son cambios evolutivos del esquema de tu app.
   - Deben poder aplicarse de forma incremental en el tiempo.
@@ -27,12 +26,30 @@ Esta carpeta concentra todo lo relacionado con Supabase en local.
 - Seeds: `seeds/20260225_base_data.sql`
 - Functions: `functions/<nombre>/...`
 
+## Schemas iniciales propuestos
+
+- `auth`: gestionado por GoTrue para email/password y sesiones.
+- `internal`: tablas reales de negocio.
+- `app_private`: triggers y funciones internas.
+- `public`: vistas de lectura y RPC expuestas.
+
+## Flujo de arranque local
+
+1. `./scripts/up.sh`
+2. El script arranca Supabase CLI y luego la app.
+3. Usa Supabase CLI para gestionar migraciones y reset:
+   - `supabase migration up`
+   - `supabase db reset`
+4. Usa Studio desde el stack de Supabase CLI.
+5. Los seeds estan separados por dominio dentro de `seeds/` (`00_roles.sql`, `10_users.sql`, `20_projects.sql`) y `config.toml` los registra para la CLI.
+
 ## Flujo con `supabase db diff`
 
-1. Diseñar cambios en `schemas/`.
-2. Aplicar cambios en DB local.
-3. Generar migracion:
-   - `./scripts/supabase-db-diff.sh <nombre_migracion>`
-4. Revisar archivo en `migrations/`.
+1. Diseñar cambios en `schemas/` (fuente de verdad).
+2. Generar migracion nueva con Supabase CLI:
+   - `supabase db diff --schema public,internal,app_private,auth --file <nombre_migracion>`
+3. Revisar y limpiar el archivo generado en `migrations/`.
+4. Aplicar la migracion con:
+   - `supabase migration up`
 
 Puedes ajustar los schemas de diff con `SUPABASE_DIFF_SCHEMAS` en `.env.local`.
