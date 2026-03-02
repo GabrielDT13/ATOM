@@ -63,7 +63,7 @@ def login():
         else:
             flash('Usuario o contraseña incorrectos')
 
-    return render_template('login.html')
+    return render_template('pages/login.html')
 
 
 @app.route('/dashboard')
@@ -71,9 +71,9 @@ def dashboard():
     if 'username' not in session:
         return redirect(url_for('login'))
     return render_template(
-        'dashboard.html',
+        'layouts/dashboard_shell.html',
         username=session['username'],
-        content_template='components/home.html'
+        content_template='pages/dashboard/home.html'
     )
 
 
@@ -196,17 +196,17 @@ def register():
                 flash(f"Usuario creado, pero no se pudo crear su carpeta de proyectos: {e}", "error")
 
         return render_template(
-            "dashboard.html",
+            "layouts/dashboard_shell.html",
             username=session['username'],
-            content_template="components/register.html",
+            content_template="pages/dashboard/register.html",
             message=message,
             success=success
         )
 
     return render_template(
-        "dashboard.html",
+        "layouts/dashboard_shell.html",
         username=session['username'],
-        content_template="components/register.html"
+        content_template="pages/dashboard/register.html"
     )
 
 
@@ -220,9 +220,9 @@ def dashboard_register():
         return redirect(url_for('dashboard'))
 
     return render_template(
-        'dashboard.html',
+        'layouts/dashboard_shell.html',
         username=session['username'],
-        content_template='components/register.html'
+        content_template='pages/dashboard/register.html'
     )
 
 
@@ -239,9 +239,9 @@ def dashboard_edit_users():
         users = {session['username']: users[session['username']]}
 
     return render_template(
-        'dashboard.html',
+        'layouts/dashboard_shell.html',
         username=session['username'],
-        content_template='components/edit_users.html',
+        content_template='pages/dashboard/edit_users.html',
         users=users
     )
 
@@ -294,9 +294,9 @@ def edit_user_form(username):
 
     # Renderizar dentro del dashboard, mismo estilo que registro
     return render_template(
-        "dashboard.html",
+        "layouts/dashboard_shell.html",
         username=session['username'],
-        content_template="components/edit_user_form.html",
+        content_template="pages/dashboard/edit_user_form.html",
         user=user,
         username_form=username  # nombre actual del usuario para el form
     )
@@ -398,9 +398,9 @@ def create_project():
                     success = False
 
     return render_template(
-        'dashboard.html',
+        'layouts/dashboard_shell.html',
         username=username,
-        content_template='components/create_project.html',
+        content_template='pages/dashboard/create_project.html',
         message=message,
         success=success
     )
@@ -468,8 +468,8 @@ def edit_project_form(username, project_name):
             existing_files.append(item.name)
 
     return render_template(
-        "dashboard.html",
-        content_template="components/edit_project_form.html",
+        "layouts/dashboard_shell.html",
+        content_template="pages/dashboard/edit_project_form.html",
         username=username,
         project_name=project_name,
         project_files=existing_files
@@ -500,9 +500,9 @@ def dashboard_edit_projects():
             projects[user] = []
 
     return render_template(
-        'dashboard.html',
+        'layouts/dashboard_shell.html',
         username=username,
-        content_template='components/edit_projects.html',
+        content_template='pages/dashboard/edit_projects.html',
         projects=projects
     )
 

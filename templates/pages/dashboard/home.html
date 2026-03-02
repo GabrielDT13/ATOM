@@ -1,0 +1,63 @@
+<!-- Sección Home -->
+<div id="home-section" class="content-home">
+    <!-- Introducción -->
+    <div class="bg-gray-50 rounded-xl p-4 shadow mb-6">
+        <h2 class="text-2xl font-bold mb-4">Plataforma para el análisis de datos ómicos</h2>
+        <p>En esta plataforma de análisis avanzados de datos ómicos, los usuarios pueden cargar sus datos experimentales obteniendo informes de resultados que interpretan los procesos biológicos subyacentes.</p>
+    </div>
+
+    <style>
+    .image-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-bottom: 1rem;
+    }
+    .image-row .cell {
+    flex: 1 1 22%;
+    min-width: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8px;
+    border-radius: 12px;
+    background: white;
+    }
+
+    .image-row .cell img {
+     width: 100%;
+    height: auto;
+    display: block;
+    object-fit: contain;
+    }
+
+
+    @media (max-width: 768px) {
+    .image-row .cell {
+        flex: 1 1 45%;
+    }
+    }
+
+    </style>
+
+    <div class="image-row">
+    <div class="cell">
+        <img src="{{ url_for('static', filename='images/ChIP-seq_icon.png') }}" alt="ChIP-seq">
+    </div>
+    <div class="cell">
+        <img src="{{ url_for('static', filename='images/RNA-seq_icon.png') }}" alt="RNA-seq">
+    </div>
+    <div class="cell">
+        <img src="{{ url_for('static', filename='images/ATAC-seq_icon.png') }}" alt="ATAC-seq">
+    </div>
+    <div class="cell">
+        <img src="{{ url_for('static', filename='images/scRNA-seq_icon.png') }}" alt="scRNA-seq">
+    </div>
+    </div>
+
+    <div class="bg-gray-50 rounded-xl p-4 shadow mb-6">
+        <p>En esta plataforma de análisis avanzados de datos ómicos, los usuarios pueden cargar sus datos experimentales obteniendo informes de resultados que interpretan los procesos biológicos subyacentes.</p>
+    </div>
+
+</div>
