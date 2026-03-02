@@ -2,33 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>{{ title if title else "My Web App" }}</title>    
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/body.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/topbar.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar-right.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/sidebar-left.css') }}">
-
-
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/edit_common.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/register_common.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/file_view.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/spinner.css') }}">
-
-
-
-
-    <script src="{{ url_for('static', filename='js/login.js') }}" defer></script>
-        <script src="{{ url_for('static', filename='js/sidebar-left.js') }}" defer></script>
-        <script src="{{ url_for('static', filename='js/sidebar-right.js') }}" defer></script>
-    
-    {% block scripts %}{% endblock %}
+    <title>{{ title if title else "My Web App" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/base/body.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pages/login.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout/topbar.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout/sidebar-right.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout/sidebar-left.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/edit_common.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/register_common.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/file_view.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components/spinner.css') }}">
+    {% block head %}{% endblock %}
 </head>
 <body>
-    {% include 'components/topbar.html' %}
-    <div class="main-container">
-        {% block content %}{% endblock %}
-    </div>
+    {% block body %}{% endblock %}
+    <script src="{{ url_for('static', filename='js/app/login.js') }}" defer></script>
+    {% if 'username' in session %}
+    <script src="{{ url_for('static', filename='js/app/sidebar-left.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='js/app/sidebar-right.js') }}" defer></script>
+    {% endif %}
+    {% block scripts %}{% endblock %}
 </body>
 </html>
