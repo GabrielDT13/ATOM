@@ -19,7 +19,7 @@ if ! command -v supabase >/dev/null 2>&1; then
   exit 1
 fi
 
-docker compose --env-file "$ENV_FILE" down
+docker compose --env-file "$ENV_FILE" down --remove-orphans
 supabase stop
 
 echo "Servidor y Supabase detenidos."

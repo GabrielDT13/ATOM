@@ -14,6 +14,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-docker compose --env-file "$ENV_FILE" build --no-cache atom-app
+docker compose --env-file "$ENV_FILE" build --no-cache atom-backend atom-frontend
 
-echo "Imagen reconstruida."
+echo "Imagenes reconstruidas."

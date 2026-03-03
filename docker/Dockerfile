@@ -48,12 +48,14 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
 
 WORKDIR /app
 
-COPY requirements.txt /tmp/requirements.txt
+COPY backend/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
 COPY docker/install_r_packages.R /tmp/install_r_packages.R
 RUN Rscript /tmp/install_r_packages.R
 
-EXPOSE 5000
+COPY backend /app/backend
 
-CMD ["python", "app.py"]
+EXPOSE 8000
+
+CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

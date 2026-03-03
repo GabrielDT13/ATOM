@@ -24,12 +24,14 @@ set -a
 source "$ENV_FILE"
 set +a
 
-PORT="${ATOM_PORT}"
+PORT="${ATOM_PORT:-3000}"
+API_PORT="${ATOM_API_PORT:-8000}"
 
 supabase start
-docker compose --env-file "$ENV_FILE" up --build -d
+docker compose --env-file "$ENV_FILE" up --build -d --remove-orphans
 
-echo "Servidor levantado en http://127.0.0.1:${PORT}"
+echo "Frontend levantado en http://127.0.0.1:${PORT}"
+echo "Backend API en http://127.0.0.1:${API_PORT}"
 echo "Supabase CLI (Gateway esperado): http://127.0.0.1:${SUPABASE_PORT}"
 echo "Supabase CLI (Postgres esperado): postgresql://${SUPABASE_DB_USER}:${SUPABASE_DB_PASSWORD}@127.0.0.1:${SUPABASE_DB_PORT}/${SUPABASE_DB_NAME}"
 echo "Supabase Studio: http://127.0.0.1:54323"

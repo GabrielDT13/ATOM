@@ -1,6 +1,6 @@
 ---
 title: >
-  ![](../static/images/logo.png){width=3in} &emsp; Análisis de RNA-seq
+  ![](../assets/images/logo.png){width=3in} &emsp; Análisis de RNA-seq
 author: "Juan Vladimir de la Rosa Medina"
 date: "`r Sys.Date()`"
 params:
@@ -1533,12 +1533,31 @@ if (nrow(edo_results) == 0) {
   
 } else {
 
-  # Crear gráfico tipo red
-  p <- cnetplot(edo_symbol, categorySize = "pvalue", foldChange = geneList)
-  # Guardamos el gráfico
-  ggsave(filename=file.path(out_dir,"GO_bp_dp.jpeg"), plot=p, width=10, height=10, dpi=100)
-  
-  print(p)
+  # Crear gráfico tipo red con fallback por cambios entre versiones de enrichplot/ggtangle
+  p <- tryCatch(
+    {
+      cnetplot(edo_symbol, categorySize = "pvalue", foldChange = geneList2)
+    },
+    error = function(e1) {
+      message("cnetplot con categorySize='pvalue' falló, se reintenta con 'geneNum'. Detalle: ", conditionMessage(e1))
+      tryCatch(
+        {
+          cnetplot(edo_symbol, categorySize = "geneNum", foldChange = geneList2)
+        },
+        error = function(e2) {
+          message("No se pudo generar cnetplot: ", conditionMessage(e2))
+          NULL
+        }
+      )
+    }
+  )
+
+  if (!is.null(p)) {
+    # Guardamos el gráfico
+    ggsave(filename=file.path(out_dir,"GO_bp_dp.jpeg"), plot=p, width=10, height=10, dpi=100)
+    
+    print(p)
+  }
   
 }
 

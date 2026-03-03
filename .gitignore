@@ -20,3 +20,9 @@ supabase/.branches/
 
 # Local temporary files
 tmp/
+
+#Node modules
+node_modules/
+
+# Next.js build output
+.next/

@@ -1,18 +1,40 @@
 services:
-  atom-app:
+  atom-backend:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: atom-local
+    container_name: atom-api
     ports:
-      - "${ATOM_PORT:-8080}:5000"
+      - "${ATOM_API_PORT:-8000}:8000"
     volumes:
       - ./:/app
     environment:
-      - FLASK_ENV=${FLASK_ENV}
-      - FLASK_HOST=${FLASK_HOST}
-      - FLASK_PORT=${FLASK_PORT}
+      - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
+      - BACKEND_PORT=${BACKEND_PORT:-8000}
+      - SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - SUPABASE_URL=${SUPABASE_URL_INTERNAL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
     restart: unless-stopped
+  atom-frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: atom-web
+    depends_on:
+      - atom-backend
+    ports:
+      - "${ATOM_PORT:-3000}:3000"
+    volumes:
+      - ./:/app
+      - frontend_node_modules:/app/frontend/node_modules
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-/backend-api}
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://atom-backend:8000}
+      - NEXT_PUBLIC_BACKEND_PUBLIC_ORIGIN=${NEXT_PUBLIC_BACKEND_PUBLIC_ORIGIN:-}
+      - NEXT_PUBLIC_BACKEND_PUBLIC_PORT=${NEXT_PUBLIC_BACKEND_PUBLIC_PORT:-8000}
+    restart: unless-stopped
+
+volumes:
+  frontend_node_modules:
