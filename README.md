@@ -1,6 +1,6 @@
-# ATOM - Ejecucion local con Docker + Supabase
+# ATOM - Next.js + FastAPI con Docker + Supabase
 
-Este proyecto se ejecuta en local dentro de un contenedor Docker para evitar instalar dependencias de Python/R manualmente en tu maquina.
+Este proyecto se ejecuta en local con dos contenedores: `FastAPI` para backend y `Next.js` para frontend. Asi evitas instalar dependencias de Python, Node o R manualmente en tu maquina.
 
 ## Requisitos
 
@@ -16,9 +16,12 @@ docker compose version
 
 ## Estructura relevante
 
-- `docker/Dockerfile`: imagen con Python, R, Pandoc y dependencias del sistema.
+- `backend/`: backend modular en FastAPI.
+- `frontend/`: frontend en Next.js con TypeScript.
+- `docker/Dockerfile`: imagen del backend con Python, R, Pandoc y dependencias del sistema.
+- `docker/frontend.Dockerfile`: imagen del frontend con Node.js.
 - `docker/install_r_packages.R`: instalacion de paquetes R/bioconductor.
-- `docker-compose.yml`: servicio `atom-app`.
+- `docker-compose.yml`: servicios `atom-backend` y `atom-frontend`.
 - `.env.example`: plantilla de variables de entorno.
 - `.env.local`: variables locales reales (no versionadas).
 - `supabase/`: modulo de Supabase (schemas, migrations, functions, seeds, tests, config).
@@ -50,11 +53,13 @@ Desde la raiz del proyecto:
 
 Servicios disponibles en:
 
-- `http://127.0.0.1:8080`
+- `http://127.0.0.1:3000` (frontend Next.js)
+- `http://127.0.0.1:8000` (API FastAPI, acceso directo opcional)
 - `http://127.0.0.1:54323` (Supabase Studio via CLI)
 
 > Puertos por defecto:
-> - `8080` (host) -> `5000` (ATOM)
+> - `3000` (host) -> `3000` (frontend)
+> - `8000` (host) -> `8000` (backend)
 > - `54323` (host) -> `54323` (Supabase Studio via CLI)
 
 ## Comandos utiles
@@ -80,7 +85,7 @@ Reconstruir imagen completa (si cambian dependencias):
 
 ## Cambiar puerto local
 
-Puedes cambiar el puerto exportando `ATOM_PORT`:
+Puedes cambiar el puerto del frontend exportando `ATOM_PORT`:
 
 ```bash
 ATOM_PORT=9090 ./scripts/up.sh
@@ -89,6 +94,18 @@ ATOM_PORT=9090 ./scripts/up.sh
 Luego abre:
 
 - `http://127.0.0.1:9090`
+
+Para cambiar el puerto del backend:
+
+```bash
+ATOM_API_PORT=9000 ./scripts/up.sh
+```
+
+Si cambias el puerto del backend, exporta tambien la URL publica que debe usar Next.js:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:9000 ATOM_API_PORT=9000 ./scripts/up.sh
+```
 
 Para cambiar puertos del stack de Supabase CLI:
 
@@ -126,11 +143,13 @@ supabase migration up
 supabase db reset
 ```
 
-La app en Docker debe apuntar al gateway de Supabase CLI. En `.env.local`, usa:
+La API en Docker debe apuntar al gateway de Supabase CLI. En `.env.local`, usa:
 
 ```bash
 SUPABASE_URL_INTERNAL=http://host.docker.internal:54321
 ```
+
+El frontend usa por defecto un proxy interno de Next (`/backend-api`) hacia FastAPI para evitar problemas de sesion/cookies entre puertos distintos.
 
 Studio se levanta automaticamente con `supabase start`.
 
