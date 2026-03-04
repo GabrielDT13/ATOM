@@ -53,9 +53,9 @@ Desde la raiz del proyecto:
 
 Servicios disponibles en:
 
-- `http://127.0.0.1:3000` (frontend Next.js)
-- `http://127.0.0.1:8000` (API FastAPI, acceso directo opcional)
-- `http://127.0.0.1:54323` (Supabase Studio via CLI)
+- `http://localhost:3000` (frontend Next.js)
+- `http://localhost:8000` (API FastAPI, acceso directo opcional)
+- `http://localhost:54323` (Supabase Studio via CLI)
 
 > Puertos por defecto:
 > - `3000` (host) -> `3000` (frontend)
@@ -93,7 +93,7 @@ ATOM_PORT=9090 ./scripts/up.sh
 
 Luego abre:
 
-- `http://127.0.0.1:9090`
+- `http://localhost:9090`
 
 Para cambiar el puerto del backend:
 

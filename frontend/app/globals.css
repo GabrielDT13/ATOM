@@ -1,3 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: #0d7ff2;
+  --color-primary-dark: #0a66c7;
+  --color-accent: #ffa500;
+  --color-secondary: #f8b84e;
+  --color-surface-dark: #0a1f44;
+  --color-surface-light: #f5f7f8;
+  --color-border-soft: #e2e8f0;
+  --color-text-main: #0f172a;
+  --color-text-muted: #64748b;
+}
+
 * {
   box-sizing: border-box;
 }

@@ -4,6 +4,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Frontend dependencies
+node_modules/
+
 # Local testing samples
 samples/
 
@@ -21,8 +24,6 @@ supabase/.branches/
 # Local temporary files
 tmp/
 
-#Node modules
-node_modules/
-
 # Next.js build output
 .next/
+*.tsbuildinfo
