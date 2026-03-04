@@ -1,15 +1,10 @@
-import { LoginForm } from "@/components/login-form";
-import { Topbar } from "@/components/topbar";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
   return (
-    <>
-      <Topbar />
-      <div className="main-container">
-        <div className="login-page">
-          <LoginForm />
-        </div>
-      </div>
-    </>
+    <AuthShell>
+      <LoginForm />
+    </AuthShell>
   );
 }

@@ -27,8 +27,9 @@ services:
     ports:
       - "${ATOM_PORT:-3000}:3000"
     volumes:
-      - ./:/app
+      - ./frontend:/app/frontend
       - frontend_node_modules:/app/frontend/node_modules
+      - frontend_next_cache:/app/frontend/.next
     environment:
       - NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL:-/backend-api}
       - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://atom-backend:8000}
@@ -38,3 +39,4 @@ services:
 
 volumes:
   frontend_node_modules:
+  frontend_next_cache:
