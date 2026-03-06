@@ -1,4 +1,6 @@
 export type SessionUser = {
+  id: string;
+  email: string;
   username: string;
   role: "admin" | "user";
   first_name?: string | null;
@@ -34,6 +36,7 @@ export type SidebarResponse<T> = {
 };
 
 export type UserRecord = {
+  id: string;
   username: string;
   email: string;
   role: "admin" | "user";

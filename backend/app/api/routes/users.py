@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from backend.app.dependencies.auth import get_current_user, require_admin
 from backend.app.schemas.users import UserCreateRequest, UserMutationResponse, UserResponse, UserUpdateRequest
-from backend.app.services.auth import (
-    build_session_user,
-    build_user_response,
+from backend.app.services.users import (
     create_user,
     delete_user,
+    get_user_by_id,
+    get_user_by_username,
     list_users,
     update_user,
 )
@@ -30,8 +30,7 @@ async def post_user(payload: UserCreateRequest, request: Request) -> UserMutatio
     success, message = create_user(payload.username, payload.password, payload.email)
     user = None
     if success:
-        normalized_username = payload.username.strip()
-        user = UserResponse(**build_user_response(normalized_username))
+        user = UserResponse(**get_user_by_username(payload.username))
     return UserMutationResponse(success=success, message=message, user=user)
 
 
@@ -56,12 +55,12 @@ async def put_user(
         return UserMutationResponse(success=False, message=message, user=None)
 
     if current_user["username"] == username:
-        request.session["user"] = build_session_user(effective_username)
+        request.session["user"] = get_user_by_id(str(current_user["id"]))
 
     return UserMutationResponse(
         success=True,
         message=message,
-        user=UserResponse(**build_user_response(effective_username)),
+        user=UserResponse(**get_user_by_username(effective_username)),
     )
 
 

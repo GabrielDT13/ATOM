@@ -13,10 +13,12 @@ services:
       - BACKEND_PORT=${BACKEND_PORT:-8000}
       - BACKEND_RELOAD=${BACKEND_RELOAD:-true}
       - SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
+      - JWT_SECRET=${JWT_SECRET}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - SUPABASE_URL=${SUPABASE_URL_INTERNAL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - SUPABASE_JWT_AUD=${SUPABASE_JWT_AUD:-authenticated}
     restart: unless-stopped
   atom-frontend:
     build:

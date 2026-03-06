@@ -1,23 +1,40 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, field_validator
 
 
 class UserCreateRequest(BaseModel):
     username: str
     password: str
-    email: EmailStr
+    email: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized or "@" not in normalized:
+            raise ValueError("El email no es válido")
+        return normalized
 
 
 class UserUpdateRequest(BaseModel):
     username: str
-    email: EmailStr
+    email: str
     password: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized or "@" not in normalized:
+            raise ValueError("El email no es válido")
+        return normalized
 
 
 class UserResponse(BaseModel):
+    id: str
     username: str
-    email: EmailStr
+    email: str
     role: str
     first_name: str | None = None
     last_name: str | None = None

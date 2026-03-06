@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -17,33 +16,18 @@ def isolated_app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     projects_dir.mkdir()
     r_scripts_dir.mkdir()
 
-    users_path = data_dir / "users.json"
-    users_path.write_text(
-        json.dumps(
-            {
-                "admin": {
-                    "password": "admin123",
-                    "email": "admin@example.com",
-                    "first_name": "Admin",
-                    "last_name": "ATOM",
-                    "department": "Administrador del sistema",
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-
     monkeypatch.setenv("ATOM_PROJECT_ROOT", str(tmp_path))
     monkeypatch.setenv("ATOM_DATA_DIR", str(data_dir))
     monkeypatch.setenv("ATOM_PROJECTS_DIR", str(projects_dir))
     monkeypatch.setenv("ATOM_R_SCRIPTS_DIR", str(r_scripts_dir))
     monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
+    monkeypatch.setenv("JWT_SECRET", "test-jwt-secret")
+    monkeypatch.setenv("SUPABASE_JWT_AUD", "authenticated")
 
     get_settings.cache_clear()
     yield {
         "data_dir": data_dir,
         "projects_dir": projects_dir,
-        "users_path": users_path,
     }
     get_settings.cache_clear()
 
