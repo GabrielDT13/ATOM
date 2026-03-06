@@ -20,6 +20,8 @@ SELECT
   ) AS roles
 FROM internal.profiles p;
 
+ALTER VIEW public.vw_profiles SET (security_invoker = true);
+
 CREATE OR REPLACE VIEW public.vw_projects
 WITH (security_invoker = true)
 AS
@@ -42,6 +44,8 @@ FROM internal.projects p
 JOIN internal.profiles owner_profile
   ON owner_profile.id = p.owner_id;
 
+ALTER VIEW public.vw_projects SET (security_invoker = true);
+
 CREATE OR REPLACE VIEW public.vw_projects_with_users
 WITH (security_invoker = true)
 AS
@@ -63,6 +67,8 @@ JOIN internal.project_members pm
   ON pm.project_id = p.id
 JOIN internal.profiles member_profile
   ON member_profile.id = pm.user_id;
+
+ALTER VIEW public.vw_projects_with_users SET (security_invoker = true);
 
 GRANT SELECT ON public.vw_profiles TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects TO authenticated, service_role;
