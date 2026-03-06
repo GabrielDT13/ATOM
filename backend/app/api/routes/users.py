@@ -4,7 +4,14 @@ from fastapi import APIRouter, HTTPException, Request
 
 from backend.app.dependencies.auth import get_current_user, require_admin
 from backend.app.schemas.users import UserCreateRequest, UserMutationResponse, UserResponse, UserUpdateRequest
-from backend.app.services.auth import create_user, delete_user, list_users, update_user
+from backend.app.services.auth import (
+    build_session_user,
+    build_user_response,
+    create_user,
+    delete_user,
+    list_users,
+    update_user,
+)
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -25,11 +32,7 @@ async def post_user(payload: UserCreateRequest, request: Request) -> UserMutatio
     user = None
     if success:
         normalized_username = payload.username.strip()
-        user = UserResponse(
-            username=normalized_username,
-            email=payload.email,
-            role="admin" if normalized_username == "admin" else "user",
-        )
+        user = UserResponse(**build_user_response(normalized_username))
     return UserMutationResponse(success=success, message=message, user=user)
 
 
@@ -54,18 +57,12 @@ async def put_user(
         return UserMutationResponse(success=False, message=message, user=None)
 
     if current_user["username"] == username:
-        current_user["username"] = effective_username
-        current_user["role"] = "admin" if effective_username == "admin" else "user"
-        request.session["user"] = current_user
+        request.session["user"] = build_session_user(effective_username)
 
     return UserMutationResponse(
         success=True,
         message=message,
-        user=UserResponse(
-            username=effective_username,
-            email=payload.email,
-            role="admin" if effective_username == "admin" else "user",
-        ),
+        user=UserResponse(**build_user_response(effective_username)),
     )
 
 

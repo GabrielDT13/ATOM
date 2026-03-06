@@ -18,6 +18,26 @@ def _normalize_username(username: str) -> str:
     return normalized
 
 
+def _resolve_role(username: str) -> str:
+    return "admin" if username == "admin" else "user"
+
+
+def _build_profile_metadata(
+    username: str,
+    payload: dict[str, str],
+) -> dict[str, str | None]:
+    first_name = payload.get("first_name", "").strip() or None
+    last_name = payload.get("last_name", "").strip() or None
+    department = payload.get("department", "").strip() or None
+
+    return {
+        "first_name": first_name,
+        "last_name": last_name,
+        "department": department,
+        "display_name": first_name or last_name or username,
+    }
+
+
 def load_users() -> dict[str, dict[str, str]]:
     return load_json(USERS_FILE)
 
@@ -27,24 +47,34 @@ def authenticate_user(username: str, password: str) -> bool:
     return bool(user and user.get("password") == password)
 
 
-def build_session_user(username: str) -> dict[str, str]:
+def build_session_user(username: str) -> dict[str, str | None]:
     normalized_username = username.strip()
+    payload = load_users().get(normalized_username, {})
     return {
         "username": normalized_username,
-        "role": "admin" if normalized_username == "admin" else "user",
+        "role": _resolve_role(normalized_username),
+        **_build_profile_metadata(normalized_username, payload),
     }
 
 
-def list_users() -> list[dict[str, str]]:
-    users = []
-    for username, payload in load_users().items():
-        users.append(
-            {
-                "username": username,
-                "email": payload["email"],
-                "role": "admin" if username == "admin" else "user",
-            }
-        )
+def build_user_response(username: str) -> dict[str, str | None]:
+    normalized_username = username.strip()
+    payload = load_users().get(normalized_username)
+    if not payload:
+        raise KeyError(f"Usuario no encontrado: {normalized_username}")
+
+    return {
+        "username": normalized_username,
+        "email": payload["email"],
+        "role": _resolve_role(normalized_username),
+        **_build_profile_metadata(normalized_username, payload),
+    }
+
+
+def list_users() -> list[dict[str, str | None]]:
+    users: list[dict[str, str | None]] = []
+    for username in load_users():
+        users.append(build_user_response(username))
     return users
 
 
