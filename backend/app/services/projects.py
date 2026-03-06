@@ -5,8 +5,9 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
+from backend.app.constants.navigation import SIDEBAR_LEFT_LINKS, SIDEBAR_LEFT_TITLE
 from backend.app.core.config import get_settings
-from backend.app.services.data import load_json, resolve_project_path
+from backend.app.services.data import resolve_project_path
 
 ALLOWED_TEMPLATE_EXTENSIONS = {".xlsx", ".xls"}
 
@@ -38,17 +39,25 @@ def allowed_template_file(filename: str) -> bool:
     return bool(filename) and Path(filename).suffix.lower() in ALLOWED_TEMPLATE_EXTENSIONS
 
 
-def list_messages() -> list[dict[str, object]]:
-    return load_json("messages.json")
-
-
 def list_sidebar_left(role: str) -> dict[str, object]:
-    data = load_json("sidebar_left.json")
-    if role != "admin":
-        data["items"] = [
-            item for item in data["items"] if not item.get("admin_only", False)
-        ]
-    return data
+    items: list[dict[str, object]] = []
+
+    for item in SIDEBAR_LEFT_LINKS:
+        if item.admin_only and role != "admin":
+            continue
+
+        payload: dict[str, object] = {
+            "name": item.name,
+            "url": item.url,
+        }
+        if item.admin_only:
+            payload["admin_only"] = True
+        items.append(payload)
+
+    return {
+        "title": SIDEBAR_LEFT_TITLE,
+        "items": items,
+    }
 
 
 def build_project_tree(username: str) -> dict[str, object]:

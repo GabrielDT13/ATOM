@@ -10,8 +10,8 @@ node_modules/
 # Local testing samples
 samples/
 
-# Projects
-projects/
+# Generated project workspaces (backend runtime data)
+/projects/
 
 # Local environment files
 .env.local
