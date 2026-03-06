@@ -20,9 +20,9 @@ import type { SessionResponse } from "@/types/api";
 export function LoginForm() {
   const router = useRouter();
   const toast = useAppToast();
-  const usernameId = useId();
+  const emailId = useId();
   const passwordId = useId();
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -36,7 +36,7 @@ export function LoginForm() {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ username: identifier, password }),
+      body: JSON.stringify({ email, password }),
     });
 
     toast.promise(loginRequest, {
@@ -53,7 +53,7 @@ export function LoginForm() {
           submitError instanceof Error
             ? submitError.message
             : "No se pudo iniciar sesión",
-        description: "Revisa el usuario y la contraseña e inténtalo otra vez.",
+        description: "Revisa el email y la contraseña e inténtalo otra vez.",
       },
     });
 
@@ -75,15 +75,15 @@ export function LoginForm() {
 
         <form className="mt-2 flex flex-col gap-5" onSubmit={handleSubmit}>
           <AuthInputField
-            autoComplete="username"
-            id={usernameId}
-            label="Usuario o correo"
+            autoComplete="email"
+            id={emailId}
+            label="Email"
             leadingIcon={<MailIcon />}
-            onChange={(event) => setIdentifier(event.target.value)}
-            placeholder="usuario@laboratorio.com"
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="Introduce tu email"
             required
-            type="text"
-            value={identifier}
+            type="email"
+            value={email}
           />
 
           <AuthInputField

@@ -17,6 +17,11 @@ class Settings:
     backend_port: int
     frontend_url: str
     atom_port: int
+    supabase_url: str
+    supabase_anon_key: str
+    supabase_service_role_key: str
+    jwt_secret: str
+    supabase_jwt_aud: str
 
 
 def _resolve_path(env_var: str, default_relative_path: str, project_root: Path) -> Path:
@@ -45,4 +50,9 @@ def get_settings() -> Settings:
         backend_port=int(os.getenv("BACKEND_PORT", "8000")),
         frontend_url=os.getenv("FRONTEND_URL", "http://localhost:3000"),
         atom_port=int(os.getenv("ATOM_PORT", "3000")),
+        supabase_url=os.getenv("SUPABASE_URL", os.getenv("SUPABASE_URL_INTERNAL", "")).strip(),
+        supabase_anon_key=os.getenv("SUPABASE_ANON_KEY", "").strip(),
+        supabase_service_role_key=os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip(),
+        jwt_secret=os.getenv("JWT_SECRET", "").strip(),
+        supabase_jwt_aud=os.getenv("SUPABASE_JWT_AUD", "authenticated").strip(),
     )

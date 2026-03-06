@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(2);
+SELECT plan(4);
 
 SELECT ok(
   EXISTS (
@@ -30,6 +30,28 @@ SELECT ok(
       AND p.proname = 'is_admin'
   ),
   'Debe existir la funcion internal.is_admin'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'app_private'
+      AND p.proname = 'sync_auth_user_profile'
+  ),
+  'Debe existir la funcion app_private.sync_auth_user_profile'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.triggers
+    WHERE event_object_schema = 'auth'
+      AND event_object_table = 'users'
+      AND trigger_name = 'on_auth_user_saved'
+  ),
+  'Debe existir el trigger on_auth_user_saved sobre auth.users'
 );
 
 SELECT finish();

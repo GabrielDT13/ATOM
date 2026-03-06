@@ -1,3 +1,60 @@
+set check_function_bodies = off;
+
+drop trigger if exists "on_auth_user_created" on "auth"."users";
+drop trigger if exists "on_auth_user_saved" on "auth"."users";
+drop function if exists "app_private"."handle_new_auth_user"();
+
+CREATE OR REPLACE FUNCTION app_private.sync_auth_user_profile()
+ RETURNS trigger
+ LANGUAGE plpgsql
+ SECURITY DEFINER
+ SET search_path TO 'public', 'internal'
+AS $function$
+DECLARE
+  existing_username text;
+  derived_username text;
+BEGIN
+  SELECT p.username
+  INTO existing_username
+  FROM internal.profiles p
+  WHERE p.id = NEW.id;
+
+  derived_username := COALESCE(
+    NULLIF(trim(NEW.raw_user_meta_data ->> 'username'), ''),
+    NULLIF(existing_username, ''),
+    split_part(NEW.email, '@', 1),
+    'user_' || substr(replace(NEW.id::text, '-', ''), 1, 8)
+  );
+
+  INSERT INTO internal.profiles (id, email, username, full_name, avatar_url)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    derived_username,
+    NULLIF(NEW.raw_user_meta_data ->> 'full_name', ''),
+    NULLIF(NEW.raw_user_meta_data ->> 'avatar_url', '')
+  )
+  ON CONFLICT (id) DO UPDATE
+  SET
+    email = EXCLUDED.email,
+    username = EXCLUDED.username,
+    full_name = COALESCE(EXCLUDED.full_name, internal.profiles.full_name),
+    avatar_url = COALESCE(EXCLUDED.avatar_url, internal.profiles.avatar_url),
+    updated_at = now();
+
+  INSERT INTO internal.user_roles (user_id, role_id)
+  VALUES (NEW.id, 'user')
+  ON CONFLICT (user_id, role_id) DO NOTHING;
+
+  RETURN NEW;
+END;
+$function$;
+
+CREATE TRIGGER on_auth_user_saved
+AFTER INSERT OR UPDATE ON auth.users
+FOR EACH ROW
+EXECUTE FUNCTION app_private.sync_auth_user_profile();
+
 CREATE OR REPLACE FUNCTION public.update_my_profile(
   p_username text DEFAULT NULL,
   p_full_name text DEFAULT NULL,
@@ -16,8 +73,8 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
-AS $$
+SET search_path TO 'public', 'internal'
+AS $function$
 BEGIN
   UPDATE internal.profiles
   SET
@@ -31,7 +88,7 @@ BEGIN
   FROM public.vw_profiles
   WHERE vw_profiles.id = auth.uid();
 END;
-$$;
+$function$;
 
 CREATE OR REPLACE FUNCTION public.create_project(
   p_name text,
@@ -53,8 +110,8 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
-AS $$
+SET search_path TO 'public', 'internal'
+AS $function$
 DECLARE
   created_project_id uuid;
 BEGIN
@@ -72,7 +129,7 @@ BEGIN
   FROM public.vw_projects
   WHERE vw_projects.id = created_project_id;
 END;
-$$;
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_project(
   p_project_id uuid,
@@ -95,8 +152,8 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
-AS $$
+SET search_path TO 'public', 'internal'
+AS $function$
 BEGIN
   UPDATE internal.projects
   SET
@@ -115,8 +172,20 @@ BEGIN
   FROM public.vw_projects
   WHERE vw_projects.id = p_project_id;
 END;
-$$;
+$function$;
 
-GRANT EXECUTE ON FUNCTION public.update_my_profile(text, text, text) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.create_project(text, text, text, text) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_project(uuid, text, text, text, text) TO authenticated, service_role;
+ALTER VIEW public.vw_profiles SET (security_invoker = true);
+ALTER VIEW public.vw_projects SET (security_invoker = true);
+ALTER VIEW public.vw_projects_with_users SET (security_invoker = true);
+
+UPDATE auth.users
+SET
+  confirmation_token = COALESCE(confirmation_token, ''),
+  recovery_token = COALESCE(recovery_token, ''),
+  email_change_token_new = COALESCE(email_change_token_new, ''),
+  email_change = COALESCE(email_change, '')
+WHERE
+  confirmation_token IS NULL
+  OR recovery_token IS NULL
+  OR email_change_token_new IS NULL
+  OR email_change IS NULL;

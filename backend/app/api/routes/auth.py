@@ -1,34 +1,67 @@
 from __future__ import annotations
 
+from backend.app.dependencies.auth import get_optional_current_user, get_request_access_token
 from backend.app.schemas.auth import LoginRequest, SessionResponse, SessionUser
-from backend.app.services.auth import authenticate_user, build_session_user
-from fastapi import APIRouter, HTTPException, Request, status
+from backend.app.services.auth import (
+    AuthenticationError,
+    authenticate_email_password,
+    logout_session,
+    refresh_authenticated_session,
+    validate_access_token,
+)
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=SessionResponse)
 async def login(payload: LoginRequest, request: Request) -> SessionResponse:
-    if not authenticate_user(payload.username, payload.password):
+    try:
+        session = authenticate_email_password(payload.email, payload.password)
+    except AuthenticationError as exc:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario o contraseña incorrectos",
-        )
+            status_code=exc.status_code,
+            detail=str(exc),
+        ) from exc
 
-    user = build_session_user(payload.username)
-    request.session["user"] = user
-    return SessionResponse(authenticated=True, user=SessionUser(**user))
+    request.session["auth"] = {
+        "access_token": session.access_token,
+        "refresh_token": session.refresh_token,
+    }
+    request.session["user"] = session.user
+    return SessionResponse(authenticated=True, user=SessionUser(**session.user))
 
 
 @router.post("/logout", response_model=SessionResponse)
 async def logout(request: Request) -> SessionResponse:
+    access_token = get_request_access_token(request)
+    if access_token:
+        try:
+            validate_access_token(access_token)
+        except AuthenticationError:
+            access_token = None
+
+    if not access_token:
+        session_auth = request.session.get("auth")
+        refresh_token = session_auth.get("refresh_token") if isinstance(session_auth, dict) else None
+        if isinstance(refresh_token, str) and refresh_token.strip():
+            try:
+                refreshed_session = refresh_authenticated_session(refresh_token)
+                access_token = refreshed_session.access_token
+            except AuthenticationError:
+                access_token = None
+
+    if access_token:
+        logout_session(access_token, scope="local")
+
+    request.session.pop("auth", None)
     request.session.pop("user", None)
     return SessionResponse(authenticated=False, user=None)
 
 
 @router.get("/session", response_model=SessionResponse)
 async def get_session(request: Request) -> SessionResponse:
-    session_user = request.session.get("user")
+    session_user = get_optional_current_user(request)
     if not session_user:
         return SessionResponse(authenticated=False, user=None)
     return SessionResponse(authenticated=True, user=SessionUser(**session_user))

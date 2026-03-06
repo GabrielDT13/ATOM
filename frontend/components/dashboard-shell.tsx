@@ -4,9 +4,11 @@ import { ReactNode, useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import {
+  ApiError,
   apiFetch,
   buildStreamUrl,
   fetchSession,
+  subscribeToAuthFailure,
 } from "@/lib/api";
 import { AppHeader } from "@/components/dashboard/app-header";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
@@ -52,6 +54,17 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }, [pathname]);
 
   useEffect(() => {
+    return subscribeToAuthFailure(() => {
+      setSession(null);
+      setLeftNav(null);
+      setRightNav(null);
+      setError(null);
+      router.replace("/login");
+      router.refresh();
+    });
+  }, [router]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadShell() {
@@ -86,6 +99,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
           return;
         }
 
+        if (loadError instanceof ApiError && loadError.status === 401) {
+          setSession(null);
+          router.replace("/login");
+          return;
+        }
+
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -106,8 +125,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }, [pathname, router]);
 
   async function handleLogout() {
-    await apiFetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Incluso si falla la revocación remota, la UI debe salir del dashboard.
+    }
+    setSession(null);
+    router.replace("/login");
     router.refresh();
   }
 
