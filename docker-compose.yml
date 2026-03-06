@@ -11,6 +11,7 @@ services:
     environment:
       - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
       - BACKEND_PORT=${BACKEND_PORT:-8000}
+      - BACKEND_RELOAD=${BACKEND_RELOAD:-true}
       - SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
       - SUPABASE_URL=${SUPABASE_URL_INTERNAL}

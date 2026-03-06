@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
-
 from backend.app.dependencies.auth import get_current_user, require_admin
 from backend.app.schemas.users import UserCreateRequest, UserMutationResponse, UserResponse, UserUpdateRequest
 from backend.app.services.auth import (
@@ -12,6 +10,7 @@ from backend.app.services.auth import (
     list_users,
     update_user,
 )
+from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 

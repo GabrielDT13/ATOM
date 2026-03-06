@@ -22,6 +22,10 @@ body {
   color: var(--color-text-main);
 }
 
+.app-shell {
+  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+}
+
 a {
   color: inherit;
   text-decoration: none;

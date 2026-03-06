@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run backend checks in Docker
+        run: ./scripts/test.sh backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run frontend checks in Docker
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: ./scripts/test.sh frontend

@@ -1,7 +1,11 @@
 .git
 .venv
+.venv/
+.DS_Store
 __pycache__
 *.pyc
+.pytest_cache
+.ruff_cache
 node_modules
 frontend/node_modules
 frontend/.next

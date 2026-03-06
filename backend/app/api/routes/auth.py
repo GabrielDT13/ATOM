@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request, status
-
 from backend.app.schemas.auth import LoginRequest, SessionResponse, SessionUser
 from backend.app.services.auth import authenticate_user, build_session_user
+from fastapi import APIRouter, HTTPException, Request, status
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
