@@ -3,11 +3,10 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from fastapi import UploadFile
-
 from backend.app.constants.navigation import SIDEBAR_LEFT_LINKS, SIDEBAR_LEFT_TITLE
 from backend.app.core.config import get_settings
 from backend.app.services.data import resolve_project_path
+from fastapi import UploadFile
 
 ALLOWED_TEMPLATE_EXTENSIONS = {".xlsx", ".xls"}
 

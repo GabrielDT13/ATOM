@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Request
-
 from backend.app.dependencies.auth import get_current_user
 from backend.app.services.projects import build_project_tree, list_sidebar_left
+from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/api/navigation", tags=["navigation"])
 

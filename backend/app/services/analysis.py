@@ -5,10 +5,9 @@ import subprocess
 from pathlib import Path
 from typing import Iterator
 
-from openpyxl import load_workbook
-
 from backend.app.core.config import get_settings
 from backend.app.services.projects import get_project_dir
+from openpyxl import load_workbook
 
 
 def clean_resultados(output_dir: Path, design_id: str) -> None:
