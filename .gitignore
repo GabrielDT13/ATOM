@@ -3,6 +3,11 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 *$py.class
+.DS_Store
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
 
 # Frontend dependencies
 node_modules/

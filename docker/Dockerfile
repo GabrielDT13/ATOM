@@ -55,7 +55,9 @@ COPY docker/install_r_packages.R /tmp/install_r_packages.R
 RUN Rscript /tmp/install_r_packages.R
 
 COPY backend /app/backend
+COPY docker/start-backend.sh /app/docker/start-backend.sh
+RUN chmod +x /app/docker/start-backend.sh
 
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["/app/docker/start-backend.sh"]
