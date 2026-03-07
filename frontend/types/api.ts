@@ -49,6 +49,7 @@ export type UserRecord = {
 export type MutationResponse = {
   success: boolean;
   message: string;
+  user?: UserRecord | null;
 };
 
 export type ProjectMapResponse = {
