@@ -11,6 +11,10 @@ import {
   subscribeToAuthFailure,
 } from "@/lib/api";
 import { AppHeader } from "@/components/dashboard/app-header";
+import {
+  buildDashboardBreadcrumbs,
+  DashboardBreadcrumb,
+} from "@/components/dashboard/dashboard-breadcrumb";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { ProjectExplorer } from "@/components/dashboard/project-explorer";
 import type {
@@ -267,6 +271,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
           onOpenSidebar={() => setMobileSidebarOpen(true)}
           user={session.user}
         />
+
+        <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname)} />
 
         <div className="flex-1 overflow-y-auto p-4 sm:p-8">
           <div className={`flex flex-col gap-6 ${showProjectExplorer ? "xl:flex-row" : ""}`}>
