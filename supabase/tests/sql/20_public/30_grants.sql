@@ -8,7 +8,19 @@ $$;
 
 BEGIN;
 
-SELECT plan(2);
+SELECT plan(5);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
+      AND table_name = 'vw_departments'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'SELECT'
+  ),
+  'authenticated debe poder hacer SELECT sobre public.vw_departments'
+);
 
 SELECT ok(
   EXISTS (
@@ -32,6 +44,30 @@ SELECT ok(
       AND privilege_type = 'EXECUTE'
   ),
   'authenticated debe poder ejecutar public.create_project'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_set_user_role'
+      AND grantee = 'service_role'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'service_role debe poder ejecutar public.admin_set_user_role'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_set_user_role'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'authenticated no debe poder ejecutar public.admin_set_user_role'
 );
 
 SELECT finish();

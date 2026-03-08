@@ -9,6 +9,7 @@ RETURNS TABLE (
   username text,
   full_name text,
   avatar_url text,
+  department text,
   is_active boolean,
   created_at timestamptz,
   updated_at timestamptz,

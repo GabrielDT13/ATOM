@@ -9,6 +9,7 @@ from backend.app.services.auth import build_session_user_from_profile
 from backend.app.services.supabase import (
     SupabaseError,
     build_query_string,
+    call_rpc_with_service_role,
     request_with_service_role,
 )
 
@@ -28,6 +29,11 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
+def _normalize_optional_text(value: Any) -> str | None:
+    normalized = str(value or "").strip()
+    return normalized or None
+
+
 def _build_user_response(profile: dict[str, Any]) -> dict[str, str | None]:
     return build_session_user_from_profile(profile)
 
@@ -39,7 +45,7 @@ def _fetch_profiles(
     order: str | None = "username.asc",
 ) -> list[dict[str, Any]]:
     query_params: dict[str, str | int | None] = {
-        "select": "id,email,username,full_name,avatar_url,is_active,roles",
+        "select": "id,email,username,full_name,avatar_url,department,is_active,roles",
         "order": order,
         "limit": limit,
     }
@@ -93,7 +99,12 @@ def list_users() -> list[dict[str, str | None]]:
     return [_build_user_response(profile) for profile in _fetch_profiles()]
 
 
-def _create_auth_user(username: str, password: str, email: str) -> str:
+def _create_auth_user(
+    username: str,
+    password: str,
+    email: str,
+    department: str | None,
+) -> str:
     payload = request_with_service_role(
         "POST",
         "/auth/v1/admin/users",
@@ -101,10 +112,12 @@ def _create_auth_user(username: str, password: str, email: str) -> str:
             "email": email,
             "password": password,
             "email_confirm": True,
-            "user_metadata": {
-                "username": username,
-                "full_name": username,
-            },
+            "user_metadata": _build_auth_user_metadata(
+                username=username,
+                full_name=username,
+                avatar_url=None,
+                department=department,
+            ),
         },
     )
     if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
@@ -120,16 +133,16 @@ def _update_auth_user(
     password: str | None,
     full_name: str | None,
     avatar_url: str | None,
+    department: str | None,
 ) -> None:
-    metadata: dict[str, str] = {"username": username}
-    if full_name:
-        metadata["full_name"] = full_name
-    if avatar_url:
-        metadata["avatar_url"] = avatar_url
-
     payload: dict[str, Any] = {
         "email": email,
-        "user_metadata": metadata,
+        "user_metadata": _build_auth_user_metadata(
+            username=username,
+            full_name=full_name,
+            avatar_url=avatar_url,
+            department=department,
+        ),
     }
     if password:
         payload["password"] = password
@@ -141,35 +154,152 @@ def _update_auth_user(
     )
 
 
+def _apply_user_role(
+    *,
+    actor_user_id: str,
+    target_user_id: str,
+    role: str,
+) -> dict[str, Any]:
+    payload = call_rpc_with_service_role(
+        "admin_set_user_role",
+        json_body={
+            "p_actor_user_id": actor_user_id,
+            "p_target_user_id": target_user_id,
+            "p_role": role,
+        },
+    )
+    if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
+        raise SupabaseError("Supabase no devolvió el perfil actualizado")
+    return payload[0]
+
+
 def _delete_auth_user(user_id: str) -> None:
     request_with_service_role("DELETE", f"/auth/v1/admin/users/{user_id}")
 
 
-def create_user(username: str, password: str, email: str) -> tuple[bool, str]:
+def _build_auth_user_metadata(
+    *,
+    username: str,
+    full_name: str | None,
+    avatar_url: str | None,
+    department: str | None,
+) -> dict[str, str]:
+    metadata: dict[str, str] = {"username": username, "department": department or ""}
+    if full_name:
+        metadata["full_name"] = full_name
+    if avatar_url:
+        metadata["avatar_url"] = avatar_url
+    return metadata
+
+
+def _safe_delete_auth_user(user_id: str) -> None:
+    try:
+        _delete_auth_user(user_id)
+    except SupabaseError:
+        pass
+
+
+def _ensure_create_user_is_unique(username: str, email: str) -> str | None:
+    if _get_profile_by_username(username):
+        return "El usuario ya existe"
+    if _get_profile_by_email(email):
+        return "El email ya está registrado"
+    return None
+
+
+def _validate_user_update_uniqueness(
+    *,
+    current_profile: dict[str, Any],
+    current_username: str,
+    new_username: str,
+    email: str,
+) -> str | None:
+    other_profile_with_username = _get_profile_by_username(new_username)
+    if (
+        new_username != current_username
+        and other_profile_with_username
+        and other_profile_with_username.get("id") != current_profile.get("id")
+    ):
+        return "El nuevo nombre de usuario ya existe"
+
+    other_profile_with_email = _get_profile_by_email(email)
+    if other_profile_with_email and other_profile_with_email.get("id") != current_profile.get("id"):
+        return "El email ya está registrado"
+
+    return None
+
+
+def _create_user_projects_dir(username: str) -> Path:
+    user_dir = get_user_dir(username)
+    user_dir.mkdir(parents=True, exist_ok=True)
+    return user_dir
+
+
+def _rename_user_projects_dir(current_username: str, new_username: str) -> None:
+    if current_username == new_username:
+        return
+
+    old_dir = get_user_dir(current_username)
+    new_dir = get_user_dir(new_username)
+    if old_dir.exists():
+        old_dir.rename(new_dir)
+
+
+def _delete_user_projects_dir(username: str) -> None:
+    user_dir = get_user_dir(username)
+    if not user_dir.exists():
+        return
+
+    base_path = get_settings().projects_dir.resolve()
+    resolved_user_dir = user_dir.resolve()
+    if base_path != resolved_user_dir and base_path not in resolved_user_dir.parents:
+        raise ValueError("Ruta inválida: no se eliminó la carpeta del usuario por seguridad.")
+
+    shutil.rmtree(resolved_user_dir)
+
+
+def create_user(
+    username: str,
+    password: str,
+    email: str,
+    role: str,
+    department: str | None,
+    actor_user_id: str,
+) -> tuple[bool, str]:
     try:
         normalized_username = _normalize_username(username)
     except ValueError as exc:
         return False, str(exc)
 
     normalized_email = _normalize_email(email)
-    if _get_profile_by_username(normalized_username):
-        return False, "El usuario ya existe"
-    if _get_profile_by_email(normalized_email):
-        return False, "El email ya está registrado"
+    uniqueness_error = _ensure_create_user_is_unique(normalized_username, normalized_email)
+    if uniqueness_error:
+        return False, uniqueness_error
 
     created_user_id: str | None = None
+    user_dir: Path | None = None
     try:
-        created_user_id = _create_auth_user(normalized_username, password, normalized_email)
-        user_dir = get_settings().projects_dir / normalized_username
-        user_dir.mkdir(parents=True, exist_ok=True)
+        created_user_id = _create_auth_user(
+            normalized_username,
+            password,
+            normalized_email,
+            department,
+        )
+        _apply_user_role(
+            actor_user_id=actor_user_id,
+            target_user_id=created_user_id,
+            role=role,
+        )
+        user_dir = _create_user_projects_dir(normalized_username)
     except SupabaseError as exc:
+        if user_dir and user_dir.exists():
+            shutil.rmtree(user_dir, ignore_errors=True)
+        if created_user_id:
+            _safe_delete_auth_user(created_user_id)
         return False, str(exc)
     except OSError:
         if created_user_id:
-            try:
-                _delete_auth_user(created_user_id)
-            except SupabaseError:
-                pass
+            _safe_delete_auth_user(created_user_id)
         return False, "No se pudo preparar la carpeta local del usuario"
 
     return True, "Usuario registrado correctamente"
@@ -180,6 +310,9 @@ def update_user(
     new_username: str,
     email: str,
     password: str | None,
+    role: str,
+    department: str | None,
+    actor_user_id: str,
 ) -> tuple[bool, str, str]:
     try:
         normalized_current_username = _normalize_username(current_username)
@@ -192,20 +325,14 @@ def update_user(
     if not current_profile:
         return False, "Usuario no encontrado", normalized_current_username
 
-    other_profile_with_username = _get_profile_by_username(normalized_new_username)
-    if (
-        normalized_new_username != normalized_current_username
-        and other_profile_with_username
-        and other_profile_with_username.get("id") != current_profile.get("id")
-    ):
-        return False, "El nuevo nombre de usuario ya existe", normalized_current_username
-
-    other_profile_with_email = _get_profile_by_email(normalized_email)
-    if (
-        other_profile_with_email
-        and other_profile_with_email.get("id") != current_profile.get("id")
-    ):
-        return False, "El email ya está registrado", normalized_current_username
+    uniqueness_error = _validate_user_update_uniqueness(
+        current_profile=current_profile,
+        current_username=normalized_current_username,
+        new_username=normalized_new_username,
+        email=normalized_email,
+    )
+    if uniqueness_error:
+        return False, uniqueness_error, normalized_current_username
 
     try:
         _update_auth_user(
@@ -213,16 +340,16 @@ def update_user(
             username=normalized_new_username,
             email=normalized_email,
             password=password,
-            full_name=str(current_profile.get("full_name") or "").strip() or None,
-            avatar_url=str(current_profile.get("avatar_url") or "").strip() or None,
+            full_name=_normalize_optional_text(current_profile.get("full_name")),
+            avatar_url=_normalize_optional_text(current_profile.get("avatar_url")),
+            department=department,
         )
-
-        if normalized_new_username != normalized_current_username:
-            projects_root = get_settings().projects_dir
-            old_dir = projects_root / normalized_current_username
-            new_dir = projects_root / normalized_new_username
-            if old_dir.exists():
-                old_dir.rename(new_dir)
+        _apply_user_role(
+            actor_user_id=actor_user_id,
+            target_user_id=str(current_profile["id"]),
+            role=role,
+        )
+        _rename_user_projects_dir(normalized_current_username, normalized_new_username)
     except SupabaseError as exc:
         return False, str(exc), normalized_current_username
     except OSError:
@@ -246,13 +373,10 @@ def delete_user(username: str) -> tuple[bool, str]:
     except SupabaseError as exc:
         return False, str(exc)
 
-    user_dir = get_settings().projects_dir / normalized_username
-    if user_dir.exists():
-        base_path = get_settings().projects_dir.resolve()
-        resolved_user_dir = user_dir.resolve()
-        if base_path != resolved_user_dir and base_path not in resolved_user_dir.parents:
-            return False, "Ruta inválida: no se eliminó la carpeta del usuario por seguridad."
-        shutil.rmtree(resolved_user_dir)
+    try:
+        _delete_user_projects_dir(normalized_username)
+    except ValueError as exc:
+        return False, str(exc)
 
     return True, f"Usuario {normalized_username} y su carpeta de proyectos eliminados correctamente."
 

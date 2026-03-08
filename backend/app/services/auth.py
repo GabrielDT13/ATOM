@@ -82,7 +82,7 @@ def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | 
         "role": _resolve_role(profile.get("roles")),
         "first_name": None,
         "last_name": None,
-        "department": None,
+        "department": str(profile.get("department") or "").strip() or None,
         "display_name": full_name or username,
     }
 
@@ -90,7 +90,7 @@ def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | 
 def _get_profile_by_user_id(user_id: str) -> dict[str, Any]:
     query = build_query_string(
         {
-            "select": "id,email,username,full_name,is_active,roles",
+            "select": "id,email,username,full_name,department,is_active,roles",
             "id": f"eq.{user_id}",
             "limit": 1,
         }
