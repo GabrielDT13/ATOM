@@ -156,11 +156,10 @@ export function UserManagementTable({
         </div>
       }
       footer={
-        <div className="flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-slate-500">
           <p>
             Mostrando <span className="font-semibold text-slate-700">{users.length}</span> usuarios
           </p>
-          <p>Haz clic en Usuario, Rol o Departamento para ordenar.</p>
         </div>
       }
       getRowKey={(user) => user.id}
