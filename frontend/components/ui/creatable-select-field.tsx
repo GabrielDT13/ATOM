@@ -2,14 +2,23 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+export type CreatableSelectOption = {
+  label: string;
+  value: string;
+};
+
 type CreatableSelectFieldProps = {
   addButtonLabel?: string;
   createPlaceholder?: string;
   label: string;
   onChange: (value: string) => void;
-  options: readonly string[];
+  options: readonly CreatableSelectOption[];
   value: string;
 };
+
+function normalizeOptionValue(value: string) {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
 
 function PlusIcon() {
   return (
@@ -38,7 +47,7 @@ export function CreatableSelectField({
   options,
   value,
 }: CreatableSelectFieldProps) {
-  const [customOptions, setCustomOptions] = useState<string[]>([]);
+  const [customOptions, setCustomOptions] = useState<CreatableSelectOption[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [draftValue, setDraftValue] = useState("");
 
@@ -47,28 +56,45 @@ export function CreatableSelectField({
       return;
     }
 
-    const existsInBase = options.includes(value);
-    const existsInCustom = customOptions.includes(value);
+    const normalizedValue = normalizeOptionValue(value);
+    const existsInBase = options.some(
+      (option) => normalizeOptionValue(option.value) === normalizedValue,
+    );
+    const existsInCustom = customOptions.some(
+      (option) => normalizeOptionValue(option.value) === normalizedValue,
+    );
 
     if (!existsInBase && !existsInCustom) {
-      setCustomOptions((current) => [...current, value]);
+      setCustomOptions((current) => [...current, { label: value, value }]);
     }
   }, [customOptions, options, value]);
 
   const mergedOptions = useMemo(
-    () => [...options, ...customOptions.filter((option) => !options.includes(option))],
+    () => [
+      ...options,
+      ...customOptions.filter(
+        (option) =>
+          !options.some(
+            (baseOption) =>
+              normalizeOptionValue(baseOption.value) === normalizeOptionValue(option.value),
+          ),
+      ),
+    ],
     [customOptions, options],
   );
 
   function handleCreateOption() {
-    const nextValue = draftValue.trim();
+    const nextValue = draftValue.trim().replace(/\s+/g, " ");
     if (!nextValue) {
       return;
     }
 
-    setCustomOptions((current) =>
-      current.includes(nextValue) ? current : [...current, nextValue],
-    );
+    setCustomOptions((current) => {
+      const alreadyExists = current.some(
+        (option) => normalizeOptionValue(option.value) === normalizeOptionValue(nextValue),
+      );
+      return alreadyExists ? current : [...current, { label: nextValue, value: nextValue }];
+    });
     onChange(nextValue);
     setDraftValue("");
     setIsCreating(false);
@@ -86,8 +112,8 @@ export function CreatableSelectField({
         >
           <option value="">Selecciona una opción</option>
           {mergedOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
+            <option key={option.value} value={option.value}>
+              {option.label}
             </option>
           ))}
         </select>
