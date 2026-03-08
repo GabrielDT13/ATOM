@@ -83,11 +83,13 @@ export function UserManagementTable({
       ),
       header: "Usuario",
       id: "user",
+      sortValue: (user) => getDisplayName(user).toLowerCase(),
     },
     {
       cell: (user) => <RoleBadge role={user.role} />,
       header: "Rol",
       id: "role",
+      sortValue: (user) => getRoleLabel(user.role).toLowerCase(),
     },
     {
       cell: (user) => (
@@ -95,6 +97,7 @@ export function UserManagementTable({
       ),
       header: "Departamento",
       id: "department",
+      sortValue: (user) => (user.department || "Sin departamento").toLowerCase(),
     },
     {
       cell: (user) => (
@@ -153,13 +156,14 @@ export function UserManagementTable({
         </div>
       }
       footer={
-        <div className="flex flex-col gap-2 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-sm text-slate-500">
           <p>
             Mostrando <span className="font-semibold text-slate-700">{users.length}</span> usuarios
           </p>
         </div>
       }
       getRowKey={(user) => user.id}
+      initialSort={{ columnId: "user", direction: "asc" }}
       loading={loading}
       loadingLabel="Cargando usuarios..."
     />

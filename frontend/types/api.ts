@@ -46,6 +46,12 @@ export type UserRecord = {
   display_name?: string | null;
 };
 
+export type DepartmentRecord = {
+  id: string;
+  name: string;
+  slug: string;
+};
+
 export type MutationResponse = {
   success: boolean;
   message: string;

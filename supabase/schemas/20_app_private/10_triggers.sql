@@ -36,13 +36,14 @@ BEGIN
     'user_' || substr(replace(NEW.id::text, '-', ''), 1, 8)
   );
 
-  INSERT INTO internal.profiles (id, email, username, full_name, avatar_url)
+  INSERT INTO internal.profiles (id, email, username, full_name, avatar_url, department)
   VALUES (
     NEW.id,
     NEW.email,
     derived_username,
     NULLIF(NEW.raw_user_meta_data ->> 'full_name', ''),
-    NULLIF(NEW.raw_user_meta_data ->> 'avatar_url', '')
+    NULLIF(NEW.raw_user_meta_data ->> 'avatar_url', ''),
+    internal.ensure_department_name(NEW.raw_user_meta_data ->> 'department')
   )
   ON CONFLICT (id) DO UPDATE
   SET
@@ -50,6 +51,7 @@ BEGIN
     username = EXCLUDED.username,
     full_name = COALESCE(EXCLUDED.full_name, internal.profiles.full_name),
     avatar_url = COALESCE(EXCLUDED.avatar_url, internal.profiles.avatar_url),
+    department = EXCLUDED.department,
     updated_at = now();
 
   INSERT INTO internal.user_roles (user_id, role_id)

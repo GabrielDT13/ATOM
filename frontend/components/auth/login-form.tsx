@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useId, useState } from "react";
+import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { AuthBrand } from "@/components/auth/auth-brand";
@@ -20,8 +20,6 @@ import type { SessionResponse } from "@/types/api";
 export function LoginForm() {
   const router = useRouter();
   const toast = useAppToast();
-  const emailId = useId();
-  const passwordId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -76,7 +74,7 @@ export function LoginForm() {
         <form className="mt-2 flex flex-col gap-5" onSubmit={handleSubmit}>
           <AuthInputField
             autoComplete="email"
-            id={emailId}
+            id="login-email"
             label="Email"
             leadingIcon={<MailIcon />}
             onChange={(event) => setEmail(event.target.value)}
@@ -88,7 +86,7 @@ export function LoginForm() {
 
           <AuthInputField
             autoComplete="current-password"
-            id={passwordId}
+            id="login-password"
             label="Contraseña"
             leadingIcon={<LockIcon />}
             onChange={(event) => setPassword(event.target.value)}

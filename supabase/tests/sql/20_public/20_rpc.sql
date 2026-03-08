@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(6);
+SELECT plan(9);
 
 SELECT ok(
   EXISTS (
@@ -43,6 +43,17 @@ SELECT ok(
   'Debe existir la RPC public.update_project'
 );
 
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_set_user_role'
+  ),
+  'Debe existir la RPC public.admin_set_user_role'
+);
+
 SELECT is(
   (
     SELECT pg_get_function_result(p.oid)
@@ -52,7 +63,7 @@ SELECT is(
       AND p.proname = 'update_my_profile'
     LIMIT 1
   ),
-  'TABLE(id uuid, email text, username text, full_name text, avatar_url text, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, roles text[])',
+  'TABLE(id uuid, email text, username text, full_name text, avatar_url text, department text, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, roles text[])',
   'public.update_my_profile debe devolver la tabla esperada'
 );
 
@@ -80,6 +91,31 @@ SELECT is(
   ),
   'TABLE(id uuid, owner_id uuid, owner_username text, name text, slug text, description text, status text, created_at timestamp with time zone, updated_at timestamp with time zone, member_count bigint)',
   'public.update_project debe devolver la tabla esperada'
+);
+
+SELECT is(
+  (
+    SELECT pg_get_function_result(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_set_user_role'
+    LIMIT 1
+  ),
+  'TABLE(id uuid, email text, username text, full_name text, avatar_url text, department text, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, roles text[])',
+  'public.admin_set_user_role debe devolver la tabla esperada'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_set_user_role'
+    LIMIT 1
+  ) LIKE '%auth.role() <> ''service_role''%',
+  'public.admin_set_user_role debe validar que la invocacion llegue con service_role'
 );
 
 SELECT finish();

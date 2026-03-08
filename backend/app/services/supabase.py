@@ -153,3 +153,11 @@ def request_with_service_role(
         bearer_token=credentials.service_role_key,
         json_body=json_body,
     )
+
+
+def call_rpc_with_service_role(function_name: str, *, json_body: Any = None) -> Any:
+    return request_with_service_role(
+        "POST",
+        f"/rest/v1/rpc/{function_name}",
+        json_body=json_body,
+    )

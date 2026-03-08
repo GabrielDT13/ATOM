@@ -1,5 +1,14 @@
 COMMENT ON SCHEMA public IS 'Capa publica: vistas de lectura y RPC controladas.';
 
+CREATE OR REPLACE VIEW public.vw_departments
+WITH (security_invoker = true)
+AS
+SELECT
+  d.id,
+  d.name,
+  d.slug
+FROM internal.departments d;
+
 CREATE OR REPLACE VIEW public.vw_profiles
 WITH (security_invoker = true)
 AS
@@ -9,6 +18,7 @@ SELECT
   p.username,
   p.full_name,
   p.avatar_url,
+  p.department,
   p.is_active,
   p.created_at,
   p.updated_at,
@@ -19,8 +29,6 @@ SELECT
     ORDER BY ur.role_id
   ) AS roles
 FROM internal.profiles p;
-
-ALTER VIEW public.vw_profiles SET (security_invoker = true);
 
 CREATE OR REPLACE VIEW public.vw_projects
 WITH (security_invoker = true)
@@ -44,8 +52,6 @@ FROM internal.projects p
 JOIN internal.profiles owner_profile
   ON owner_profile.id = p.owner_id;
 
-ALTER VIEW public.vw_projects SET (security_invoker = true);
-
 CREATE OR REPLACE VIEW public.vw_projects_with_users
 WITH (security_invoker = true)
 AS
@@ -68,8 +74,7 @@ JOIN internal.project_members pm
 JOIN internal.profiles member_profile
   ON member_profile.id = pm.user_id;
 
-ALTER VIEW public.vw_projects_with_users SET (security_invoker = true);
-
 GRANT SELECT ON public.vw_profiles TO authenticated, service_role;
+GRANT SELECT ON public.vw_departments TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects_with_users TO authenticated, service_role;

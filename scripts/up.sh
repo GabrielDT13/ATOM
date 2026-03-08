@@ -26,11 +26,25 @@ set +a
 
 PORT="${ATOM_PORT:-3000}"
 API_PORT="${ATOM_API_PORT:-8000}"
+FRONTEND_MODE="${ATOM_FRONTEND_MODE:-docker}"
 
 supabase start
-docker compose --env-file "$ENV_FILE" up --build -d --remove-orphans
 
-echo "Frontend levantado en http://localhost:${PORT}"
+case "$FRONTEND_MODE" in
+  docker)
+    docker compose --env-file "$ENV_FILE" up --build -d --remove-orphans
+    echo "Frontend levantado en http://localhost:${PORT}"
+    ;;
+  local)
+    docker compose --env-file "$ENV_FILE" up --build -d --remove-orphans atom-backend
+    echo "Frontend en modo local. Ejecuta ./scripts/frontend-local.sh en otra terminal."
+    ;;
+  *)
+    echo "ATOM_FRONTEND_MODE invalido: ${FRONTEND_MODE}. Usa 'docker' o 'local'." >&2
+    exit 1
+    ;;
+esac
+
 echo "Backend API en http://localhost:${API_PORT}"
 echo "Supabase CLI (Gateway esperado): http://localhost:${SUPABASE_PORT}"
 echo "Supabase CLI (Postgres esperado): postgresql://${SUPABASE_DB_USER}:${SUPABASE_DB_PASSWORD}@localhost:${SUPABASE_DB_PORT}/${SUPABASE_DB_NAME}"

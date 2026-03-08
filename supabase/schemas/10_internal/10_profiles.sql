@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS internal.profiles (
   username text NOT NULL UNIQUE,
   full_name text,
   avatar_url text,
+  department text,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),

@@ -14,6 +14,19 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-docker compose --env-file "$ENV_FILE" build --no-cache atom-backend atom-frontend
+FRONTEND_MODE="${ATOM_FRONTEND_MODE:-docker}"
+
+case "$FRONTEND_MODE" in
+  docker)
+    docker compose --env-file "$ENV_FILE" build --no-cache atom-backend atom-frontend
+    ;;
+  local)
+    docker compose --env-file "$ENV_FILE" build --no-cache atom-backend
+    ;;
+  *)
+    echo "ATOM_FRONTEND_MODE invalido: ${FRONTEND_MODE}. Usa 'docker' o 'local'." >&2
+    exit 1
+    ;;
+esac
 
 echo "Imagenes reconstruidas."

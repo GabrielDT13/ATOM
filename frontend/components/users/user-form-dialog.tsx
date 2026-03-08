@@ -2,7 +2,7 @@
 
 import { FormEvent, forwardRef, type ButtonHTMLAttributes, useEffect, useState } from "react";
 
-import type { UserRecord } from "@/types/api";
+import type { DepartmentRecord, UserRecord } from "@/types/api";
 import {
   Dialog,
   DialogClose,
@@ -12,8 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { CreatableSelectField } from "@/components/ui/creatable-select-field";
-import { DEFAULT_DEPARTMENT_OPTIONS } from "@/components/users/user-form-options";
+import {
+  CreatableSelectField,
+  type CreatableSelectOption,
+} from "@/components/ui/creatable-select-field";
 
 export type UserFormValues = {
   department: string;
@@ -24,6 +26,7 @@ export type UserFormValues = {
 };
 
 type UserFormDialogProps = {
+  departmentOptions: DepartmentRecord[];
   mode: "create" | "edit";
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: UserFormValues) => Promise<void> | void;
@@ -96,6 +99,7 @@ function InputField({
 }
 
 export function UserFormDialog({
+  departmentOptions,
   mode,
   onOpenChange,
   onSubmit,
@@ -108,6 +112,12 @@ export function UserFormDialog({
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRecord["role"]>("user");
   const [department, setDepartment] = useState("");
+  const normalizedDepartmentOptions: CreatableSelectOption[] = departmentOptions.map(
+    (departmentOption) => ({
+      label: departmentOption.name,
+      value: departmentOption.name,
+    }),
+  );
 
   useEffect(() => {
     if (!open) {
@@ -198,7 +208,7 @@ export function UserFormDialog({
                 createPlaceholder="Escribe un nuevo departamento"
                 label="Departamento"
                 onChange={setDepartment}
-                options={DEFAULT_DEPARTMENT_OPTIONS}
+                options={normalizedDepartmentOptions}
                 value={department}
               />
             </div>

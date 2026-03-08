@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 
 import { apiFetch, fetchSession } from "@/lib/api";
 import { useAppToast } from "@/hooks/use-app-toast";
-import type { MutationResponse, SessionResponse, UserRecord } from "@/types/api";
+import type { DepartmentRecord, MutationResponse, SessionResponse, UserRecord } from "@/types/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { UserFormDialog, type UserFormValues } from "@/components/users/user-form-dialog";
-import { PlusIcon, SearchIcon, UsersClusterIcon } from "@/components/users/user-management-icons";
+import { PlusIcon, UsersClusterIcon } from "@/components/users/user-management-icons";
+import { UserManagementFilters } from "@/components/users/user-management-filters";
 import { UserManagementSummary } from "@/components/users/user-management-summary";
 import { UserManagementTable } from "@/components/users/user-management-table";
 import {
   filterUsers,
+  type UserDepartmentFilter,
   type UserRoleFilter,
 } from "@/components/users/user-management-utils";
 
@@ -20,12 +22,14 @@ type DialogState =
   | { mode: "edit"; open: boolean; user: UserRecord | null };
 
 export function UserManagement() {
+  const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [session, setSession] = useState<SessionResponse | null>();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<UserRoleFilter>("all");
+  const [departmentFilter, setDepartmentFilter] = useState<UserDepartmentFilter>("all");
   const [dialogState, setDialogState] = useState<DialogState>({ mode: "create", open: false });
   const [pendingDeleteUser, setPendingDeleteUser] = useState<UserRecord | null>(null);
   const appToast = useAppToast();
@@ -45,9 +49,28 @@ export function UserManagement() {
     }
   }
 
+  async function loadDepartments() {
+    try {
+      const payload = await apiFetch<DepartmentRecord[]>("/api/departments");
+      setDepartments(payload);
+    } catch (loadError) {
+      appToast.error(
+        "No se pudieron cargar los departamentos",
+        loadError instanceof Error ? loadError.message : undefined,
+      );
+    }
+  }
+
   useEffect(() => {
     void fetchSession()
-      .then(setSession)
+      .then((nextSession) => {
+        setSession(nextSession);
+        if (nextSession.user?.role === "admin") {
+          void loadDepartments();
+        } else {
+          setDepartments([]);
+        }
+      })
       .catch(() => setSession(null));
     void loadUsers();
   }, []);
@@ -70,8 +93,10 @@ export function UserManagement() {
     try {
       const response = await apiFetch<MutationResponse>("/api/users", {
         body: JSON.stringify({
+          department: values.department || null,
           email: values.email,
           password: values.password,
+          role: values.role,
           username: values.username,
         }),
         headers: {
@@ -81,18 +106,7 @@ export function UserManagement() {
       });
 
       if (response.success) {
-        const createdUser: UserRecord = {
-          department: values.department || response.user?.department || null,
-          display_name: response.user?.display_name ?? values.username,
-          email: response.user?.email ?? values.email,
-          first_name: response.user?.first_name ?? null,
-          id: response.user?.id ?? `local-${values.username}`,
-          last_name: response.user?.last_name ?? null,
-          role: values.role,
-          username: response.user?.username ?? values.username,
-        };
-
-        setUsers((current) => [createdUser, ...current.filter((user) => user.username !== createdUser.username)]);
+        await Promise.all([loadUsers(), loadDepartments()]);
         closeDialog();
         appToast.success(response.message);
       } else {
@@ -122,7 +136,9 @@ export function UserManagement() {
         `/api/users/${encodeURIComponent(selectedUser.username)}`,
         {
           body: JSON.stringify({
+            department: values.department || null,
             email: values.email,
+            role: values.role,
             username: values.username,
           }),
           headers: {
@@ -133,20 +149,7 @@ export function UserManagement() {
       );
 
       if (response.success) {
-        setUsers((current) =>
-          current.map((user) =>
-            user.username === selectedUser.username
-              ? {
-                  ...user,
-                  ...response.user,
-                  department: values.department,
-                  email: values.email,
-                  role: values.role,
-                  username: values.username,
-                }
-              : user,
-          ),
-        );
+        await Promise.all([loadUsers(), loadDepartments()]);
         closeDialog();
         appToast.success(response.message);
       } else {
@@ -173,9 +176,7 @@ export function UserManagement() {
         { method: "DELETE" },
       );
       if (response.success) {
-        setUsers((current) =>
-          current.filter((user) => user.username !== pendingDeleteUser.username),
-        );
+        await loadUsers();
         setPendingDeleteUser(null);
         appToast.success(response.message);
       } else {
@@ -189,7 +190,7 @@ export function UserManagement() {
     }
   }
 
-  const filteredUsers = filterUsers(users, search, roleFilter);
+  const filteredUsers = filterUsers(users, search, roleFilter, departmentFilter);
 
   if (session === undefined) {
     return <div className="screen-center">Cargando usuarios...</div>;
@@ -242,37 +243,15 @@ export function UserManagement() {
 
         <UserManagementSummary users={users} />
 
-        <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-            <div className="relative w-full max-w-xl">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                <SearchIcon />
-              </span>
-              <input
-                className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Buscar por nombre, email, usuario o departamento..."
-                type="search"
-                value={search}
-              />
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
-                Rol
-                <select
-                  className="h-12 min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
-                  onChange={(event) => setRoleFilter(event.target.value as UserRoleFilter)}
-                  value={roleFilter}
-                >
-                  <option value="all">Todos los roles</option>
-                  <option value="admin">Administradores</option>
-                  <option value="user">Usuarios</option>
-                </select>
-              </label>
-            </div>
-          </div>
-        </section>
+        <UserManagementFilters
+          departmentFilter={departmentFilter}
+          departments={departments}
+          onDepartmentFilterChange={setDepartmentFilter}
+          onRoleFilterChange={setRoleFilter}
+          onSearchChange={setSearch}
+          roleFilter={roleFilter}
+          search={search}
+        />
 
         <UserManagementTable
           currentUserRole={session?.user?.role}
@@ -284,6 +263,7 @@ export function UserManagement() {
       </div>
 
       <UserFormDialog
+        departmentOptions={departments}
         mode="create"
         onOpenChange={(open) => setDialogState({ mode: "create", open })}
         onSubmit={handleCreate}
@@ -292,6 +272,7 @@ export function UserManagement() {
       />
 
       <UserFormDialog
+        departmentOptions={departments}
         mode="edit"
         onOpenChange={(open) =>
           setDialogState({ mode: "edit", open, user: dialogState.mode === "edit" ? dialogState.user : null })

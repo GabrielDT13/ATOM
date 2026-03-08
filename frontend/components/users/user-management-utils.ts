@@ -1,6 +1,7 @@
 import type { UserRecord } from "@/types/api";
 
 export type UserRoleFilter = "all" | UserRecord["role"];
+export type UserDepartmentFilter = "all" | string;
 
 export function getDisplayName(user: UserRecord) {
   if (user.display_name?.trim()) {
@@ -23,11 +24,17 @@ export function filterUsers(
   users: UserRecord[],
   search: string,
   roleFilter: UserRoleFilter,
+  departmentFilter: UserDepartmentFilter,
 ) {
   const normalizedSearch = search.trim().toLowerCase();
+  const normalizedDepartmentFilter =
+    departmentFilter === "all" ? "all" : departmentFilter.trim().toLowerCase();
 
   return users.filter((user) => {
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
+    const matchesDepartment =
+      normalizedDepartmentFilter === "all" ||
+      (user.department ?? "").trim().toLowerCase() === normalizedDepartmentFilter;
     const haystack = [
       user.username,
       user.email,
@@ -38,6 +45,6 @@ export function filterUsers(
       .join(" ")
       .toLowerCase();
 
-    return matchesRole && (!normalizedSearch || haystack.includes(normalizedSearch));
+    return matchesRole && matchesDepartment && (!normalizedSearch || haystack.includes(normalizedSearch));
   });
 }
