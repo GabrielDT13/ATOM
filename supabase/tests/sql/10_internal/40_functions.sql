@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(4);
+SELECT plan(6);
 
 SELECT ok(
   EXISTS (
@@ -30,6 +30,28 @@ SELECT ok(
       AND p.proname = 'is_admin'
   ),
   'Debe existir la funcion internal.is_admin'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'normalize_department_name'
+  ),
+  'Debe existir la funcion internal.normalize_department_name'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'ensure_department_name'
+  ),
+  'Debe existir la funcion internal.ensure_department_name'
 );
 
 SELECT ok(

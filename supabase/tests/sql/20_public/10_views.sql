@@ -8,16 +8,24 @@ $$;
 
 BEGIN;
 
-SELECT plan(6);
+SELECT plan(8);
 
+SELECT has_view('public', 'vw_departments', 'Debe existir la vista public.vw_departments');
 SELECT has_view('public', 'vw_profiles', 'Debe existir la vista public.vw_profiles');
 SELECT has_view('public', 'vw_projects', 'Debe existir la vista public.vw_projects');
 SELECT has_view('public', 'vw_projects_with_users', 'Debe existir la vista public.vw_projects_with_users');
 
 SELECT columns_are(
   'public',
+  'vw_departments',
+  ARRAY['id', 'name', 'slug'],
+  'public.vw_departments debe exponer las columnas esperadas'
+);
+
+SELECT columns_are(
+  'public',
   'vw_profiles',
-  ARRAY['id', 'email', 'username', 'full_name', 'avatar_url', 'is_active', 'created_at', 'updated_at', 'roles'],
+  ARRAY['id', 'email', 'username', 'full_name', 'avatar_url', 'department', 'is_active', 'created_at', 'updated_at', 'roles'],
   'public.vw_profiles debe exponer las columnas esperadas'
 );
 

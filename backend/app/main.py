@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from backend.app.api.routes.analysis import router as analysis_router
 from backend.app.api.routes.auth import router as auth_router
+from backend.app.api.routes.departments import router as departments_router
 from backend.app.api.routes.navigation import router as navigation_router
 from backend.app.api.routes.projects import router as projects_router
 from backend.app.api.routes.users import router as users_router
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(navigation_router)
+    app.include_router(departments_router)
     app.include_router(users_router)
     app.include_router(projects_router)
     app.include_router(analysis_router)
