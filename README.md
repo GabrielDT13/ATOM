@@ -57,6 +57,14 @@ Overrides opcionales para tests o ejecuciones aisladas:
 ./scripts/up.sh
 ```
 
+Si Docker no consigue descargar la imagen base del frontend (`node:20-alpine`), puedes seguir trabajando con el frontend fuera de Docker:
+
+```bash
+ATOM_FRONTEND_MODE=local ./scripts/rebuild.sh
+ATOM_FRONTEND_MODE=local ./scripts/up.sh
+./scripts/frontend-local.sh
+```
+
 Servicios por defecto:
 
 - `http://localhost:3000` frontend
