@@ -17,7 +17,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 BEGIN
   UPDATE internal.profiles
@@ -26,6 +26,10 @@ BEGIN
     full_name = COALESCE(p_full_name, internal.profiles.full_name),
     avatar_url = COALESCE(p_avatar_url, internal.profiles.avatar_url)
   WHERE internal.profiles.id = auth.uid();
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Perfil no encontrado';
+  END IF;
 
   RETURN QUERY
   SELECT *
@@ -54,7 +58,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 DECLARE
   created_project_id uuid;
@@ -96,7 +100,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 BEGIN
   UPDATE internal.projects
@@ -110,6 +114,10 @@ BEGIN
       internal.projects.owner_id = auth.uid()
       OR internal.is_admin()
     );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Proyecto no encontrado o sin permiso';
+  END IF;
 
   RETURN QUERY
   SELECT *

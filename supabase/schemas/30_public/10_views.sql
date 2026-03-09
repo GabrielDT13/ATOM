@@ -74,7 +74,8 @@ JOIN internal.project_members pm
 JOIN internal.profiles member_profile
   ON member_profile.id = pm.user_id;
 
-GRANT SELECT ON public.vw_profiles TO authenticated, service_role;
+REVOKE ALL ON public.vw_profiles FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.vw_profiles TO service_role;
 GRANT SELECT ON public.vw_departments TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects_with_users TO authenticated, service_role;

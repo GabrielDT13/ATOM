@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(9);
+SELECT plan(11);
 
 SELECT ok(
   EXISTS (
@@ -116,6 +116,30 @@ SELECT ok(
     LIMIT 1
   ) LIKE '%auth.role() <> ''service_role''%',
   'public.admin_set_user_role debe validar que la invocacion llegue con service_role'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'update_project'
+    LIMIT 1
+  ) LIKE '%IF NOT FOUND THEN%',
+  'public.update_project debe abortar si no encuentra el proyecto o no hay permiso'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'update_my_profile'
+    LIMIT 1
+  ) LIKE '%IF NOT FOUND THEN%',
+  'public.update_my_profile debe abortar si no encuentra el perfil'
 );
 
 SELECT finish();

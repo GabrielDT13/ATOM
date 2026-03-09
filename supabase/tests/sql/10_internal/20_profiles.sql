@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(11);
+SELECT plan(16);
 
 SELECT columns_are(
   'internal',
@@ -49,6 +49,63 @@ SELECT ok(
       AND policyname = 'profiles_update_self_or_admin'
   ),
   'Debe existir la policy profiles_update_self_or_admin'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'internal'
+      AND tablename = 'profiles'
+      AND policyname = 'profiles_select_self_or_related_or_admin'
+  ),
+  'Debe existir la policy profiles_select_self_or_related_or_admin'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'internal'
+      AND table_name = 'profiles'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'UPDATE'
+  ),
+  'authenticated no debe poder hacer UPDATE directo sobre internal.profiles'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'internal'
+      AND table_name IN ('roles', 'user_roles')
+      AND grantee = 'authenticated'
+      AND privilege_type = 'SELECT'
+  ),
+  'authenticated no debe poder leer directamente internal.roles ni internal.user_roles'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'internal'
+      AND tablename = 'roles'
+      AND policyname = 'roles_no_direct_access'
+  ),
+  'Debe existir la policy roles_no_direct_access'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'internal'
+      AND tablename = 'user_roles'
+      AND policyname = 'user_roles_no_direct_access'
+  ),
+  'Debe existir la policy user_roles_no_direct_access'
 );
 
 SELECT finish();

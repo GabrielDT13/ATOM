@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(11);
+SELECT plan(13);
 
 SELECT has_table('internal', 'projects', 'Debe existir internal.projects');
 SELECT has_table('internal', 'project_members', 'Debe existir internal.project_members');
@@ -54,6 +54,30 @@ SELECT ok(
       AND policyname = 'project_members_mutate_owner_or_admin'
   ),
   'Debe existir la policy project_members_mutate_owner_or_admin'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'internal'
+      AND table_name = 'projects'
+      AND grantee = 'authenticated'
+      AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE')
+  ),
+  'authenticated no debe poder mutar directamente internal.projects'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'internal'
+      AND table_name = 'project_members'
+      AND grantee = 'authenticated'
+      AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE')
+  ),
+  'authenticated no debe poder mutar directamente internal.project_members'
 );
 
 SELECT finish();

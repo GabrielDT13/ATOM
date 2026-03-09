@@ -25,8 +25,10 @@ CREATE INDEX IF NOT EXISTS idx_internal_project_members_user_id ON internal.proj
 ALTER TABLE internal.projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE internal.project_members ENABLE ROW LEVEL SECURITY;
 
-GRANT SELECT, INSERT, UPDATE, DELETE ON internal.projects TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON internal.project_members TO authenticated;
+REVOKE ALL ON internal.projects FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON internal.project_members FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON internal.projects TO authenticated;
+GRANT SELECT ON internal.project_members TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA internal TO service_role;
 
 DROP POLICY IF EXISTS "projects_select_member_or_admin" ON internal.projects;
@@ -86,6 +88,24 @@ USING (
     FROM internal.projects p
     WHERE p.id = project_id
       AND p.owner_id = auth.uid()
+  )
+);
+
+DROP POLICY IF EXISTS "profiles_select_self_or_related_or_admin" ON internal.profiles;
+CREATE POLICY "profiles_select_self_or_related_or_admin"
+ON internal.profiles
+FOR SELECT
+TO authenticated
+USING (
+  id = auth.uid()
+  OR internal.is_admin()
+  OR EXISTS (
+    SELECT 1
+    FROM internal.project_members viewer_pm
+    JOIN internal.project_members target_pm
+      ON target_pm.project_id = viewer_pm.project_id
+    WHERE viewer_pm.user_id = auth.uid()
+      AND target_pm.user_id = internal.profiles.id
   )
 );
 

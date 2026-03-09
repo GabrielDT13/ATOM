@@ -11,6 +11,7 @@ CREATE OR REPLACE FUNCTION internal.normalize_department_name(raw_name text)
 RETURNS text
 LANGUAGE sql
 IMMUTABLE
+SET search_path = pg_catalog
 AS $$
   SELECT NULLIF(regexp_replace(trim(raw_name), '\s+', ' ', 'g'), '');
 $$;
@@ -19,6 +20,7 @@ CREATE OR REPLACE FUNCTION internal.normalize_department_slug(raw_name text)
 RETURNS text
 LANGUAGE sql
 IMMUTABLE
+SET search_path = pg_catalog, internal
 AS $$
   SELECT replace(lower(internal.normalize_department_name(raw_name)), ' ', '-');
 $$;
@@ -27,7 +29,7 @@ CREATE OR REPLACE FUNCTION internal.ensure_department_name(raw_name text)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = internal
+SET search_path = pg_catalog, internal
 AS $$
 DECLARE
   normalized_name text;
