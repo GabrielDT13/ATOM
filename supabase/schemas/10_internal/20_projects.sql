@@ -37,13 +37,13 @@ ON internal.projects
 FOR SELECT
 TO authenticated
 USING (
-  owner_id = auth.uid()
-  OR internal.is_admin()
+  owner_id = (SELECT auth.uid())
+  OR (SELECT internal.is_admin())
   OR EXISTS (
     SELECT 1
     FROM internal.project_members pm
     WHERE pm.project_id = internal.projects.id
-      AND pm.user_id = auth.uid()
+      AND pm.user_id = (SELECT auth.uid())
   )
 );
 
@@ -52,22 +52,22 @@ CREATE POLICY "projects_insert_owner_or_admin"
 ON internal.projects
 FOR INSERT
 TO authenticated
-WITH CHECK (owner_id = auth.uid() OR internal.is_admin());
+WITH CHECK (owner_id = (SELECT auth.uid()) OR (SELECT internal.is_admin()));
 
 DROP POLICY IF EXISTS "projects_update_owner_or_admin" ON internal.projects;
 CREATE POLICY "projects_update_owner_or_admin"
 ON internal.projects
 FOR UPDATE
 TO authenticated
-USING (owner_id = auth.uid() OR internal.is_admin())
-WITH CHECK (owner_id = auth.uid() OR internal.is_admin());
+USING (owner_id = (SELECT auth.uid()) OR (SELECT internal.is_admin()))
+WITH CHECK (owner_id = (SELECT auth.uid()) OR (SELECT internal.is_admin()));
 
 DROP POLICY IF EXISTS "projects_delete_owner_or_admin" ON internal.projects;
 CREATE POLICY "projects_delete_owner_or_admin"
 ON internal.projects
 FOR DELETE
 TO authenticated
-USING (owner_id = auth.uid() OR internal.is_admin());
+USING (owner_id = (SELECT auth.uid()) OR (SELECT internal.is_admin()));
 
 DROP POLICY IF EXISTS "project_members_select_related_or_admin" ON internal.project_members;
 CREATE POLICY "project_members_select_related_or_admin"
@@ -75,19 +75,19 @@ ON internal.project_members
 FOR SELECT
 TO authenticated
 USING (
-  user_id = auth.uid()
-  OR internal.is_admin()
+  user_id = (SELECT auth.uid())
+  OR (SELECT internal.is_admin())
   OR EXISTS (
     SELECT 1
     FROM internal.project_members current_pm
     WHERE current_pm.project_id = internal.project_members.project_id
-      AND current_pm.user_id = auth.uid()
+      AND current_pm.user_id = (SELECT auth.uid())
   )
   OR EXISTS (
     SELECT 1
     FROM internal.projects p
     WHERE p.id = project_id
-      AND p.owner_id = auth.uid()
+      AND p.owner_id = (SELECT auth.uid())
   )
 );
 
@@ -97,38 +97,69 @@ ON internal.profiles
 FOR SELECT
 TO authenticated
 USING (
-  id = auth.uid()
-  OR internal.is_admin()
+  id = (SELECT auth.uid())
+  OR (SELECT internal.is_admin())
   OR EXISTS (
     SELECT 1
     FROM internal.project_members viewer_pm
     JOIN internal.project_members target_pm
       ON target_pm.project_id = viewer_pm.project_id
-    WHERE viewer_pm.user_id = auth.uid()
+    WHERE viewer_pm.user_id = (SELECT auth.uid())
       AND target_pm.user_id = internal.profiles.id
   )
 );
 
 DROP POLICY IF EXISTS "project_members_mutate_owner_or_admin" ON internal.project_members;
-CREATE POLICY "project_members_mutate_owner_or_admin"
+DROP POLICY IF EXISTS "project_members_insert_owner_or_admin" ON internal.project_members;
+CREATE POLICY "project_members_insert_owner_or_admin"
 ON internal.project_members
-FOR ALL
+FOR INSERT
 TO authenticated
-USING (
-  internal.is_admin()
+WITH CHECK (
+  (SELECT internal.is_admin())
   OR EXISTS (
     SELECT 1
     FROM internal.projects p
     WHERE p.id = project_id
-      AND p.owner_id = auth.uid()
+      AND p.owner_id = (SELECT auth.uid())
+  )
+);
+
+DROP POLICY IF EXISTS "project_members_update_owner_or_admin" ON internal.project_members;
+CREATE POLICY "project_members_update_owner_or_admin"
+ON internal.project_members
+FOR UPDATE
+TO authenticated
+USING (
+  (SELECT internal.is_admin())
+  OR EXISTS (
+    SELECT 1
+    FROM internal.projects p
+    WHERE p.id = project_id
+      AND p.owner_id = (SELECT auth.uid())
   )
 )
 WITH CHECK (
-  internal.is_admin()
+  (SELECT internal.is_admin())
   OR EXISTS (
     SELECT 1
     FROM internal.projects p
     WHERE p.id = project_id
-      AND p.owner_id = auth.uid()
+      AND p.owner_id = (SELECT auth.uid())
+  )
+);
+
+DROP POLICY IF EXISTS "project_members_delete_owner_or_admin" ON internal.project_members;
+CREATE POLICY "project_members_delete_owner_or_admin"
+ON internal.project_members
+FOR DELETE
+TO authenticated
+USING (
+  (SELECT internal.is_admin())
+  OR EXISTS (
+    SELECT 1
+    FROM internal.projects p
+    WHERE p.id = project_id
+      AND p.owner_id = (SELECT auth.uid())
   )
 );

@@ -5,8 +5,6 @@ CREATE TABLE IF NOT EXISTS internal.departments (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_internal_departments_slug ON internal.departments (slug);
-
 CREATE OR REPLACE FUNCTION internal.normalize_department_name(raw_name text)
 RETURNS text
 LANGUAGE sql

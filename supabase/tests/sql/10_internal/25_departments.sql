@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(5);
+SELECT plan(6);
 
 SELECT columns_are(
   'internal',
@@ -21,6 +21,16 @@ SELECT col_type_is('internal', 'departments', 'id', 'uuid', 'internal.department
 SELECT col_type_is('internal', 'departments', 'name', 'text', 'internal.departments.name debe ser text');
 SELECT col_type_is('internal', 'departments', 'slug', 'text', 'internal.departments.slug debe ser text');
 SELECT has_pk('internal', 'departments', 'internal.departments debe tener primary key');
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'internal'
+      AND indexname = 'idx_internal_departments_slug'
+  ),
+  'No debe existir el indice redundante idx_internal_departments_slug'
+);
 
 SELECT finish();
 

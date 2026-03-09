@@ -32,7 +32,6 @@ CREATE TABLE IF NOT EXISTS internal.user_roles (
   PRIMARY KEY (user_id, role_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_internal_profiles_username ON internal.profiles (username);
 CREATE INDEX IF NOT EXISTS idx_internal_user_roles_role_id ON internal.user_roles (role_id);
 
 CREATE OR REPLACE FUNCTION internal.has_role(target_user_id uuid, target_role text)
@@ -82,8 +81,8 @@ CREATE POLICY "profiles_update_self_or_admin"
 ON internal.profiles
 FOR UPDATE
 TO authenticated
-USING (id = auth.uid() OR internal.is_admin())
-WITH CHECK (id = auth.uid() OR internal.is_admin());
+USING (id = (SELECT auth.uid()) OR (SELECT internal.is_admin()))
+WITH CHECK (id = (SELECT auth.uid()) OR (SELECT internal.is_admin()));
 
 DROP POLICY IF EXISTS "roles_select_authenticated" ON internal.roles;
 DROP POLICY IF EXISTS "roles_no_direct_access" ON internal.roles;

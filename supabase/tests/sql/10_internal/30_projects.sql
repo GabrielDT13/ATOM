@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(13);
+SELECT plan(15);
 
 SELECT has_table('internal', 'projects', 'Debe existir internal.projects');
 SELECT has_table('internal', 'project_members', 'Debe existir internal.project_members');
@@ -51,9 +51,31 @@ SELECT ok(
     FROM pg_policies
     WHERE schemaname = 'internal'
       AND tablename = 'project_members'
-      AND policyname = 'project_members_mutate_owner_or_admin'
+      AND policyname = 'project_members_insert_owner_or_admin'
   ),
-  'Debe existir la policy project_members_mutate_owner_or_admin'
+  'Debe existir la policy project_members_insert_owner_or_admin'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'internal'
+      AND tablename = 'project_members'
+      AND policyname = 'project_members_update_owner_or_admin'
+  ),
+  'Debe existir la policy project_members_update_owner_or_admin'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'internal'
+      AND tablename = 'project_members'
+      AND policyname = 'project_members_delete_owner_or_admin'
+  ),
+  'Debe existir la policy project_members_delete_owner_or_admin'
 );
 
 SELECT ok(

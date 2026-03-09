@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(16);
+SELECT plan(18);
 
 SELECT columns_are(
   'internal',
@@ -106,6 +106,26 @@ SELECT ok(
       AND policyname = 'user_roles_no_direct_access'
   ),
   'Debe existir la policy user_roles_no_direct_access'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'internal'
+      AND indexname = 'idx_internal_profiles_username'
+  ),
+  'No debe existir el indice redundante idx_internal_profiles_username'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_indexes
+    WHERE schemaname = 'internal'
+      AND indexname = 'idx_internal_user_roles_role_id'
+  ),
+  'Debe existir el indice idx_internal_user_roles_role_id para cubrir la foreign key'
 );
 
 SELECT finish();
