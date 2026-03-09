@@ -1,6 +1,20 @@
-import { ReactNode, useMemo, useState } from "react";
+import { ReactNode, useEffect, useMemo, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type DataTableSortDirection = "asc" | "desc";
 
@@ -24,6 +38,7 @@ type DataTableSortState = {
 type DataTableProps<T> = {
   columns: DataTableColumn<T>[];
   data: T[];
+  defaultRowsPerPage?: number;
   emptyState?: ReactNode;
   footer?: ReactNode;
   getRowKey: (row: T) => string;
@@ -79,6 +94,7 @@ function SortIndicator({
 export function DataTable<T>({
   columns,
   data,
+  defaultRowsPerPage = 10,
   emptyState,
   footer,
   getRowKey,
@@ -88,6 +104,8 @@ export function DataTable<T>({
   initialSort,
 }: DataTableProps<T>) {
   const [sortState, setSortState] = useState<DataTableSortState | null>(initialSort ?? null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
 
   const sortedData = useMemo(() => {
     if (!sortState) {
@@ -112,6 +130,22 @@ export function DataTable<T>({
       );
     });
   }, [columns, data, sortState]);
+
+  const totalPages = Math.max(1, Math.ceil(sortedData.length / rowsPerPage));
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * rowsPerPage;
+    return sortedData.slice(startIndex, startIndex + rowsPerPage);
+  }, [currentPage, rowsPerPage, sortedData]);
+  const visibleStart = sortedData.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const visibleEnd = Math.min(currentPage * rowsPerPage, sortedData.length);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [rowsPerPage]);
+
+  useEffect(() => {
+    setCurrentPage((current) => Math.min(current, totalPages));
+  }, [totalPages]);
 
   function handleSort(column: DataTableColumn<T>) {
     if (!column.sortComparator && !column.sortValue) {
@@ -189,7 +223,7 @@ export function DataTable<T>({
             ) : null}
 
             {!loading
-              ? sortedData.map((row) => (
+              ? paginatedData.map((row) => (
                   <tr
                     className={cn(
                       "transition-colors hover:bg-slate-50/80",
@@ -212,7 +246,66 @@ export function DataTable<T>({
         </table>
       </div>
 
-      {footer ? <div className="border-t border-slate-200 bg-slate-50/70 px-6 py-4">{footer}</div> : null}
+      <div className="border-t border-slate-200 bg-slate-50/70 px-6 py-4">
+        <div
+          className={cn(
+            "flex flex-col gap-4",
+            footer ? "lg:flex-row lg:items-center lg:justify-between" : "items-end",
+          )}
+        >
+          {footer ? <div className="text-sm text-slate-500">{footer}</div> : null}
+
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <p className="text-sm text-slate-500">
+              Mostrando <span className="font-semibold text-slate-700">{visibleStart}</span>-
+              <span className="font-semibold text-slate-700">{visibleEnd}</span> de{" "}
+              <span className="font-semibold text-slate-700">{sortedData.length}</span>
+            </p>
+
+            <p className="text-sm text-slate-500">
+              Página <span className="font-semibold text-slate-700">{currentPage}</span> de{" "}
+              <span className="font-semibold text-slate-700">{totalPages}</span>
+            </p>
+
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    disabled={currentPage === 1 || loading || sortedData.length === 0}
+                    onClick={() => setCurrentPage((current) => Math.max(1, current - 1))}
+                  />
+                </PaginationItem>
+
+                <PaginationItem>
+                  <PaginationNext
+                    disabled={currentPage === totalPages || loading || sortedData.length === 0}
+                    onClick={() => setCurrentPage((current) => Math.min(totalPages, current + 1))}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-500">
+              <span>Filas</span>
+              <Select
+                disabled={loading}
+                onValueChange={(value) => setRowsPerPage(Number(value))}
+                value={String(rowsPerPage)}
+              >
+                <SelectTrigger className="w-[5.5rem]">
+                  <SelectValue placeholder="10" />
+                </SelectTrigger>
+                <SelectContent align="end">
+                  <SelectItem value={String(10)}>10</SelectItem>
+                  <SelectItem value={String(25)}>25</SelectItem>
+                  <SelectItem value={String(50)}>50</SelectItem>
+                  <SelectItem value={String(100)}>100</SelectItem>
+                </SelectContent>
+              </Select>
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

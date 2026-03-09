@@ -161,13 +161,6 @@ export function UserManagementTable({
           </p>
         </div>
       }
-      footer={
-        <div className="text-sm text-slate-500">
-          <p>
-            Mostrando <span className="font-semibold text-slate-700">{users.length}</span> usuarios
-          </p>
-        </div>
-      }
       getRowKey={(user) => user.id}
       initialSort={{ columnId: "user", direction: "asc" }}
       loading={loading}

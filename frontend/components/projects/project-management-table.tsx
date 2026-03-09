@@ -198,14 +198,6 @@ export function ProjectManagementTable({
           </p>
         </div>
       }
-      footer={
-        <div className="text-sm text-slate-500">
-          <p>
-            Mostrando <span className="font-semibold text-slate-700">{projects.length}</span>{" "}
-            proyecto{projects.length === 1 ? "" : "s"}
-          </p>
-        </div>
-      }
       getRowKey={(project) => project.id}
       initialSort={{ columnId: "project", direction: "asc" }}
       loading={loading}
