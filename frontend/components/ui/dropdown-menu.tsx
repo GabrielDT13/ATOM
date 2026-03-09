@@ -4,19 +4,19 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-type PopoverContextValue = {
+type DropdownMenuContextValue = {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   triggerRef: React.MutableRefObject<HTMLElement | null>;
 };
 
-const PopoverContext = React.createContext<PopoverContextValue | null>(null);
+const DropdownMenuContext = React.createContext<DropdownMenuContextValue | null>(null);
 
-function usePopoverContext(componentName: string) {
-  const context = React.useContext(PopoverContext);
+function useDropdownMenuContext(componentName: string) {
+  const context = React.useContext(DropdownMenuContext);
 
   if (!context) {
-    throw new Error(`${componentName} debe usarse dentro de <Popover>.`);
+    throw new Error(`${componentName} debe usarse dentro de <DropdownMenu>.`);
   }
 
   return context;
@@ -32,18 +32,18 @@ function composeEventHandlers<EventType>(
   };
 }
 
-const Popover = ({ children }: { children: React.ReactNode }) => {
+const DropdownMenu = ({ children }: { children: React.ReactNode }) => {
   const [open, setOpen] = React.useState(false);
   const triggerRef = React.useRef<HTMLElement | null>(null);
 
   return (
-    <PopoverContext.Provider value={{ open, setOpen, triggerRef }}>
+    <DropdownMenuContext.Provider value={{ open, setOpen, triggerRef }}>
       <div className="relative inline-flex">{children}</div>
-    </PopoverContext.Provider>
+    </DropdownMenuContext.Provider>
   );
 };
 
-type PopoverTriggerProps = {
+type DropdownMenuTriggerProps = {
   asChild?: boolean;
   children: React.ReactElement<{
     onClick?: (event: React.MouseEvent<HTMLElement>) => void;
@@ -51,9 +51,9 @@ type PopoverTriggerProps = {
   }>;
 };
 
-const PopoverTrigger = React.forwardRef<HTMLElement, PopoverTriggerProps>(
+const DropdownMenuTrigger = React.forwardRef<HTMLElement, DropdownMenuTriggerProps>(
   ({ asChild = false, children }, forwardedRef) => {
-    const { open, setOpen, triggerRef } = usePopoverContext("PopoverTrigger");
+    const { open, setOpen, triggerRef } = useDropdownMenuContext("DropdownMenuTrigger");
 
     const handleRef = (node: HTMLElement | null) => {
       triggerRef.current = node;
@@ -72,7 +72,7 @@ const PopoverTrigger = React.forwardRef<HTMLElement, PopoverTriggerProps>(
 
     const triggerProps = {
       "aria-expanded": open,
-      "aria-haspopup": "dialog" as const,
+      "aria-haspopup": "menu" as const,
       onClick: composeEventHandlers(children.props.onClick, () => {
         setOpen((current) => !current);
       }),
@@ -87,21 +87,16 @@ const PopoverTrigger = React.forwardRef<HTMLElement, PopoverTriggerProps>(
     return <button {...triggerProps}>{children}</button>;
   },
 );
-PopoverTrigger.displayName = "PopoverTrigger";
+DropdownMenuTrigger.displayName = "DropdownMenuTrigger";
 
-const PopoverAnchor = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ children, ...props }, ref) => <div ref={ref} {...props}>{children}</div>,
-);
-PopoverAnchor.displayName = "PopoverAnchor";
-
-type PopoverContentProps = React.HTMLAttributes<HTMLDivElement> & {
+type DropdownMenuContentProps = React.HTMLAttributes<HTMLDivElement> & {
   align?: "center" | "end" | "start";
   sideOffset?: number;
 };
 
-const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
+const DropdownMenuContent = React.forwardRef<HTMLDivElement, DropdownMenuContentProps>(
   ({ align = "end", className, sideOffset = 10, ...props }, forwardedRef) => {
-    const { open, setOpen, triggerRef } = usePopoverContext("PopoverContent");
+    const { open, setOpen, triggerRef } = useDropdownMenuContext("DropdownMenuContent");
     const contentRef = React.useRef<HTMLDivElement | null>(null);
 
     const handleRef = (node: HTMLDivElement | null) => {
@@ -127,10 +122,7 @@ const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
       function handlePointerDown(event: MouseEvent) {
         const target = event.target as Node | null;
 
-        if (
-          contentRef.current?.contains(target) ||
-          triggerRef.current?.contains(target)
-        ) {
+        if (contentRef.current?.contains(target) || triggerRef.current?.contains(target)) {
           return;
         }
 
@@ -159,7 +151,7 @@ const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
     return (
       <div
         className={cn(
-          "absolute top-full z-50 mt-3 w-80 rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/10 outline-none",
+          "absolute top-full z-50 mt-3 min-w-48 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-2xl shadow-slate-950/10",
           align === "end" && "right-0",
           align === "start" && "left-0",
           align === "center" && "left-1/2 -translate-x-1/2",
@@ -172,6 +164,57 @@ const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
     );
   },
 );
-PopoverContent.displayName = "PopoverContent";
+DropdownMenuContent.displayName = "DropdownMenuContent";
 
-export { Popover, PopoverAnchor, PopoverContent, PopoverTrigger };
+type DropdownMenuItemProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  inset?: boolean;
+  onSelect?: () => void;
+};
+
+function DropdownMenuItem({
+  children,
+  className,
+  disabled = false,
+  inset = false,
+  onSelect,
+  onClick,
+  type = "button",
+  ...props
+}: DropdownMenuItemProps) {
+  const { setOpen } = useDropdownMenuContext("DropdownMenuItem");
+
+  return (
+    <button
+      className={cn(
+        "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 disabled:pointer-events-none disabled:opacity-50",
+        inset && "pl-8",
+        className,
+      )}
+      disabled={disabled}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented || disabled) {
+          return;
+        }
+        onSelect?.();
+        setOpen(false);
+      }}
+      type={type}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
+function DropdownMenuSeparator({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("my-1 h-px bg-slate-200", className)} {...props} />;
+}
+
+export {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+};
