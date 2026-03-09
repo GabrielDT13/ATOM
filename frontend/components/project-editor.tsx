@@ -4,8 +4,9 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { apiFetch, apiUpload, buildApiUrl, encodePathSegments } from "@/lib/api";
-import type { MutationResponse, ProjectDetails } from "@/types/api";
+import { buildApiUrl, encodePathSegments } from "@/lib/api";
+import { getProject, updateProject } from "@/lib/projects";
+import type { ProjectDetails } from "@/types/api";
 import { ProjectFileDropzone } from "@/components/projects/project-file-dropzone";
 import {
   TemplateIcon,
@@ -38,9 +39,7 @@ export function ProjectEditor() {
 
   async function loadProject() {
     try {
-      const payload = await apiFetch<ProjectDetails>(
-        `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`,
-      );
+      const payload = await getProject(owner, projectName);
       setDetails(payload);
       setNextName(payload.name);
     } catch (loadError) {
@@ -58,35 +57,24 @@ export function ProjectEditor() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData();
     const hasUploads = Boolean(excelFile) || additionalFiles.length > 0;
-
-    if (nextName !== projectName) {
-      formData.append("new_name", nextName);
-    }
-
-    if (excelFile) {
-      formData.append("excel_file", excelFile);
-    }
-
-    additionalFiles.forEach((file) => {
-      formData.append("additional_files", file);
-    });
 
     setSubmitting(true);
     setUploadProgress(0);
     setUploadState(hasUploads ? "uploading" : "idle");
 
     try {
-      const response = await apiUpload<MutationResponse>(
-        `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`,
-        formData,
-        {
-          method: "PUT",
-          onProgress: hasUploads ? setUploadProgress : undefined,
-        },
-      );
+      const response = await updateProject(owner, projectName, {
+        additionalFiles,
+        name: nextName !== projectName ? nextName : undefined,
+        onProgress: hasUploads ? setUploadProgress : undefined,
+        templateFile: excelFile,
+      });
       setMessage(response.message);
+      if (response.project) {
+        setDetails(response.project);
+        setNextName(response.project.name);
+      }
       if (hasUploads) {
         setUploadProgress(100);
         setUploadState("complete");

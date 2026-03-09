@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { toast, type ExternalToast } from "sonner";
 
 type AppToastVariant = "default" | "success" | "error" | "warning" | "loading" | "info";
@@ -78,21 +79,24 @@ function showPromiseToast<T>(
 }
 
 export function useAppToast() {
-  return {
-    show: showToast,
-    promise: showPromiseToast,
-    success: (title: string, description?: string, duration?: number) =>
-      showToast({ title, description, duration, variant: "success" }),
-    error: (title: string, description?: string, duration?: number) =>
-      showToast({ title, description, duration, variant: "error" }),
-    warning: (title: string, description?: string, duration?: number) =>
-      showToast({ title, description, duration, variant: "warning" }),
-    loading: (title: string, description?: string) =>
-      showToast({ title, description, duration: 0, variant: "loading" }),
-    info: (title: string, description?: string, duration?: number) =>
-      showToast({ title, description, duration, variant: "info" }),
-    dismiss: toast.dismiss,
-  };
+  return useMemo(
+    () => ({
+      show: showToast,
+      promise: showPromiseToast,
+      success: (title: string, description?: string, duration?: number) =>
+        showToast({ title, description, duration, variant: "success" }),
+      error: (title: string, description?: string, duration?: number) =>
+        showToast({ title, description, duration, variant: "error" }),
+      warning: (title: string, description?: string, duration?: number) =>
+        showToast({ title, description, duration, variant: "warning" }),
+      loading: (title: string, description?: string) =>
+        showToast({ title, description, duration: 0, variant: "loading" }),
+      info: (title: string, description?: string, duration?: number) =>
+        showToast({ title, description, duration, variant: "info" }),
+      dismiss: toast.dismiss,
+    }),
+    [],
+  );
 }
 
 export type {

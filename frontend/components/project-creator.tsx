@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
-import { apiUpload } from "@/lib/api";
+import { createProject } from "@/lib/projects";
 import { useAppToast } from "@/hooks/use-app-toast";
-import type { MutationResponse } from "@/types/api";
 import { ProjectFileDropzone } from "@/components/projects/project-file-dropzone";
 import {
   DataFilesIcon,
@@ -45,17 +44,12 @@ export function ProjectCreator() {
     setUploadProgress(0);
     setUploadState("uploading");
 
-    const formData = new FormData();
-    formData.append("project_name", normalizedProjectName);
-    formData.append("template_file", templateFile);
-    additionalFiles.forEach((file) => {
-      formData.append("additional_files", file);
-    });
-
     try {
-      const response = await apiUpload<MutationResponse>("/api/projects", formData, {
-        method: "POST",
+      const response = await createProject({
+        additionalFiles,
+        name: normalizedProjectName,
         onProgress: setUploadProgress,
+        templateFile,
       });
 
       if (response.success) {

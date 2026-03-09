@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 
-import { CloseIcon } from "@/components/dashboard/dashboard-icons";
+import { CheckIcon, CloseIcon } from "@/components/dashboard/dashboard-icons";
 import { cn } from "@/lib/utils";
 
 type ProjectFileDropzoneProps = {
@@ -50,6 +50,8 @@ export function ProjectFileDropzone({
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const isUploading = uploadState === "uploading";
+  const isComplete = uploadState === "complete";
 
   function handleIncomingFiles(nextFiles: File[]) {
     if (!multiple) {
@@ -148,43 +150,29 @@ export function ProjectFileDropzone({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-slate-900">{file.name}</p>
                     <p className="text-xs text-slate-500">{formatFileSize(file.size)}</p>
-                    <div className="mt-2">
-                      <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
-                        <span
-                          className={cn(
-                            uploadState === "uploading" && "text-sky-700",
-                            uploadState === "complete" && "text-emerald-700",
-                            uploadState === "idle" && "text-slate-500",
-                          )}
-                        >
-                          {uploadState === "uploading"
-                            ? "Subiendo"
-                            : uploadState === "complete"
-                              ? "Subido"
-                              : "Preparado"}
-                        </span>
-                        <span className="text-slate-400">
-                          {uploadState === "uploading"
-                            ? `${uploadProgress}%`
-                            : uploadState === "complete"
-                              ? "100%"
-                              : "Listo"}
-                        </span>
+                    {isUploading ? (
+                      <div className="mt-2">
+                        <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
+                          <span className="text-sky-700">Subiendo</span>
+                          <span className="text-sky-600">{uploadProgress}%</span>
+                        </div>
+                        <div className="h-2 overflow-hidden rounded-full bg-sky-100">
+                          <div
+                            className="h-full rounded-full bg-sky-500 transition-[width] duration-300"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
                       </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-[width] duration-300",
-                            uploadState === "uploading" && "bg-sky-500",
-                            uploadState === "complete" && "bg-emerald-500",
-                            uploadState === "idle" && "bg-slate-400",
-                          )}
-                          style={{
-                            width: `${uploadState === "uploading" ? uploadProgress : 100}%`,
-                          }}
-                        />
+                    ) : isComplete ? (
+                      <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                        <CheckIcon className="h-4 w-4" />
+                        Archivo subido correctamente
                       </div>
-                    </div>
+                    ) : (
+                      <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                        Preparado para subir
+                      </div>
+                    )}
                   </div>
                   <button
                     aria-label={`Quitar ${file.name}`}
