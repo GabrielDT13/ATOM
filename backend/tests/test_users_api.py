@@ -142,3 +142,34 @@ def test_update_user_route_requires_admin_and_forwards_role_and_department(
         "department": "Genomica clinica",
         "actor_user_id": "11111111-1111-1111-1111-111111111111",
     }
+
+
+def test_delete_user_route_returns_controlled_message_when_projects_block_deletion(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import users as user_routes
+
+    monkeypatch.setattr(
+        user_routes,
+        "require_admin",
+        lambda request: {"id": "11111111-1111-1111-1111-111111111111", "role": "admin"},
+    )
+    monkeypatch.setattr(
+        user_routes,
+        "delete_user",
+        lambda username: (
+            False,
+            "No se puede eliminar el usuario porque todavía es propietario de proyectos. "
+            "Reasigna o elimina esos proyectos primero.",
+        ),
+    )
+
+    response = client.delete("/api/users/researcher")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "No se puede eliminar el usuario porque todavía es propietario de proyectos. Reasigna o elimina esos proyectos primero.",
+        "success": False,
+        "user": None,
+    }

@@ -81,6 +81,40 @@ def _get_profile_by_email(email: str) -> dict[str, Any] | None:
     return profiles[0] if profiles else None
 
 
+def _list_owned_projects(user_id: str, *, limit: int = 3) -> list[dict[str, Any]]:
+    payload = request_with_service_role(
+        "GET",
+        f"/rest/v1/vw_projects?{build_query_string({'select': 'id,name', 'owner_id': f'eq.{user_id}', 'limit': limit, 'order': 'name.asc'})}",
+    )
+    if not isinstance(payload, list):
+        raise SupabaseError("Supabase devolvió una lista de proyectos inválida")
+    return [project for project in payload if isinstance(project, dict)]
+
+
+def _build_owned_projects_message(projects: list[dict[str, Any]]) -> str:
+    if not projects:
+        return ""
+
+    project_names = [
+        str(project.get("name", "")).strip()
+        for project in projects
+        if str(project.get("name", "")).strip()
+    ]
+
+    if not project_names:
+        return (
+            "No se puede eliminar el usuario porque todavía es propietario de proyectos. "
+            "Reasigna o elimina esos proyectos primero."
+        )
+
+    listed_names = ", ".join(project_names[:3])
+    suffix = "…" if len(project_names) > 3 else ""
+    return (
+        "No se puede eliminar el usuario porque todavía es propietario de proyectos "
+        f"({listed_names}{suffix}). Reasigna o elimina esos proyectos primero."
+    )
+
+
 def get_user_by_username(username: str) -> dict[str, str | None]:
     profile = _get_profile_by_username(username)
     if not profile:
@@ -368,9 +402,19 @@ def delete_user(username: str) -> tuple[bool, str]:
     if not current_profile:
         return False, "El usuario no existe."
 
+    owned_projects = _list_owned_projects(str(current_profile["id"]))
+    if owned_projects:
+        return False, _build_owned_projects_message(owned_projects)
+
     try:
         _delete_auth_user(str(current_profile["id"]))
     except SupabaseError as exc:
+        if "projects_owner_id_fkey" in str(exc):
+            return (
+                False,
+                "No se puede eliminar el usuario porque todavía es propietario de proyectos. "
+                "Reasigna o elimina esos proyectos primero.",
+            )
         return False, str(exc)
 
     try:

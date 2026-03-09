@@ -182,3 +182,71 @@ def test_update_user_syncs_auth_role_department_and_project_dir(
     }
     assert not old_dir.exists()
     assert (isolated_app_env["projects_dir"] / "principal").is_dir()
+
+
+def test_delete_user_is_blocked_when_user_owns_projects(monkeypatch) -> None:
+    deleted_user_ids: list[str] = []
+
+    monkeypatch.setattr(
+        user_service,
+        "_get_profile_by_username",
+        lambda username: {
+            "id": "44444444-4444-4444-4444-444444444444",
+            "username": "researcher",
+            "email": "researcher@example.com",
+        },
+    )
+    monkeypatch.setattr(
+        user_service,
+        "_list_owned_projects",
+        lambda user_id, limit=3: [
+            {"id": "project-1", "name": "RNA Atlas"},
+            {"id": "project-2", "name": "Cell Map"},
+        ],
+    )
+    monkeypatch.setattr(
+        user_service,
+        "_delete_auth_user",
+        lambda user_id: deleted_user_ids.append(user_id),
+    )
+
+    success, message = user_service.delete_user("researcher")
+
+    assert success is False
+    assert message == (
+        "No se puede eliminar el usuario porque todavía es propietario de proyectos "
+        "(RNA Atlas, Cell Map). Reasigna o elimina esos proyectos primero."
+    )
+    assert deleted_user_ids == []
+
+
+def test_delete_user_deletes_auth_user_and_projects_dir_when_no_owned_projects(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    deleted_user_ids: list[str] = []
+    user_dir = isolated_app_env["projects_dir"] / "researcher"
+    user_dir.mkdir()
+
+    monkeypatch.setattr(
+        user_service,
+        "_get_profile_by_username",
+        lambda username: {
+            "id": "44444444-4444-4444-4444-444444444444",
+            "username": "researcher",
+            "email": "researcher@example.com",
+        },
+    )
+    monkeypatch.setattr(user_service, "_list_owned_projects", lambda user_id, limit=3: [])
+    monkeypatch.setattr(
+        user_service,
+        "_delete_auth_user",
+        lambda user_id: deleted_user_ids.append(user_id),
+    )
+
+    success, message = user_service.delete_user("researcher")
+
+    assert success is True
+    assert message == "Usuario researcher y su carpeta de proyectos eliminados correctamente."
+    assert deleted_user_ids == ["44444444-4444-4444-4444-444444444444"]
+    assert not user_dir.exists()

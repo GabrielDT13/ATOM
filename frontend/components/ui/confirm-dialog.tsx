@@ -15,6 +15,7 @@ import {
 type ConfirmDialogProps = {
   actionLabel: string;
   body: ReactNode;
+  confirmDisabled?: boolean;
   confirmVariant?: "danger" | "primary";
   onConfirm: () => void | Promise<void>;
   onOpenChange: (open: boolean) => void;
@@ -33,6 +34,7 @@ function getConfirmButtonClassName(variant: "danger" | "primary") {
 export function ConfirmDialog({
   actionLabel,
   body,
+  confirmDisabled = false,
   confirmVariant = "primary",
   onConfirm,
   onOpenChange,
@@ -62,6 +64,7 @@ export function ConfirmDialog({
           </DialogClose>
           <button
             className={`inline-flex h-11 items-center justify-center rounded-xl px-4 text-sm font-semibold text-white shadow-sm transition ${getConfirmButtonClassName(confirmVariant)}`}
+            disabled={confirmDisabled}
             onClick={() => void onConfirm()}
             type="button"
           >
