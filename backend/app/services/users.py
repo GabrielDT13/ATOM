@@ -82,9 +82,17 @@ def _get_profile_by_email(email: str) -> dict[str, Any] | None:
 
 
 def _list_owned_projects(user_id: str, *, limit: int = 3) -> list[dict[str, Any]]:
+    query = build_query_string(
+        {
+            "select": "id,name",
+            "owner_id": f"eq.{user_id}",
+            "limit": limit,
+            "order": "name.asc",
+        }
+    )
     payload = request_with_service_role(
         "GET",
-        f"/rest/v1/vw_projects?{build_query_string({'select': 'id,name', 'owner_id': f'eq.{user_id}', 'limit': limit, 'order': 'name.asc'})}",
+        f"/rest/v1/vw_projects?{query}",
     )
     if not isinstance(payload, list):
         raise SupabaseError("Supabase devolvió una lista de proyectos inválida")

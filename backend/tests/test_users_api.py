@@ -169,7 +169,10 @@ def test_delete_user_route_returns_controlled_message_when_projects_block_deleti
 
     assert response.status_code == 200
     assert response.json() == {
-        "message": "No se puede eliminar el usuario porque todavía es propietario de proyectos. Reasigna o elimina esos proyectos primero.",
+        "message": (
+            "No se puede eliminar el usuario porque todavía es propietario de proyectos. "
+            "Reasigna o elimina esos proyectos primero."
+        ),
         "success": False,
         "user": None,
     }
