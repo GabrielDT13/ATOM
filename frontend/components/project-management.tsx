@@ -1,104 +1,316 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
-import type { MutationResponse, ProjectMapResponse } from "@/types/api";
+import { apiFetch, apiUpload, fetchSession } from "@/lib/api";
+import { useAppToast } from "@/hooks/use-app-toast";
+import type {
+  MutationResponse,
+  ProjectDetails,
+  ProjectMapResponse,
+  SessionResponse,
+} from "@/types/api";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ProjectEditDialog, type ProjectEditValues } from "@/components/projects/project-edit-dialog";
+import { ProjectManagementFilters } from "@/components/projects/project-management-filters";
+import {
+  PlusIcon,
+  ProjectStackIcon,
+} from "@/components/projects/project-management-icons";
+import { ProjectManagementSummary } from "@/components/projects/project-management-summary";
+import { ProjectManagementTable } from "@/components/projects/project-management-table";
+import {
+  filterProjects,
+  getProjectOwners,
+  type ProjectOwnerFilter,
+  type ProjectRecord,
+  type ProjectStatusFilter,
+  buildProjectRecords,
+} from "@/components/projects/project-management-utils";
+import { ProjectViewDialog } from "@/components/projects/project-view-dialog";
 
 export function ProjectManagement() {
-  const [projects, setProjects] = useState<Record<string, string[]>>({});
-  const [message, setMessage] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [session, setSession] = useState<SessionResponse | null>();
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all");
+  const [ownerFilter, setOwnerFilter] = useState<ProjectOwnerFilter>("all");
+  const [viewProject, setViewProject] = useState<ProjectRecord | null>(null);
+  const [editingProject, setEditingProject] = useState<ProjectRecord | null>(null);
+  const [pendingDeleteProject, setPendingDeleteProject] = useState<ProjectRecord | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadState, setUploadState] = useState<"complete" | "idle" | "uploading">("idle");
+  const appToast = useAppToast();
 
   async function loadProjects() {
     setLoading(true);
+
     try {
       const payload = await apiFetch<ProjectMapResponse>("/api/projects");
-      setProjects(payload.projects);
-    } catch (loadError) {
-      setMessage(
-        loadError instanceof Error
-          ? loadError.message
-          : "No se pudieron cargar los proyectos",
+      const requestedProjects = Object.entries(payload.projects).flatMap(([owner, projectNames]) =>
+        projectNames.map((projectName) => ({ owner, projectName })),
       );
+
+      const detailResults = await Promise.allSettled(
+        requestedProjects.map(({ owner, projectName }) =>
+          apiFetch<ProjectDetails>(
+            `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`,
+          ),
+        ),
+      );
+
+      const details = detailResults.flatMap((result) =>
+        result.status === "fulfilled" ? [result.value] : [],
+      );
+
+      setProjects(buildProjectRecords(payload.projects, details));
+
+      const failedDetails = detailResults.filter((result) => result.status === "rejected");
+      if (failedDetails.length > 0) {
+        appToast.warning(
+          "Algunos detalles no se pudieron cargar",
+          "La tabla se muestra igualmente con la información mínima disponible.",
+        );
+      }
+    } catch (loadError) {
+      appToast.error(
+        "No se pudieron cargar los proyectos",
+        loadError instanceof Error ? loadError.message : undefined,
+      );
+      setProjects([]);
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
+    void fetchSession()
+      .then((nextSession) => setSession(nextSession))
+      .catch(() => setSession(null));
     void loadProjects();
   }, []);
 
-  async function handleDelete(owner: string, projectName: string) {
-    if (!window.confirm(`Se eliminará el proyecto ${projectName}.`)) {
+  async function handleEdit(values: ProjectEditValues) {
+    if (!editingProject) {
+      return;
+    }
+
+    const nextName = values.name.trim();
+    const nextTemplate = values.templateFiles[0] ?? null;
+    const hasAdditionalFiles = values.additionalFiles.length > 0;
+    const hasNameChange = nextName !== editingProject.name;
+
+    if (!nextName) {
+      appToast.error("El nombre del proyecto es obligatorio");
+      return;
+    }
+
+    if (!hasNameChange && !nextTemplate && !hasAdditionalFiles) {
+      appToast.info("No hay cambios para guardar");
+      return;
+    }
+
+    setSubmitting(true);
+    setUploadProgress(0);
+    setUploadState("uploading");
+
+    try {
+      const formData = new FormData();
+
+      if (hasNameChange) {
+        formData.append("new_name", nextName);
+      }
+      if (nextTemplate) {
+        formData.append("excel_file", nextTemplate);
+      }
+      values.additionalFiles.forEach((file) => {
+        formData.append("additional_files", file);
+      });
+
+      const response = await apiUpload<MutationResponse>(
+        `/api/projects/${encodeURIComponent(editingProject.owner)}/${encodeURIComponent(editingProject.name)}`,
+        formData,
+        {
+          method: "PUT",
+          onProgress: setUploadProgress,
+        },
+      );
+
+      if (response.success) {
+        setUploadProgress(100);
+        setUploadState("complete");
+        setEditingProject(null);
+        setViewProject(null);
+        await loadProjects();
+        appToast.success(response.message);
+      } else {
+        appToast.error(response.message);
+        setUploadState("idle");
+      }
+    } catch (submitError) {
+      setUploadState("idle");
+      appToast.error(
+        "No se pudo actualizar el proyecto",
+        submitError instanceof Error ? submitError.message : undefined,
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function confirmDeleteProject() {
+    if (!pendingDeleteProject) {
       return;
     }
 
     try {
       const response = await apiFetch<MutationResponse>(
-        `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`,
+        `/api/projects/${encodeURIComponent(pendingDeleteProject.owner)}/${encodeURIComponent(pendingDeleteProject.name)}`,
         { method: "DELETE" },
       );
-      setMessage(response.message);
-      await loadProjects();
+
+      if (response.success) {
+        setPendingDeleteProject(null);
+        setViewProject(null);
+        setEditingProject(null);
+        await loadProjects();
+        appToast.success(response.message);
+      } else {
+        appToast.error(response.message);
+      }
     } catch (deleteError) {
-      setMessage(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "No se pudo eliminar el proyecto",
+      appToast.error(
+        "No se pudo eliminar el proyecto",
+        deleteError instanceof Error ? deleteError.message : undefined,
       );
     }
   }
 
+  const owners = useMemo(() => getProjectOwners(projects), [projects]);
+  const filteredProjects = useMemo(
+    () => filterProjects(projects, search, statusFilter, ownerFilter),
+    [ownerFilter, projects, search, statusFilter],
+  );
+  const isAdmin = session?.user?.role === "admin";
+
   return (
-    <div className="edit-users-box">
-      <h2>Editar Proyectos</h2>
-      {message ? (
-        <div className={`message ${message.includes("correctamente") ? "success" : "error"}`}>
-          {message}
-        </div>
-      ) : null}
-      {loading ? <div>Cargando proyectos...</div> : null}
-      {!loading ? (
-        <table className="edit-users-table">
-          <thead>
-            <tr>
-              <th>Usuario</th>
-              <th>Proyecto</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(projects).flatMap(([owner, projectNames]) =>
-              projectNames.map((projectName) => (
-                <tr key={`${owner}-${projectName}`}>
-                  <td>{owner}</td>
-                  <td>{projectName}</td>
-                  <td>
-                    <div className="table-actions">
-                      <Link
-                        className="btn-edit"
-                        href={`/dashboard/edit_project/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`}
-                      >
-                        Editar
-                      </Link>
-                      <button
-                        className="btn-delete"
-                        onClick={() => void handleDelete(owner, projectName)}
-                        type="button"
-                      >
-                        Borrar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )),
-            )}
-          </tbody>
-        </table>
-      ) : null}
-    </div>
+    <>
+      <div className="flex flex-col gap-6">
+        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_34%),linear-gradient(180deg,_#ffffff_0%,_#f7fbff_100%)] p-6 shadow-sm sm:p-8">
+          <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+                <ProjectStackIcon />
+                Proyectos
+              </div>
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                Gestión visual de proyectos
+              </h1>
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+                Administra tus proyectos, revisa sus archivos y realiza acciones rápidas desde una
+                sola vista.
+              </p>
+              <div className="mt-4 flex flex-wrap gap-3">
+                <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                  {projects.length} proyecto{projects.length === 1 ? "" : "s"} visibles
+                </span>
+                {isAdmin ? (
+                  <span className="inline-flex items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+                    Vista multiusuario habilitada
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <Link
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+              href="/dashboard/create_project"
+            >
+              <PlusIcon />
+              Crear nuevo proyecto
+            </Link>
+          </div>
+        </section>
+
+        <ProjectManagementSummary projects={projects} />
+
+        <ProjectManagementFilters
+          onOwnerFilterChange={setOwnerFilter}
+          onSearchChange={setSearch}
+          onStatusFilterChange={setStatusFilter}
+          ownerFilter={ownerFilter}
+          owners={isAdmin ? owners : owners.slice(0, 1)}
+          search={search}
+          statusFilter={statusFilter}
+        />
+
+        <ProjectManagementTable
+          loading={loading}
+          onDelete={setPendingDeleteProject}
+          onEdit={setEditingProject}
+          onView={setViewProject}
+          projects={filteredProjects}
+        />
+      </div>
+
+      <ProjectViewDialog
+        onEdit={(project) => {
+          setViewProject(null);
+          setEditingProject(project);
+        }}
+        onOpenChange={(open) => {
+          if (!open) {
+            setViewProject(null);
+          }
+        }}
+        open={Boolean(viewProject)}
+        project={viewProject}
+      />
+
+      <ProjectEditDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingProject(null);
+            setUploadProgress(0);
+            setUploadState("idle");
+          }
+        }}
+        onSubmit={handleEdit}
+        open={Boolean(editingProject)}
+        project={editingProject}
+        submitting={submitting}
+        uploadProgress={uploadProgress}
+        uploadState={uploadState}
+      />
+
+      <ConfirmDialog
+        actionLabel="Eliminar proyecto"
+        body={
+          pendingDeleteProject ? (
+            <div className="space-y-3">
+              <p>
+                Se eliminará <strong>{pendingDeleteProject.name}</strong> y todo su contenido
+                asociado.
+              </p>
+              <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                Esta acción borra la carpeta del proyecto para @{pendingDeleteProject.owner}.
+              </p>
+            </div>
+          ) : null
+        }
+        confirmVariant="danger"
+        onConfirm={() => void confirmDeleteProject()}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteProject(null);
+          }
+        }}
+        open={Boolean(pendingDeleteProject)}
+        title="Confirmar eliminación"
+      />
+    </>
   );
 }

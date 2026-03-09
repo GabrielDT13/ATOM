@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import { apiFetch } from "@/lib/api";
 import type { MutationResponse, UserRecord } from "@/types/api";
+import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
 
 export function UserEditor() {
   const params = useParams<{ username: string }>();
@@ -67,43 +68,77 @@ export function UserEditor() {
   }
 
   return (
-    <div className="create-project-box">
-      <h2>Editar Usuario</h2>
-      <form id="edit_user_form" onSubmit={handleSubmit}>
-        <input
-          onChange={(event) => setNextUsername(event.target.value)}
-          placeholder="Nombre de usuario"
-          required
-          value={nextUsername}
-        />
-        <input
-          onChange={(event) => setEmail(event.target.value)}
-          placeholder="Email"
-          required
-          type="email"
-          value={email}
-        />
-        <input
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="Nueva contraseña (dejar en blanco si no cambia)"
-          type="password"
-          value={password}
-        />
-        <div className="form-actions">
-          <button className="btn-submit" type="submit">
-            Guardar cambios
-          </button>
-          <Link className="btn-cancel" href="/dashboard/edit_users">
-            Cancelar
-          </Link>
-        </div>
+    <FormPage
+      actions={
+        <Link
+          className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+          href="/dashboard/users"
+        >
+          Volver a usuarios
+        </Link>
+      }
+      description="Actualiza los datos básicos del usuario seleccionado."
+      eyebrow="Usuarios"
+      title="Editar usuario"
+    >
+      <form onSubmit={handleSubmit}>
+        <FormCard
+          footer={
+            <>
+              <Link
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+                href="/dashboard/users"
+              >
+                Cancelar
+              </Link>
+              <button
+                className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+                type="submit"
+              >
+                Guardar cambios
+              </button>
+            </>
+          }
+          title={`Editar ${username}`}
+        >
+          <div className="grid gap-5 sm:grid-cols-2">
+            <FormField label="Nombre de usuario">
+              <FormInput
+                onChange={(event) => setNextUsername(event.target.value)}
+                placeholder="Nombre de usuario"
+                required
+                value={nextUsername}
+              />
+            </FormField>
+            <FormField label="Email">
+              <FormInput
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="Email"
+                required
+                type="email"
+                value={email}
+              />
+            </FormField>
+          </div>
+
+          <FormField label="Nueva contraseña">
+            <FormInput
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Dejar en blanco si no cambia"
+              type="password"
+              value={password}
+            />
+          </FormField>
+
+          {message ? (
+            <FormMessage tone={message.includes("correctamente") ? "neutral" : "danger"}>
+              {message}
+            </FormMessage>
+          ) : null}
+
+          {!currentUser && !message ? <FormMessage>Cargando usuario...</FormMessage> : null}
+        </FormCard>
       </form>
-      {message ? (
-        <div className={`message ${message.includes("correctamente") ? "success" : "error"}`}>
-          {message}
-        </div>
-      ) : null}
-      {!currentUser && !message ? <div>Cargando usuario...</div> : null}
-    </div>
+    </FormPage>
   );
 }
