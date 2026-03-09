@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(7);
+SELECT plan(13);
 
 SELECT ok(
   EXISTS (
@@ -83,6 +83,42 @@ SELECT ok(
 );
 
 SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_create_project'
+      AND grantee = 'service_role'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'service_role debe poder ejecutar public.admin_create_project'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_set_project_member'
+      AND grantee = 'service_role'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'service_role debe poder ejecutar public.admin_set_project_member'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_transfer_project_ownership'
+      AND grantee = 'service_role'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'service_role debe poder ejecutar public.admin_transfer_project_ownership'
+);
+
+SELECT ok(
   NOT EXISTS (
     SELECT 1
     FROM information_schema.role_routine_grants
@@ -92,6 +128,42 @@ SELECT ok(
       AND privilege_type = 'EXECUTE'
   ),
   'authenticated no debe poder ejecutar public.admin_set_user_role'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_create_project'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'authenticated no debe poder ejecutar public.admin_create_project'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_set_project_member'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'authenticated no debe poder ejecutar public.admin_set_project_member'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_routine_grants
+    WHERE routine_schema = 'public'
+      AND routine_name = 'admin_transfer_project_ownership'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'EXECUTE'
+  ),
+  'authenticated no debe poder ejecutar public.admin_transfer_project_ownership'
 );
 
 SELECT finish();

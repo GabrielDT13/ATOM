@@ -58,14 +58,79 @@ export type MutationResponse = {
   user?: UserRecord | null;
 };
 
+export type ProjectStatus = "configured" | "empty" | "results";
+
+export type ProjectFileKind = "additional" | "result" | "template";
+
+export type ProjectFileEntry = {
+  extension: string;
+  kind: ProjectFileKind;
+  name: string;
+  path: string;
+  size_bytes: number;
+};
+
+export type ProjectSummary = {
+  access_role?: ProjectMemberRole | null;
+  additional_files: string[];
+  created_at: string;
+  file_count: number;
+  files: string[];
+  html_files: string[];
+  name: string;
+  owner: string;
+  status: ProjectStatus;
+  template_file: string | null;
+  updated_at: string;
+};
+
 export type ProjectMapResponse = {
+  items: ProjectSummary[];
   projects: Record<string, string[]>;
 };
 
-export type ProjectDetails = {
-  owner: string;
-  name: string;
-  files: string[];
+export type ProjectDetails = ProjectSummary & {
+  file_entries: ProjectFileEntry[];
+};
+
+export type ProjectMutationResponse = {
+  success: boolean;
+  message: string;
+  project: ProjectDetails | null;
+};
+
+export type ProjectMemberRole = "editor" | "owner" | "viewer";
+
+export type ProjectMemberRecord = {
+  department?: string | null;
+  display_name: string;
+  email?: string | null;
+  id: string;
+  is_owner: boolean;
+  member_role: ProjectMemberRole;
+  username: string;
+};
+
+export type ProjectMembersResponse = {
+  members: ProjectMemberRecord[];
+};
+
+export type ProjectShareCandidate = {
+  department?: string | null;
+  display_name: string;
+  email?: string | null;
+  id: string;
+  username: string;
+};
+
+export type ProjectShareCandidatesResponse = {
+  users: ProjectShareCandidate[];
+};
+
+export type ProjectMemberMutationResponse = {
+  success: boolean;
+  member: ProjectMemberRecord | null;
+  message: string;
 };
 
 export type FileContentResponse = {

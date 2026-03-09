@@ -16,6 +16,7 @@ import {
   DataFilesIcon,
   TemplateIcon,
 } from "@/components/projects/project-management-icons";
+import { ProjectAccessManager } from "@/components/projects/project-access-manager";
 import type { ProjectRecord } from "@/components/projects/project-management-utils";
 
 export type ProjectEditValues = {
@@ -25,6 +26,8 @@ export type ProjectEditValues = {
 };
 
 type ProjectEditDialogProps = {
+  canShare?: boolean;
+  onOwnershipTransferred?: () => Promise<void> | void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: ProjectEditValues) => Promise<void> | void;
   open: boolean;
@@ -35,6 +38,8 @@ type ProjectEditDialogProps = {
 };
 
 export function ProjectEditDialog({
+  canShare = false,
+  onOwnershipTransferred,
   onOpenChange,
   onSubmit,
   open,
@@ -69,7 +74,7 @@ export function ProjectEditDialog({
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
-      <DialogContent className="max-w-3xl overflow-hidden">
+      <DialogContent className="max-w-3xl">
         <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] px-6 pb-6 pt-7 sm:px-8">
           <DialogHeader className="pr-10">
             <DialogTitle>Editar proyecto</DialogTitle>
@@ -125,6 +130,14 @@ export function ProjectEditDialog({
               uploadState={additionalFiles.length > 0 ? uploadState : "idle"}
             />
           </div>
+
+          {canShare && project ? (
+            <ProjectAccessManager
+              onOwnershipTransferred={onOwnershipTransferred}
+              owner={project.owner}
+              projectName={project.name}
+            />
+          ) : null}
 
           <DialogFooter>
             <DialogClose asChild>

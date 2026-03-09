@@ -1,14 +1,27 @@
 from __future__ import annotations
 
+import re
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Literal
 
 from backend.app.constants.navigation import SIDEBAR_LEFT_LINKS, SIDEBAR_LEFT_TITLE
 from backend.app.core.config import get_settings
 from backend.app.services.data import resolve_project_path
+from backend.app.services.supabase import (
+    SupabaseError,
+    build_query_string,
+    call_rpc_with_service_role,
+    request_with_service_role,
+)
 from fastapi import UploadFile
 
 ALLOWED_TEMPLATE_EXTENSIONS = {".xlsx", ".xls"}
+ProjectStatus = Literal["configured", "empty", "results"]
+ProjectFileKind = Literal["additional", "result", "template"]
+ProjectMemberRole = Literal["editor", "owner", "viewer"]
+ProjectEditableMemberRole = Literal["editor", "viewer"]
 
 
 def ensure_user_dir(username: str) -> Path:
@@ -36,6 +49,340 @@ def normalize_project_name(project_name: str) -> str:
 
 def allowed_template_file(filename: str) -> bool:
     return bool(filename) and Path(filename).suffix.lower() in ALLOWED_TEMPLATE_EXTENSIONS
+
+
+def _slugify_project_name(owner: str, project_name: str) -> str:
+    normalized = f"{owner}-{project_name}".strip().lower()
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")
+    return slug or "project"
+
+
+def _normalize_upload_filename(filename: str) -> str:
+    normalized = filename.strip().replace("\\", "/")
+    sanitized = Path(normalized).name
+    if not sanitized or sanitized in {".", ".."} or sanitized != normalized:
+        raise ValueError("El nombre del archivo no es válido")
+    return sanitized
+
+
+def _template_storage_name(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    return f"template{suffix}"
+
+
+def _file_extension(file_path: str) -> str:
+    return Path(file_path).suffix.lower()
+
+
+def _is_template_path(file_path: str) -> bool:
+    path = Path(file_path)
+    filename = path.name.lower()
+    return filename.startswith("template.") and path.suffix.lower() in ALLOWED_TEMPLATE_EXTENSIONS
+
+
+def _is_result_path(file_path: str) -> bool:
+    return Path(file_path).suffix.lower() in {".html", ".htm"}
+
+
+def _classify_project_file(file_path: str) -> ProjectFileKind:
+    if _is_template_path(file_path):
+        return "template"
+    if _is_result_path(file_path):
+        return "result"
+    return "additional"
+
+
+def _project_status(files: list[str], html_files: list[str]) -> ProjectStatus:
+    if html_files:
+        return "results"
+    if files:
+        return "configured"
+    return "empty"
+
+
+def _project_timestamps(project_dir: Path) -> tuple[str, str]:
+    stat = project_dir.stat()
+    created_at = datetime.fromtimestamp(stat.st_ctime, timezone.utc).isoformat()
+    updated_at = datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat()
+    return created_at, updated_at
+
+
+def _normalize_timestamp(value: Any) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _fetch_profiles(
+    *,
+    filters: dict[str, str] | None = None,
+    limit: int | None = None,
+    order: str | None = "username.asc",
+) -> list[dict[str, Any]]:
+    query_params: dict[str, str | int | None] = {
+        "select": "id,email,username,full_name,department,is_active,roles",
+        "order": order,
+        "limit": limit,
+    }
+    if filters:
+        query_params.update(filters)
+
+    payload = request_with_service_role(
+        "GET",
+        f"/rest/v1/vw_profiles?{build_query_string(query_params)}",
+    )
+    if not isinstance(payload, list):
+        raise SupabaseError("Supabase devolvió una lista de perfiles inválida")
+    return [profile for profile in payload if isinstance(profile, dict)]
+
+
+def _get_profile_by_username(username: str) -> dict[str, Any] | None:
+    profiles = _fetch_profiles(filters={"username": f"eq.{username}"}, limit=1, order=None)
+    return profiles[0] if profiles else None
+
+
+def _fetch_project_records(
+    *,
+    filters: dict[str, str] | None = None,
+    limit: int | None = None,
+    order: str | None = "owner_username.asc,name.asc",
+) -> list[dict[str, Any]]:
+    query_params: dict[str, str | int | None] = {
+        "select": "id,owner_id,owner_username,name,slug,description,status,created_at,updated_at,member_count",
+        "order": order,
+        "limit": limit,
+    }
+    if filters:
+        query_params.update(filters)
+
+    payload = request_with_service_role(
+        "GET",
+        f"/rest/v1/vw_projects?{build_query_string(query_params)}",
+    )
+    if not isinstance(payload, list):
+        raise SupabaseError("Supabase devolvió una lista de proyectos inválida")
+    return [project for project in payload if isinstance(project, dict)]
+
+
+def _get_project_record(owner: str, project_name: str) -> dict[str, Any] | None:
+    projects = _fetch_project_records(
+        filters={
+            "owner_username": f"eq.{owner}",
+            "name": f"eq.{project_name}",
+        },
+        limit=1,
+        order=None,
+    )
+    return projects[0] if projects else None
+
+
+def _list_shared_project_records(user_id: str) -> list[dict[str, Any]]:
+    payload = request_with_service_role(
+        "GET",
+        "/rest/v1/vw_projects_with_users?"
+        + build_query_string(
+            {
+                "select": "project_id,member_role",
+                "member_id": f"eq.{user_id}",
+                "member_role": "neq.owner",
+                "order": "project_name.asc",
+            }
+        ),
+    )
+    if not isinstance(payload, list):
+        raise SupabaseError("Supabase devolvió una lista de miembros de proyecto inválida")
+
+    projects: list[dict[str, Any]] = []
+    for row in payload:
+        if not isinstance(row, dict):
+            continue
+        project_id = str(row.get("project_id") or "").strip()
+        if not project_id:
+            continue
+        records = _fetch_project_records(filters={"id": f"eq.{project_id}"}, limit=1, order=None)
+        if records:
+            project = records[0].copy()
+            member_role = str(row.get("member_role") or "viewer").strip().lower()
+            project["access_role"] = member_role if member_role in {"editor", "viewer"} else "viewer"
+            projects.append(project)
+    return projects
+
+
+def _upsert_project_record(owner: str, project_name: str) -> dict[str, Any]:
+    normalized_name = normalize_project_name(project_name)
+    project_dir = get_settings().projects_dir / owner / normalized_name
+    if not project_dir.exists() or not project_dir.is_dir():
+        raise FileNotFoundError("Proyecto no encontrado")
+
+    existing = _get_project_record(owner, normalized_name)
+    if existing:
+        return existing
+
+    owner_profile = _get_profile_by_username(owner)
+    if not owner_profile:
+        raise SupabaseError("No se encontró el propietario del proyecto en Supabase")
+
+    owner_id = str(owner_profile.get("id") or "").strip()
+    if not owner_id:
+        raise SupabaseError("El propietario del proyecto no tiene un id válido")
+
+    call_rpc_with_service_role(
+        "admin_create_project",
+        json_body={
+            "p_description": None,
+            "p_name": normalized_name,
+            "p_owner_user_id": owner_id,
+            "p_slug": _slugify_project_name(owner, normalized_name),
+            "p_status": "active",
+        },
+    )
+    created = _get_project_record(owner, normalized_name)
+    if not created:
+        raise SupabaseError("No se pudo registrar el proyecto en Supabase")
+    return created
+
+
+def _rename_project_record(owner: str, current_name: str, new_name: str) -> None:
+    record = _get_project_record(owner, current_name)
+    if not record:
+        _upsert_project_record(owner, current_name)
+        record = _get_project_record(owner, current_name)
+    if not record:
+        raise SupabaseError("No se pudo resolver el proyecto en Supabase")
+
+    call_rpc_with_service_role(
+        "admin_update_project",
+        json_body={
+            "p_name": new_name,
+            "p_project_id": record["id"],
+            "p_slug": _slugify_project_name(owner, new_name),
+        },
+    )
+
+
+def _delete_project_record(owner: str, project_name: str) -> None:
+    record = _get_project_record(owner, project_name)
+    if not record:
+        return
+    call_rpc_with_service_role(
+        "admin_delete_project",
+        json_body={"p_project_id": record["id"]},
+    )
+
+
+def _list_project_members_by_project_id(project_id: str) -> list[dict[str, Any]]:
+    payload = request_with_service_role(
+        "GET",
+        "/rest/v1/vw_projects_with_users?"
+        + build_query_string(
+            {
+                "select": "project_id,owner_id,owner_username,member_id,member_username,member_role,member_created_at",
+                "project_id": f"eq.{project_id}",
+                "order": "member_username.asc",
+            }
+        ),
+    )
+    if not isinstance(payload, list):
+        raise SupabaseError("Supabase devolvió una lista de miembros inválida")
+    return [member for member in payload if isinstance(member, dict)]
+
+
+def _get_project_member(project_id: str, user_id: str) -> dict[str, Any] | None:
+    members = _list_project_members_by_project_id(project_id)
+    for member in members:
+        if str(member.get("member_id") or "").strip() == user_id:
+            return member
+    return None
+
+
+def _get_project_access_role(
+    user_id: str,
+    username: str,
+    role: str,
+    owner: str,
+    project_name: str,
+) -> ProjectMemberRole | None:
+    if role == "admin" or username == owner:
+        return "owner"
+    project = _get_project_record(owner, project_name)
+    if not project:
+        return None
+
+    member = _get_project_member(str(project["id"]), user_id)
+    if not member:
+        return None
+
+    member_role = str(member.get("member_role") or "").strip().lower()
+    if member_role in {"editor", "owner", "viewer"}:
+        return member_role  # type: ignore[return-value]
+    return None
+
+
+def user_can_view_project(user_id: str, username: str, role: str, owner: str, project_name: str) -> bool:
+    return _get_project_access_role(user_id, username, role, owner, project_name) is not None
+
+
+def user_can_edit_project(user_id: str, username: str, role: str, owner: str, project_name: str) -> bool:
+    access_role = _get_project_access_role(user_id, username, role, owner, project_name)
+    return access_role in {"editor", "owner"}
+
+
+def _list_project_files(project_dir: Path) -> list[Path]:
+    if not project_dir.exists():
+        return []
+    return sorted(
+        [path for path in project_dir.rglob("*") if path.is_file()],
+        key=lambda item: item.relative_to(project_dir).as_posix().lower(),
+    )
+
+
+def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, Any] | None = None) -> dict[str, object]:
+    file_paths = _list_project_files(project_dir)
+    files = [path.relative_to(project_dir).as_posix() for path in file_paths]
+    template_file = next((file for file in files if _is_template_path(file)), None)
+    html_files = [file for file in files if _is_result_path(file)]
+    additional_files = [
+        file
+        for file in files
+        if file != template_file and not _is_result_path(file)
+    ]
+    if project_dir.exists():
+        created_at, updated_at = _project_timestamps(project_dir)
+    else:
+        now = datetime.now(timezone.utc).isoformat()
+        created_at, updated_at = now, now
+
+    created_at = _normalize_timestamp(metadata.get("created_at")) if metadata else created_at
+    updated_at = _normalize_timestamp(metadata.get("updated_at")) if metadata else updated_at
+    resolved_name = str(metadata.get("name") or project_dir.name).strip() if metadata else project_dir.name
+    resolved_owner = str(metadata.get("owner_username") or metadata.get("owner") or owner).strip() if metadata else owner
+    resolved_access_role = (
+        str(metadata.get("access_role") or "").strip().lower() if metadata else ""
+    )
+
+    return {
+        "access_role": resolved_access_role or None,
+        "additional_files": additional_files,
+        "created_at": created_at,
+        "file_count": len(files),
+        "file_entries": [
+            {
+                "extension": _file_extension(relative_path),
+                "kind": _classify_project_file(relative_path),
+                "name": Path(relative_path).name,
+                "path": relative_path,
+                "size_bytes": file_path.stat().st_size,
+            }
+            for file_path, relative_path in zip(file_paths, files, strict=True)
+        ],
+        "files": files,
+        "html_files": html_files,
+        "name": resolved_name,
+        "owner": resolved_owner,
+        "status": _project_status(files, html_files),
+        "template_file": template_file,
+        "updated_at": updated_at,
+    }
 
 
 def list_sidebar_left(role: str) -> dict[str, object]:
@@ -109,26 +456,58 @@ def build_project_tree(username: str) -> dict[str, object]:
     return {"title": "Mis Proyectos", "items": tree}
 
 
-def list_projects_for_user(session_username: str, role: str) -> dict[str, list[str]]:
+def list_projects_for_user(session_user_id: str, session_username: str, role: str) -> dict[str, object]:
     projects_root = get_settings().projects_dir
     projects_root.mkdir(parents=True, exist_ok=True)
 
     if role == "admin":
-        owners = [directory.name for directory in projects_root.iterdir() if directory.is_dir()]
+        owners = sorted(directory.name for directory in projects_root.iterdir() if directory.is_dir())
     else:
         owners = [session_username]
 
     projects: dict[str, list[str]] = {}
+    items: list[dict[str, object]] = []
+    indexed_items: dict[str, dict[str, object]] = {}
     for owner in owners:
         owner_dir = projects_root / owner
         if owner_dir.exists():
-            projects[owner] = sorted(
-                [directory.name for directory in owner_dir.iterdir() if directory.is_dir()]
+            project_dirs = sorted(
+                [directory for directory in owner_dir.iterdir() if directory.is_dir()],
+                key=lambda directory: directory.name.lower(),
             )
+            projects[owner] = [directory.name for directory in project_dirs]
+            for project_dir in project_dirs:
+                payload = _build_project_payload(owner, project_dir)
+                payload["access_role"] = "owner" if owner == session_username else "viewer"
+                indexed_items[f"{owner}::{project_dir.name}"] = payload
         else:
             projects[owner] = []
 
-    return projects
+    if role != "admin":
+        for record in _list_shared_project_records(session_user_id):
+            owner = str(record.get("owner_username") or "").strip()
+            project_name = str(record.get("name") or "").strip()
+            if not owner or not project_name or owner == session_username:
+                continue
+
+            project_dir = get_settings().projects_dir / owner / project_name
+            projects.setdefault(owner, [])
+            if project_name not in projects[owner]:
+                projects[owner].append(project_name)
+            indexed_items[f"{owner}::{project_name}"] = _build_project_payload(owner, project_dir, record)
+
+    for owner, project_names in projects.items():
+        projects[owner] = sorted(project_names, key=lambda item: item.lower())
+
+    items.extend(indexed_items.values())
+    items.sort(
+        key=lambda item: (
+            str(item.get("owner", "")).lower(),
+            str(item.get("name", "")).lower(),
+        )
+    )
+
+    return {"projects": projects, "items": items}
 
 
 async def _save_upload(target_path: Path, upload: UploadFile) -> None:
@@ -162,15 +541,23 @@ async def create_project(
 
     project_dir.mkdir()
     try:
-        excel_name = template_file.filename
-        if Path(excel_name).suffix.lower() in {".xlsx", ".xls"}:
-            excel_name = "template.xlsx"
-        await _save_upload(project_dir / excel_name, template_file)
+        excel_name = _normalize_upload_filename(template_file.filename)
+        await _save_upload(project_dir / _template_storage_name(excel_name), template_file)
 
         for upload in additional_files:
             if upload.filename:
-                await _save_upload(project_dir / upload.filename, upload)
+                safe_name = _normalize_upload_filename(upload.filename)
+                await _save_upload(project_dir / safe_name, upload)
+        _upsert_project_record(username, normalized_name)
         return True, f"Proyecto '{normalized_name}' creado correctamente."
+    except ValueError as exc:
+        if project_dir.exists():
+            shutil.rmtree(project_dir)
+        return False, str(exc)
+    except SupabaseError as exc:
+        if project_dir.exists():
+            shutil.rmtree(project_dir)
+        return False, str(exc)
     except Exception as exc:
         if project_dir.exists():
             shutil.rmtree(project_dir)
@@ -188,8 +575,234 @@ def get_project_details(owner: str, project_name: str) -> dict[str, object]:
     if not project_dir.exists() or not project_dir.is_dir():
         raise FileNotFoundError("Proyecto no encontrado")
 
-    files = sorted([item.name for item in project_dir.iterdir() if item.is_file()])
-    return {"owner": owner, "name": project_dir.name, "files": files}
+    metadata = _get_project_record(owner, normalize_project_name(project_name))
+    return _build_project_payload(owner, project_dir, metadata)
+
+
+def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
+    fallback_owner_member = [
+        {
+            "department": None,
+            "display_name": owner,
+            "email": None,
+            "id": f"local-owner::{owner}",
+            "is_owner": True,
+            "member_role": "owner",
+            "username": owner,
+        }
+    ]
+
+    try:
+        record = _upsert_project_record(owner, project_name)
+    except SupabaseError:
+        return fallback_owner_member
+
+    try:
+        members = _list_project_members_by_project_id(str(record["id"]))
+        member_ids = {
+            str(member.get("member_id") or "").strip()
+            for member in members
+            if str(member.get("member_id") or "").strip()
+        }
+        profiles = {
+            str(profile.get("id") or "").strip(): profile
+            for profile in _fetch_profiles()
+            if str(profile.get("id") or "").strip() in member_ids
+        }
+    except SupabaseError:
+        return fallback_owner_member
+
+    payload: list[dict[str, Any]] = []
+    for member in members:
+        member_id = str(member.get("member_id") or "").strip()
+        profile = profiles.get(member_id, {})
+        username = str(member.get("member_username") or profile.get("username") or "").strip()
+        payload.append(
+            {
+                "department": str(profile.get("department") or "").strip() or None,
+                "display_name": str(profile.get("full_name") or "").strip() or username,
+                "email": str(profile.get("email") or "").strip().lower() or None,
+                "id": member_id,
+                "is_owner": str(member.get("member_role") or "").strip() == "owner",
+                "member_role": str(member.get("member_role") or "viewer").strip() or "viewer",
+                "username": username,
+            }
+        )
+
+    payload.sort(
+        key=lambda member: (
+            0 if member["is_owner"] else 1,
+            str(member["display_name"] or member["username"]).lower(),
+        )
+    )
+    return payload
+
+
+def search_project_share_candidates(owner: str, project_name: str, query: str, limit: int = 8) -> list[dict[str, Any]]:
+    try:
+        _upsert_project_record(owner, project_name)
+    except SupabaseError:
+        pass
+    existing_members = get_project_members(owner, project_name)
+    excluded_usernames = {member["username"] for member in existing_members}
+    normalized_query = query.strip().lower()
+
+    candidates: list[dict[str, Any]] = []
+    try:
+        profiles = _fetch_profiles()
+    except SupabaseError:
+        return []
+
+    for profile in profiles:
+        username = str(profile.get("username") or "").strip()
+        email = str(profile.get("email") or "").strip().lower()
+        display_name = str(profile.get("full_name") or "").strip() or username
+
+        if not username or username in excluded_usernames:
+            continue
+
+        if normalized_query:
+            searchable = " ".join([username, email, display_name]).lower()
+            if normalized_query not in searchable:
+                continue
+
+        candidates.append(
+            {
+                "department": str(profile.get("department") or "").strip() or None,
+                "display_name": display_name,
+                "email": email or None,
+                "id": str(profile.get("id") or "").strip(),
+                "username": username,
+            }
+        )
+        if len(candidates) >= limit:
+            break
+
+    return candidates
+
+
+def add_project_member(
+    owner: str,
+    project_name: str,
+    username: str,
+    member_role: ProjectEditableMemberRole = "viewer",
+) -> tuple[bool, str]:
+    try:
+        project = _upsert_project_record(owner, project_name)
+        candidate = _get_profile_by_username(username)
+        if not candidate:
+            return False, "No se encontró el usuario seleccionado"
+
+        candidate_id = str(candidate.get("id") or "").strip()
+        candidate_username = str(candidate.get("username") or "").strip()
+        if not candidate_id or not candidate_username:
+            return False, "El usuario seleccionado no es válido"
+        if candidate_username == owner:
+            return False, "El propietario ya tiene acceso al proyecto"
+
+        current_member = _get_project_member(str(project["id"]), candidate_id)
+        if current_member:
+            call_rpc_with_service_role(
+                "admin_set_project_member",
+                json_body={
+                    "p_member_role": member_role,
+                    "p_project_id": project["id"],
+                    "p_target_user_id": candidate_id,
+                },
+            )
+            return True, "Permisos del usuario actualizados correctamente"
+
+        call_rpc_with_service_role(
+            "admin_set_project_member",
+            json_body={
+                "p_member_role": member_role,
+                "p_project_id": project["id"],
+                "p_target_user_id": candidate_id,
+            },
+        )
+        return True, "Proyecto compartido correctamente"
+    except SupabaseError as exc:
+        return False, str(exc)
+
+
+def transfer_project_ownership(
+    owner: str,
+    project_name: str,
+    username: str,
+    previous_owner_role: ProjectEditableMemberRole = "editor",
+) -> tuple[bool, str, str]:
+    try:
+        normalized_name = normalize_project_name(project_name)
+        project_dir = get_project_dir(owner, normalized_name)
+        if not project_dir.exists() or not project_dir.is_dir():
+            return False, "Proyecto no encontrado", owner
+
+        project = _upsert_project_record(owner, normalized_name)
+        candidate = _get_profile_by_username(username)
+        if not candidate:
+            return False, "No se encontró el usuario seleccionado", owner
+
+        candidate_id = str(candidate.get("id") or "").strip()
+        candidate_username = str(candidate.get("username") or "").strip()
+        if not candidate_id or not candidate_username:
+            return False, "El usuario seleccionado no es válido", owner
+        if candidate_username == owner:
+            return False, "Ese usuario ya es el propietario del proyecto", owner
+
+        current_member = _get_project_member(str(project["id"]), candidate_id)
+        if not current_member:
+            return False, "Solo puedes transferir el proyecto a un miembro existente", owner
+
+        next_owner_dir = ensure_user_dir(candidate_username)
+        next_project_dir = next_owner_dir / normalized_name
+        if next_project_dir.exists():
+            return False, "El nuevo propietario ya tiene un proyecto con ese nombre", owner
+
+        project_dir.rename(next_project_dir)
+        try:
+            call_rpc_with_service_role(
+                "admin_transfer_project_ownership",
+                json_body={
+                    "p_new_owner_user_id": candidate_id,
+                    "p_previous_owner_role": previous_owner_role,
+                    "p_project_id": project["id"],
+                },
+            )
+        except SupabaseError as exc:
+            next_project_dir.rename(project_dir)
+            return False, str(exc), owner
+
+        return True, "Propiedad del proyecto transferida correctamente", candidate_username
+    except (SupabaseError, ValueError) as exc:
+        return False, str(exc), owner
+
+
+def remove_project_member(owner: str, project_name: str, username: str) -> tuple[bool, str]:
+    try:
+        project = _upsert_project_record(owner, project_name)
+        candidate = _get_profile_by_username(username)
+        if not candidate:
+            return False, "No se encontró el usuario seleccionado"
+
+        candidate_id = str(candidate.get("id") or "").strip()
+        candidate_username = str(candidate.get("username") or "").strip()
+        if candidate_username == owner:
+            return False, "No puedes quitar el acceso del propietario"
+
+        current_member = _get_project_member(str(project["id"]), candidate_id)
+        if not current_member:
+            return False, "El usuario no tiene acceso a este proyecto"
+
+        call_rpc_with_service_role(
+            "admin_remove_project_member",
+            json_body={
+                "p_project_id": project["id"],
+                "p_target_user_id": candidate_id,
+            },
+        )
+    except SupabaseError as exc:
+        return False, str(exc)
+    return True, "Acceso eliminado correctamente"
 
 
 async def update_project(
@@ -225,6 +838,11 @@ async def update_project(
             if new_dir.exists():
                 return False, "Ya existe un proyecto con ese nombre", current_name
             project_dir.rename(new_dir)
+            try:
+                _rename_project_record(owner, current_name, normalized_new_name)
+            except SupabaseError as exc:
+                new_dir.rename(project_dir)
+                return False, str(exc), current_name
             project_dir = new_dir
             current_name = normalized_new_name
 
@@ -233,21 +851,25 @@ async def update_project(
         or any(upload.filename for upload in additional_files)
     )
     if has_uploads:
-        for item in project_dir.iterdir():
-            if item.is_file():
-                item.unlink()
-            elif item.is_dir():
-                shutil.rmtree(item)
-
         if excel_file and excel_file.filename:
-            excel_name = excel_file.filename
-            if Path(excel_name).suffix.lower() in {".xlsx", ".xls"}:
-                excel_name = "template.xlsx"
-            await _save_upload(project_dir / excel_name, excel_file)
+            for current_file in _list_project_files(project_dir):
+                relative_path = current_file.relative_to(project_dir).as_posix()
+                if _classify_project_file(relative_path) == "template":
+                    current_file.unlink()
 
-        for upload in additional_files:
-            if upload.filename:
-                await _save_upload(project_dir / upload.filename, upload)
+            excel_name = _normalize_upload_filename(excel_file.filename)
+            await _save_upload(project_dir / _template_storage_name(excel_name), excel_file)
+
+        uploads_to_store = [upload for upload in additional_files if upload.filename]
+        if uploads_to_store:
+            for current_file in _list_project_files(project_dir):
+                relative_path = current_file.relative_to(project_dir).as_posix()
+                if _classify_project_file(relative_path) == "additional":
+                    current_file.unlink()
+
+            for upload in uploads_to_store:
+                safe_name = _normalize_upload_filename(upload.filename or "")
+                await _save_upload(project_dir / safe_name, upload)
 
     return True, "Proyecto actualizado correctamente", current_name
 
@@ -262,6 +884,10 @@ def delete_project(owner: str, project_name: str) -> tuple[bool, str]:
     if not project_dir.exists() or not project_dir.is_dir():
         return False, "Proyecto no encontrado."
     shutil.rmtree(project_dir)
+    try:
+        _delete_project_record(owner, normalized_name)
+    except SupabaseError as exc:
+        return False, str(exc)
     return True, f"Proyecto '{normalized_name}' eliminado correctamente."
 
 

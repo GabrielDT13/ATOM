@@ -221,6 +221,26 @@ export function TrashIcon({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+export function TransferIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M8 7H19M19 7L15.5 3.5M19 7L15.5 10.5M16 17H5M5 17L8.5 13.5M5 17L8.5 20.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
 export function TemplateIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg

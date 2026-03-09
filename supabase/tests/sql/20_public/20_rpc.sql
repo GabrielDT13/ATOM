@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(11);
+SELECT plan(24);
 
 SELECT ok(
   EXISTS (
@@ -52,6 +52,72 @@ SELECT ok(
       AND p.proname = 'admin_set_user_role'
   ),
   'Debe existir la RPC public.admin_set_user_role'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_create_project'
+  ),
+  'Debe existir la RPC public.admin_create_project'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_update_project'
+  ),
+  'Debe existir la RPC public.admin_update_project'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_delete_project'
+  ),
+  'Debe existir la RPC public.admin_delete_project'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_set_project_member'
+  ),
+  'Debe existir la RPC public.admin_set_project_member'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_remove_project_member'
+  ),
+  'Debe existir la RPC public.admin_remove_project_member'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_transfer_project_ownership'
+  ),
+  'Debe existir la RPC public.admin_transfer_project_ownership'
 );
 
 SELECT is(
@@ -106,6 +172,58 @@ SELECT is(
   'public.admin_set_user_role debe devolver la tabla esperada'
 );
 
+SELECT is(
+  (
+    SELECT pg_get_function_result(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_create_project'
+    LIMIT 1
+  ),
+  'TABLE(id uuid, owner_id uuid, owner_username text, name text, slug text, description text, status text, created_at timestamp with time zone, updated_at timestamp with time zone, member_count bigint)',
+  'public.admin_create_project debe devolver la tabla esperada'
+);
+
+SELECT is(
+  (
+    SELECT pg_get_function_result(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_set_project_member'
+    LIMIT 1
+  ),
+  'TABLE(project_id uuid, project_name text, project_slug text, project_status text, owner_id uuid, owner_username text, member_id uuid, member_username text, member_role text, member_created_at timestamp with time zone)',
+  'public.admin_set_project_member debe devolver la tabla esperada'
+);
+
+SELECT is(
+  (
+    SELECT pg_get_function_result(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_remove_project_member'
+    LIMIT 1
+  ),
+  'boolean',
+  'public.admin_remove_project_member debe devolver un boolean'
+);
+
+SELECT is(
+  (
+    SELECT pg_get_function_result(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_transfer_project_ownership'
+    LIMIT 1
+  ),
+  'TABLE(id uuid, owner_id uuid, owner_username text, name text, slug text, description text, status text, created_at timestamp with time zone, updated_at timestamp with time zone, member_count bigint)',
+  'public.admin_transfer_project_ownership debe devolver la tabla esperada'
+);
+
 SELECT ok(
   (
     SELECT pg_get_functiondef(p.oid)
@@ -116,6 +234,42 @@ SELECT ok(
     LIMIT 1
   ) LIKE '%auth.role() <> ''service_role''%',
   'public.admin_set_user_role debe validar que la invocacion llegue con service_role'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_create_project'
+    LIMIT 1
+  ) LIKE '%auth.role() <> ''service_role''%',
+  'public.admin_create_project debe validar que la invocacion llegue con service_role'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_set_project_member'
+    LIMIT 1
+  ) LIKE '%auth.role() <> ''service_role''%',
+  'public.admin_set_project_member debe validar que la invocacion llegue con service_role'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'admin_transfer_project_ownership'
+    LIMIT 1
+  ) LIKE '%auth.role() <> ''service_role''%',
+  'public.admin_transfer_project_ownership debe validar que la invocacion llegue con service_role'
 );
 
 SELECT ok(
