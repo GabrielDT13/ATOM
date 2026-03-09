@@ -40,7 +40,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = internal
+SET search_path = pg_catalog, internal
 AS $$
   SELECT EXISTS (
     SELECT 1
@@ -55,7 +55,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = internal
+SET search_path = pg_catalog, internal
 AS $$
   SELECT internal.has_role(target_user_id, 'admin');
 $$;
@@ -67,18 +67,15 @@ ALTER TABLE internal.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE internal.roles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE internal.user_roles ENABLE ROW LEVEL SECURITY;
 
-GRANT SELECT, UPDATE ON internal.profiles TO authenticated;
-GRANT SELECT ON internal.roles TO authenticated;
-GRANT SELECT ON internal.user_roles TO authenticated;
+REVOKE ALL ON internal.profiles FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON internal.roles FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON internal.user_roles FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON internal.profiles TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA internal TO service_role;
 
 DROP POLICY IF EXISTS "profiles_select_authenticated" ON internal.profiles;
 DROP POLICY IF EXISTS "profiles_select_self_or_admin" ON internal.profiles;
-CREATE POLICY "profiles_select_authenticated"
-ON internal.profiles
-FOR SELECT
-TO authenticated
-USING (true);
+DROP POLICY IF EXISTS "profiles_select_self_or_related_or_admin" ON internal.profiles;
 
 DROP POLICY IF EXISTS "profiles_update_self_or_admin" ON internal.profiles;
 CREATE POLICY "profiles_update_self_or_admin"
@@ -89,16 +86,20 @@ USING (id = auth.uid() OR internal.is_admin())
 WITH CHECK (id = auth.uid() OR internal.is_admin());
 
 DROP POLICY IF EXISTS "roles_select_authenticated" ON internal.roles;
-CREATE POLICY "roles_select_authenticated"
+DROP POLICY IF EXISTS "roles_no_direct_access" ON internal.roles;
+CREATE POLICY "roles_no_direct_access"
 ON internal.roles
-FOR SELECT
+FOR ALL
 TO authenticated
-USING (true);
+USING (false)
+WITH CHECK (false);
 
 DROP POLICY IF EXISTS "user_roles_select_authenticated" ON internal.user_roles;
 DROP POLICY IF EXISTS "user_roles_select_self_or_admin" ON internal.user_roles;
-CREATE POLICY "user_roles_select_authenticated"
+DROP POLICY IF EXISTS "user_roles_no_direct_access" ON internal.user_roles;
+CREATE POLICY "user_roles_no_direct_access"
 ON internal.user_roles
-FOR SELECT
+FOR ALL
 TO authenticated
-USING (true);
+USING (false)
+WITH CHECK (false);

@@ -17,7 +17,7 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 BEGIN
   IF auth.role() <> 'service_role' THEN
