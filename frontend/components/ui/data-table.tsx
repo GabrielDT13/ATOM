@@ -249,19 +249,20 @@ export function DataTable<T>({
       <div className="border-t border-slate-200 bg-slate-50/70 px-6 py-4">
         <div
           className={cn(
-            "flex flex-col gap-4",
-            footer ? "lg:flex-row lg:items-center lg:justify-between" : "items-end",
+            "flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between",
           )}
         >
-          {footer ? <div className="text-sm text-slate-500">{footer}</div> : null}
-
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <div className="flex flex-col items-start gap-3">
             <p className="text-sm text-slate-500">
               Mostrando <span className="font-semibold text-slate-700">{visibleStart}</span>-
               <span className="font-semibold text-slate-700">{visibleEnd}</span> de{" "}
               <span className="font-semibold text-slate-700">{sortedData.length}</span>
             </p>
 
+            {footer ? <div className="text-sm text-slate-500">{footer}</div> : null}
+          </div>
+
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end lg:items-center">
             <p className="text-sm text-slate-500">
               Página <span className="font-semibold text-slate-700">{currentPage}</span> de{" "}
               <span className="font-semibold text-slate-700">{totalPages}</span>
