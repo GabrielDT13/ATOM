@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(5);
+SELECT plan(7);
 
 SELECT ok(
   EXISTS (
@@ -32,6 +32,30 @@ SELECT ok(
       AND privilege_type = 'SELECT'
   ),
   'authenticated debe poder hacer SELECT sobre public.vw_projects'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
+      AND table_name = 'vw_profiles'
+      AND grantee = 'service_role'
+      AND privilege_type = 'SELECT'
+  ),
+  'service_role debe poder hacer SELECT sobre public.vw_profiles'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
+      AND table_name = 'vw_profiles'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'SELECT'
+  ),
+  'authenticated no debe poder hacer SELECT directo sobre public.vw_profiles'
 );
 
 SELECT ok(

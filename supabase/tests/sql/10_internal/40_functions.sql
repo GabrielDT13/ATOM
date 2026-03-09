@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(6);
+SELECT plan(9);
 
 SELECT ok(
   EXISTS (
@@ -74,6 +74,42 @@ SELECT ok(
       AND trigger_name = 'on_auth_user_saved'
   ),
   'Debe existir el trigger on_auth_user_saved sobre auth.users'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'app_private'
+      AND p.proname = 'set_updated_at'
+      AND COALESCE(array_to_string(p.proconfig, ','), '') LIKE '%search_path=pg_catalog%'
+  ),
+  'app_private.set_updated_at debe fijar search_path'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'normalize_department_name'
+      AND COALESCE(array_to_string(p.proconfig, ','), '') LIKE '%search_path=pg_catalog%'
+  ),
+  'internal.normalize_department_name debe fijar search_path'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'normalize_department_slug'
+      AND COALESCE(array_to_string(p.proconfig, ','), '') LIKE '%search_path=pg_catalog%'
+  ),
+  'internal.normalize_department_slug debe fijar search_path'
 );
 
 SELECT finish();

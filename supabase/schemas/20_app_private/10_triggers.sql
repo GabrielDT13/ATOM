@@ -7,6 +7,7 @@ REVOKE ALL ON SCHEMA app_private FROM PUBLIC;
 CREATE OR REPLACE FUNCTION app_private.set_updated_at()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = pg_catalog
 AS $$
 BEGIN
   NEW.updated_at = now();
@@ -18,7 +19,7 @@ CREATE OR REPLACE FUNCTION app_private.sync_auth_user_profile()
 RETURNS trigger
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 DECLARE
   existing_username text;
