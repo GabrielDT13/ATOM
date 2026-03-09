@@ -2,9 +2,6 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
-from fastapi.responses import FileResponse
-
 from backend.app.dependencies.auth import get_current_user, require_admin_or_owner
 from backend.app.schemas.projects import FileContentResponse, MutationResponse, ProjectCollectionResponse, ProjectResponse
 from backend.app.services.projects import (
@@ -16,6 +13,8 @@ from backend.app.services.projects import (
     read_project_file,
     update_project,
 )
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 

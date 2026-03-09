@@ -1,8 +1,14 @@
-CREATE EXTENSION IF NOT EXISTS pgtap;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pgtap') THEN
+    CREATE EXTENSION pgtap;
+  END IF;
+END
+$$;
 
 BEGIN;
 
-SELECT plan(11);
+SELECT plan(15);
 
 SELECT has_table('internal', 'projects', 'Debe existir internal.projects');
 SELECT has_table('internal', 'project_members', 'Debe existir internal.project_members');
@@ -45,9 +51,55 @@ SELECT ok(
     FROM pg_policies
     WHERE schemaname = 'internal'
       AND tablename = 'project_members'
-      AND policyname = 'project_members_mutate_owner_or_admin'
+      AND policyname = 'project_members_insert_owner_or_admin'
   ),
-  'Debe existir la policy project_members_mutate_owner_or_admin'
+  'Debe existir la policy project_members_insert_owner_or_admin'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'internal'
+      AND tablename = 'project_members'
+      AND policyname = 'project_members_update_owner_or_admin'
+  ),
+  'Debe existir la policy project_members_update_owner_or_admin'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_policies
+    WHERE schemaname = 'internal'
+      AND tablename = 'project_members'
+      AND policyname = 'project_members_delete_owner_or_admin'
+  ),
+  'Debe existir la policy project_members_delete_owner_or_admin'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'internal'
+      AND table_name = 'projects'
+      AND grantee = 'authenticated'
+      AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE')
+  ),
+  'authenticated no debe poder mutar directamente internal.projects'
+);
+
+SELECT ok(
+  NOT EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'internal'
+      AND table_name = 'project_members'
+      AND grantee = 'authenticated'
+      AND privilege_type IN ('INSERT', 'UPDATE', 'DELETE')
+  ),
+  'authenticated no debe poder mutar directamente internal.project_members'
 );
 
 SELECT finish();

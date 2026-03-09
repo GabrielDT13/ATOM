@@ -9,6 +9,7 @@ RETURNS TABLE (
   username text,
   full_name text,
   avatar_url text,
+  department text,
   is_active boolean,
   created_at timestamptz,
   updated_at timestamptz,
@@ -16,20 +17,24 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 BEGIN
   UPDATE internal.profiles
   SET
-    username = COALESCE(p_username, username),
-    full_name = COALESCE(p_full_name, full_name),
-    avatar_url = COALESCE(p_avatar_url, avatar_url)
-  WHERE id = auth.uid();
+    username = COALESCE(p_username, internal.profiles.username),
+    full_name = COALESCE(p_full_name, internal.profiles.full_name),
+    avatar_url = COALESCE(p_avatar_url, internal.profiles.avatar_url)
+  WHERE internal.profiles.id = auth.uid();
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Perfil no encontrado';
+  END IF;
 
   RETURN QUERY
   SELECT *
   FROM public.vw_profiles
-  WHERE id = auth.uid();
+  WHERE vw_profiles.id = auth.uid();
 END;
 $$;
 
@@ -53,14 +58,14 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 DECLARE
   created_project_id uuid;
 BEGIN
   INSERT INTO internal.projects (owner_id, name, slug, description, status)
   VALUES (auth.uid(), p_name, p_slug, p_description, p_status)
-  RETURNING id INTO created_project_id;
+  RETURNING internal.projects.id INTO created_project_id;
 
   INSERT INTO internal.project_members (project_id, user_id, member_role)
   VALUES (created_project_id, auth.uid(), 'owner')
@@ -70,7 +75,7 @@ BEGIN
   RETURN QUERY
   SELECT *
   FROM public.vw_projects
-  WHERE id = created_project_id;
+  WHERE vw_projects.id = created_project_id;
 END;
 $$;
 
@@ -95,25 +100,29 @@ RETURNS TABLE (
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, internal
+SET search_path = pg_catalog, public, internal
 AS $$
 BEGIN
   UPDATE internal.projects
   SET
-    name = COALESCE(p_name, name),
-    slug = COALESCE(p_slug, slug),
-    description = COALESCE(p_description, description),
-    status = COALESCE(p_status, status)
-  WHERE id = p_project_id
+    name = COALESCE(p_name, internal.projects.name),
+    slug = COALESCE(p_slug, internal.projects.slug),
+    description = COALESCE(p_description, internal.projects.description),
+    status = COALESCE(p_status, internal.projects.status)
+  WHERE internal.projects.id = p_project_id
     AND (
-      owner_id = auth.uid()
+      internal.projects.owner_id = auth.uid()
       OR internal.is_admin()
     );
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Proyecto no encontrado o sin permiso';
+  END IF;
 
   RETURN QUERY
   SELECT *
   FROM public.vw_projects
-  WHERE id = p_project_id;
+  WHERE vw_projects.id = p_project_id;
 END;
 $$;
 

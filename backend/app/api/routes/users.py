@@ -1,10 +1,16 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
-
 from backend.app.dependencies.auth import get_current_user, require_admin
 from backend.app.schemas.users import UserCreateRequest, UserMutationResponse, UserResponse, UserUpdateRequest
-from backend.app.services.auth import create_user, delete_user, list_users, update_user
+from backend.app.services.users import (
+    create_user,
+    delete_user,
+    get_user_by_id,
+    get_user_by_username,
+    list_users,
+    update_user,
+)
+from fastapi import APIRouter, Request
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -20,16 +26,18 @@ async def get_users(request: Request) -> list[UserResponse]:
 
 @router.post("", response_model=UserMutationResponse)
 async def post_user(payload: UserCreateRequest, request: Request) -> UserMutationResponse:
-    require_admin(request)
-    success, message = create_user(payload.username, payload.password, payload.email)
+    current_user = require_admin(request)
+    success, message = create_user(
+        payload.username,
+        payload.password,
+        payload.email,
+        payload.role,
+        payload.department,
+        str(current_user["id"]),
+    )
     user = None
     if success:
-        normalized_username = payload.username.strip()
-        user = UserResponse(
-            username=normalized_username,
-            email=payload.email,
-            role="admin" if normalized_username == "admin" else "user",
-        )
+        user = UserResponse(**get_user_by_username(payload.username))
     return UserMutationResponse(success=success, message=message, user=user)
 
 
@@ -39,33 +47,28 @@ async def put_user(
     payload: UserUpdateRequest,
     request: Request,
 ) -> UserMutationResponse:
-    current_user = get_current_user(request)
-    if current_user["role"] != "admin" and current_user["username"] != username:
-        raise HTTPException(status_code=403, detail="No autorizado")
+    current_user = require_admin(request)
 
     success, message, effective_username = update_user(
         username,
         payload.username,
         payload.email,
         payload.password,
+        payload.role,
+        payload.department,
+        str(current_user["id"]),
     )
 
     if not success:
         return UserMutationResponse(success=False, message=message, user=None)
 
-    if current_user["username"] == username:
-        current_user["username"] = effective_username
-        current_user["role"] = "admin" if effective_username == "admin" else "user"
-        request.session["user"] = current_user
+    if current_user.get("username") == username:
+        request.session["user"] = get_user_by_id(str(current_user["id"]))
 
     return UserMutationResponse(
         success=True,
         message=message,
-        user=UserResponse(
-            username=effective_username,
-            email=payload.email,
-            role="admin" if effective_username == "admin" else "user",
-        ),
+        user=UserResponse(**get_user_by_username(effective_username)),
     )
 
 

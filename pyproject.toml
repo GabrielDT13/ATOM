@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+src = ["backend"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]

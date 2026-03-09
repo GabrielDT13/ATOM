@@ -25,3 +25,4 @@ El prefijo numerico fuerza el orden correcto cuando `supabase db diff` reconstru
 
 `supabase db diff` compara el estado real de la base de datos local con migraciones previas.
 Por eso, esta carpeta te sirve como referencia estructurada para diseñar cambios antes de generar la migracion final.
+Ademas, las vistas con `security_invoker = true` pueden requerir una migracion manual complementaria porque `supabase db diff` no siempre preserva esa propiedad al recrear vistas.

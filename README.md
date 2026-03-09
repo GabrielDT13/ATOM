@@ -1,35 +1,25 @@
 # ATOM - Next.js + FastAPI con Docker + Supabase
 
-Este proyecto se ejecuta en local con dos contenedores: `FastAPI` para backend y `Next.js` para frontend. Asi evitas instalar dependencias de Python, Node o R manualmente en tu maquina.
+El proyecto se ejecuta con `FastAPI` en backend y `Next.js` en frontend. La base mínima de CI valida solo backend y frontend para mantener el pipeline rápido: lint/checks, smoke de imports y tests básicos. Supabase queda fuera del primer workflow y se puede añadir después como etapa separada.
 
 ## Requisitos
 
-- Docker Desktop instalado y ejecutandose.
-- `docker compose` disponible.
-
-Comprobacion rapida:
-
-```bash
-docker --version
-docker compose version
-```
+- Docker Desktop y `docker compose`
 
 ## Estructura relevante
 
-- `backend/`: backend modular en FastAPI.
-- `frontend/`: frontend en Next.js con TypeScript.
-- `docker/Dockerfile`: imagen del backend con Python, R, Pandoc y dependencias del sistema.
-- `docker/frontend.Dockerfile`: imagen del frontend con Node.js.
-- `docker/install_r_packages.R`: instalacion de paquetes R/bioconductor.
-- `docker-compose.yml`: servicios `atom-backend` y `atom-frontend`.
-- `.env.example`: plantilla de variables de entorno.
-- `.env.local`: variables locales reales (no versionadas).
-- `supabase/`: modulo de Supabase (schemas, migrations, functions, seeds, tests, config).
-- `scripts/up.sh`: levanta el servidor.
-- `scripts/down.sh`: detiene el servidor y el stack de Supabase CLI.
-- `scripts/logs.sh`: muestra logs en tiempo real.
-- `scripts/rebuild.sh`: reconstruye la imagen sin cache.
-- `run-local.sh` y `stop-local.sh`: alias de compatibilidad.
+- `backend/`: API FastAPI
+- `backend/tests/`: tests mínimos de backend para CI
+- `frontend/`: app Next.js + TypeScript
+- `docker/Dockerfile`: imagen backend
+- `docker/frontend.Dockerfile`: imagen frontend
+- `docker-compose.yml`: stack local
+- `.env.example`: contrato base de variables de entorno
+- `scripts/up.sh`: levanta Supabase CLI y los contenedores de app
+- `scripts/down.sh`: detiene stack local
+- `scripts/rebuild.sh`: reconstruye imágenes
+- `scripts/test.sh`: comando central para lanzar todos los checks
+- `scripts/checks/`: checks internos agrupados por dominio
 
 ## Variables de entorno
 
@@ -39,139 +29,117 @@ docker compose version
 cp .env.example .env.local
 ```
 
-2. Edita `.env.local` con los valores que necesites.
+2. Edita `.env.local` con tus valores reales.
 
-> Los scripts usan `.env.local` por defecto. Si no existe, usan `.env`.
+Los scripts usan `.env.local` por defecto. Si no existe, usan `.env`.
 
-## Levantar el servidor en local
+Variables base:
 
-Desde la raiz del proyecto:
+- `ATOM_PORT`: puerto publicado del frontend
+- `ATOM_API_PORT`: puerto publicado del backend
+- `BACKEND_HOST` y `BACKEND_PORT`: host/puerto internos del proceso `uvicorn`
+- `BACKEND_RELOAD`: activa recarga en local dentro del contenedor
+- `FRONTEND_URL`: origen permitido por CORS y sesiones
+- `SESSION_SECRET`: clave de sesión del backend
+- `NEXT_PUBLIC_API_BASE_URL`: base pública que usa el frontend
+- `BACKEND_INTERNAL_URL`: URL interna para el rewrite de Next.js hacia FastAPI
+
+Overrides opcionales para tests o ejecuciones aisladas:
+
+- `ATOM_PROJECT_ROOT`
+- `ATOM_DATA_DIR`
+- `ATOM_PROJECTS_DIR`
+- `ATOM_R_SCRIPTS_DIR`
+
+## Levantar el proyecto en local
 
 ```bash
 ./scripts/up.sh
 ```
 
-Servicios disponibles en:
+Si Docker no consigue descargar la imagen base del frontend (`node:20-alpine`), puedes seguir trabajando con el frontend fuera de Docker:
 
-- `http://127.0.0.1:3000` (frontend Next.js)
-- `http://127.0.0.1:8000` (API FastAPI, acceso directo opcional)
-- `http://127.0.0.1:54323` (Supabase Studio via CLI)
+```bash
+ATOM_FRONTEND_MODE=local ./scripts/rebuild.sh
+ATOM_FRONTEND_MODE=local ./scripts/up.sh
+./scripts/frontend-local.sh
+```
 
-> Puertos por defecto:
-> - `3000` (host) -> `3000` (frontend)
-> - `8000` (host) -> `8000` (backend)
-> - `54323` (host) -> `54323` (Supabase Studio via CLI)
+Servicios por defecto:
 
-## Comandos utiles
+- `http://localhost:3000` frontend
+- `http://localhost:8000` backend
+- `http://localhost:54323` Supabase Studio
 
-Ver logs:
+Comandos útiles:
 
 ```bash
 ./scripts/logs.sh
-```
-
-Detener servidor:
-
-```bash
 ./scripts/down.sh
-```
-
-Reconstruir imagen completa (si cambian dependencias):
-
-```bash
 ./scripts/rebuild.sh
-./scripts/up.sh
 ```
 
-## Cambiar puerto local
-
-Puedes cambiar el puerto del frontend exportando `ATOM_PORT`:
+Cambiar puertos publicados:
 
 ```bash
-ATOM_PORT=9090 ./scripts/up.sh
+ATOM_PORT=9090 ATOM_API_PORT=9000 ./scripts/up.sh
 ```
 
-Luego abre:
+## Checks locales mínimos
 
-- `http://127.0.0.1:9090`
-
-Para cambiar el puerto del backend:
+Sin instalar Python ni Node en tu máquina:
 
 ```bash
-ATOM_API_PORT=9000 ./scripts/up.sh
+./scripts/test.sh
 ```
 
-Si cambias el puerto del backend, exporta tambien la URL publica que debe usar Next.js:
+Si quieres ejecutar solo una parte:
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:9000 ATOM_API_PORT=9000 ./scripts/up.sh
+./scripts/test.sh backend
+./scripts/test.sh frontend
+./scripts/test.sh supabase
 ```
 
-Para cambiar puertos del stack de Supabase CLI:
+Si además quieres incluir los tests SQL de Supabase en la misma ejecución:
 
 ```bash
-SUPABASE_PORT=154321 SUPABASE_DB_PORT=154322 ./scripts/up.sh
+./scripts/test.sh --with-supabase
 ```
 
-## Flujo recomendado
+`./scripts/test.sh` es el punto de entrada recomendado para trabajo diario y para CI. Por debajo llama a checks internos agrupados en `scripts/checks/`, pero la interfaz pública es una sola.
 
-1. `./scripts/up.sh`
-2. `./scripts/logs.sh` (en otra terminal)
-3. Trabajar normalmente
-4. `./scripts/down.sh`
+Checks actuales:
 
-## Supabase modularizado
+- `ruff`
+- `compileall` para detectar errores de import/sintaxis
+- smoke import de la app FastAPI
+- `pytest` sobre `backend/tests`
+- `npm run lint`
+- `npm run build`
+- `supabase db test`
 
-- `supabase/schemas`: SQL fuente de verdad para tablas/indices/policies.
-- `supabase/migrations`: migraciones evolutivas de esquema.
-- `supabase/functions`: funciones del proyecto.
-- `supabase/seeds`: datos semilla para desarrollo.
-- `supabase/tests`: tests SQL e integracion.
-- `supabase/config.toml`: configuracion de Supabase CLI para API y seeds.
+`docker/backend-ci.Dockerfile` es una imagen ligera pensada solo para lint y tests del backend. No instala R ni dependencias pesadas de runtime.
+
+## CI mínimo
+
+El workflow está en `.github/workflows/ci.yml` y se lanza en cada `push` y `pull_request`.
+
+Jobs actuales:
+
+- `backend`: construye la imagen de checks backend y ejecuta lint, smoke de app y tests dentro del contenedor
+- `frontend`: construye la imagen frontend y ejecuta typecheck y build dentro del contenedor
+
+Esto deja un baseline estable antes de añadir E2E, integración con Supabase, TDD más profundo o despliegue.
+
+## Supabase
+
+El módulo `supabase/` sigue modularizado para migraciones, seeds y tests SQL. Se mantiene fuera del CI mínimo para no mezclar en el primer paso validaciones de app con validaciones de infraestructura.
 
 Ver detalle en `supabase/README.md`.
 
-### Migraciones y seeds con Supabase CLI
+## Solución de problemas
 
-`./scripts/up.sh` solo levanta el contenedor de la app.
-Antes de eso ejecuta automaticamente `supabase start`.
-
-Para gestionar la base usa directamente Supabase CLI:
-
-```bash
-supabase migration up
-supabase db reset
-```
-
-La API en Docker debe apuntar al gateway de Supabase CLI. En `.env.local`, usa:
-
-```bash
-SUPABASE_URL_INTERNAL=http://host.docker.internal:54321
-```
-
-El frontend usa por defecto un proxy interno de Next (`/backend-api`) hacia FastAPI para evitar problemas de sesion/cookies entre puertos distintos.
-
-Studio se levanta automaticamente con `supabase start`.
-
-Los seeds estan modularizados en `supabase/seeds/` y `supabase/config.toml` los registra directamente para la CLI.
-
-### Generar migracion con diff
-
-Cuando hayas ajustado el SQL fuente en `supabase/schemas/`, genera migracion con:
-
-```bash
-supabase db diff --schema public,internal,app_private,auth --file nombre_migracion
-```
-
-Opcional: definir schemas a comparar en `.env.local`:
-
-```bash
-SUPABASE_DB_SCHEMAS=public
-SUPABASE_DIFF_SCHEMAS=public,internal,app_private,auth
-```
-
-## Solucion de problemas
-
-- Si falla la build por paquetes: ejecuta `./scripts/rebuild.sh`.
-- Si el puerto esta ocupado: usa `ATOM_PORT=9090 ./scripts/up.sh`.
-- Si Docker no responde: reinicia Docker Desktop y vuelve a levantar.
+- Si cambia una dependencia de Docker: `./scripts/rebuild.sh`
+- Si el frontend falla por caché: borra `frontend/.next`
+- Si Docker no responde: reinicia Docker Desktop

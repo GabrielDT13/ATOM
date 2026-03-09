@@ -1,16 +1,17 @@
 export type SessionUser = {
+  id: string;
+  email: string;
   username: string;
   role: "admin" | "user";
+  first_name?: string | null;
+  last_name?: string | null;
+  department?: string | null;
+  display_name?: string | null;
 };
 
 export type SessionResponse = {
   authenticated: boolean;
   user: SessionUser | null;
-};
-
-export type MessageItem = {
-  id: number;
-  text: string;
 };
 
 export type SidebarLink = {
@@ -35,14 +36,26 @@ export type SidebarResponse<T> = {
 };
 
 export type UserRecord = {
+  id: string;
   username: string;
   email: string;
   role: "admin" | "user";
+  first_name?: string | null;
+  last_name?: string | null;
+  department?: string | null;
+  display_name?: string | null;
+};
+
+export type DepartmentRecord = {
+  id: string;
+  name: string;
+  slug: string;
 };
 
 export type MutationResponse = {
   success: boolean;
   message: string;
+  user?: UserRecord | null;
 };
 
 export type ProjectMapResponse = {

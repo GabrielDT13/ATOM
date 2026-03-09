@@ -1,5 +1,14 @@
 COMMENT ON SCHEMA public IS 'Capa publica: vistas de lectura y RPC controladas.';
 
+CREATE OR REPLACE VIEW public.vw_departments
+WITH (security_invoker = true)
+AS
+SELECT
+  d.id,
+  d.name,
+  d.slug
+FROM internal.departments d;
+
 CREATE OR REPLACE VIEW public.vw_profiles
 WITH (security_invoker = true)
 AS
@@ -9,6 +18,7 @@ SELECT
   p.username,
   p.full_name,
   p.avatar_url,
+  p.department,
   p.is_active,
   p.created_at,
   p.updated_at,
@@ -64,6 +74,8 @@ JOIN internal.project_members pm
 JOIN internal.profiles member_profile
   ON member_profile.id = pm.user_id;
 
-GRANT SELECT ON public.vw_profiles TO authenticated, service_role;
+REVOKE ALL ON public.vw_profiles FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.vw_profiles TO service_role;
+GRANT SELECT ON public.vw_departments TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects_with_users TO authenticated, service_role;

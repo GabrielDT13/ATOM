@@ -1,15 +1,20 @@
-import { LoginForm } from "@/components/login-form";
-import { Topbar } from "@/components/topbar";
+import { redirect } from "next/navigation";
 
-export default function LoginPage() {
+import { AuthShell } from "@/components/auth/auth-shell";
+import { LoginForm } from "@/components/auth/login-form";
+import { fetchServerSession } from "@/lib/server-auth";
+
+export const dynamic = "force-dynamic";
+
+export default async function LoginPage() {
+  const session = await fetchServerSession();
+  if (session?.authenticated && session.user) {
+    redirect("/dashboard");
+  }
+
   return (
-    <>
-      <Topbar />
-      <div className="main-container">
-        <div className="login-page">
-          <LoginForm />
-        </div>
-      </div>
-    </>
+    <AuthShell>
+      <LoginForm />
+    </AuthShell>
   );
 }

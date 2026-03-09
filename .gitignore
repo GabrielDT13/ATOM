@@ -3,12 +3,20 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 *$py.class
+.DS_Store
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+
+# Frontend dependencies
+node_modules/
 
 # Local testing samples
 samples/
 
-# Projects
-projects/
+# Generated project workspaces (backend runtime data)
+/projects/
 
 # Local environment files
 .env.local
@@ -21,8 +29,6 @@ supabase/.branches/
 # Local temporary files
 tmp/
 
-#Node modules
-node_modules/
-
 # Next.js build output
 .next/
+*.tsbuildinfo

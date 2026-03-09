@@ -3,6 +3,37 @@ import type { SessionResponse } from "@/types/api";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/backend-api";
 const DEFAULT_BACKEND_PORT =
   process.env.NEXT_PUBLIC_BACKEND_PUBLIC_PORT ?? "8000";
+const AUTH_FAILURE_EVENT = "atom:auth-failure";
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+function emitAuthFailure() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent(AUTH_FAILURE_EVENT));
+}
+
+export function subscribeToAuthFailure(
+  listener: () => void,
+): () => void {
+  if (typeof window === "undefined") {
+    return () => undefined;
+  }
+
+  const handler = () => listener();
+  window.addEventListener(AUTH_FAILURE_EVENT, handler);
+  return () => window.removeEventListener(AUTH_FAILURE_EVENT, handler);
+}
 
 export async function apiFetch<T>(
   path: string,
@@ -30,7 +61,11 @@ export async function apiFetch<T>(
       // Ignore parse errors and keep fallback text.
     }
 
-    throw new Error(message);
+    if (response.status === 401) {
+      emitAuthFailure();
+    }
+
+    throw new ApiError(message, response.status);
   }
 
   if (response.status === 204) {

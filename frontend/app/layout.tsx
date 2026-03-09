@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ReactNode } from "react";
 
 import "@/app/globals.css";
+import { AppToastProvider } from "@/components/providers/app-toast-provider";
 
 export const metadata: Metadata = {
   title: "ATOM",
@@ -15,7 +16,10 @@ type RootLayoutProps = {
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html lang="es">
-      <body>{children}</body>
+      <body className="app-shell">
+        {children}
+        <AppToastProvider />
+      </body>
     </html>
   );
 }

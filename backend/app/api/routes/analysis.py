@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Query, Request
-from fastapi.responses import StreamingResponse
-
 from backend.app.dependencies.auth import get_current_user
 from backend.app.services.analysis import stream_analysis
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import StreamingResponse
 
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 

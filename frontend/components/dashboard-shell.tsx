@@ -1,18 +1,22 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import Image from "next/image";
 import { ReactNode, useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import {
+  ApiError,
   apiFetch,
-  buildApiUrl,
   buildStreamUrl,
-  encodePathSegments,
   fetchSession,
+  subscribeToAuthFailure,
 } from "@/lib/api";
-import { Topbar } from "@/components/topbar";
+import { AppHeader } from "@/components/dashboard/app-header";
+import {
+  buildDashboardBreadcrumbs,
+  DashboardBreadcrumb,
+} from "@/components/dashboard/dashboard-breadcrumb";
+import { AppSidebar } from "@/components/dashboard/app-sidebar";
+import { ProjectExplorer } from "@/components/dashboard/project-explorer";
 import type {
   FileContentResponse,
   SessionResponse,
@@ -35,19 +39,34 @@ export function DashboardShell({ children }: DashboardShellProps) {
     useState<SidebarResponse<SidebarTreeItem> | null>(null);
   const [previewLabel, setPreviewLabel] = useState<string>("Sin selección");
   const [previewContent, setPreviewContent] = useState<string>(
-    "Selecciona un archivo del árbol para visualizar su contenido.",
+    "Selecciona un archivo del panel de proyectos para visualizar su contenido.",
   );
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [showContentOverride, setShowContentOverride] = useState(false);
   const [runningProject, setRunningProject] = useState<string | null>(null);
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const showProjectExplorer = pathname === "/dashboard";
 
   useEffect(() => {
+    setMobileSidebarOpen(false);
     setShowContentOverride(false);
     setPreviewHtml(null);
   }, [pathname]);
+
+  useEffect(() => {
+    return subscribeToAuthFailure(() => {
+      setSession(null);
+      setLeftNav(null);
+      setRightNav(null);
+      setError(null);
+      router.replace("/login");
+      router.refresh();
+    });
+  }, [router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +102,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
         if (cancelled) {
           return;
         }
+
+        if (loadError instanceof ApiError && loadError.status === 401) {
+          setSession(null);
+          router.replace("/login");
+          return;
+        }
+
         setError(
           loadError instanceof Error
             ? loadError.message
@@ -100,11 +126,16 @@ export function DashboardShell({ children }: DashboardShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [router, pathname]);
+  }, [pathname, router]);
 
   async function handleLogout() {
-    await apiFetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
+    try {
+      await apiFetch("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Incluso si falla la revocación remota, la UI debe salir del dashboard.
+    }
+    setSession(null);
+    router.replace("/login");
     router.refresh();
   }
 
@@ -115,13 +146,17 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
     try {
       const encodedOwner = encodeURIComponent(item.username);
-      const encodedPath = encodePathSegments(item.path);
+      const encodedPath = item.path
+        .split("/")
+        .map((segment) => encodeURIComponent(segment))
+        .join("/");
       const isHtml = item.name.toLowerCase().endsWith(".html");
       const payload = await apiFetch<FileContentResponse>(
         isHtml
           ? `/api/projects/${encodedOwner}/files/${encodedPath}`
           : `/api/projects/${encodedOwner}/files/${encodedPath}?max_lines=30`,
       );
+
       setPreviewLabel(item.path);
       setPreviewHtml(isHtml ? payload.content : null);
       setPreviewContent(
@@ -165,8 +200,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
       ),
       { withCredentials: true },
     );
+
     setRunningProject(projectName);
-    setPreviewLabel("Salida RMD");
+    setPreviewLabel("Salida del análisis");
     setPreviewHtml(null);
     setPreviewContent("");
     setShowContentOverride(true);
@@ -177,8 +213,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
         source.close();
         setPreviewContent((current) =>
           current
-            ? `${current}\nAnálisis finalizado. Abre el HTML desde el panel derecho cuando quieras revisarlo.`
-            : "Análisis finalizado. Abre el HTML desde el panel derecho cuando quieras revisarlo.",
+            ? `${current}\nAnálisis finalizado. Abre el HTML desde el panel de proyectos cuando quieras revisarlo.`
+            : "Análisis finalizado. Abre el HTML desde el panel de proyectos cuando quieras revisarlo.",
         );
         void refreshRightNav().catch(() => {
           setPreviewContent((current) =>
@@ -206,93 +242,6 @@ export function DashboardShell({ children }: DashboardShellProps) {
     };
   }
 
-  function renderTree(items: SidebarTreeItem[], isProjectLevel = false) {
-    const sortedItems = [...items].sort((left, right) => {
-      if (left.type === right.type) {
-        return left.name.localeCompare(right.name);
-      }
-      return left.type === "folder" ? -1 : 1;
-    });
-
-    return (
-      <ul>
-        {sortedItems.map((item) => {
-          const isFolder = item.type === "folder";
-          const isOpen = Boolean(openFolders[item.path]);
-
-          return (
-            <li key={`${item.type}-${item.path}`}>
-              {isFolder ? (
-                <>
-                  <div
-                    className="folder-header"
-                    onClick={() => toggleFolder(item.path)}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    <div className="item-main">
-                      <Image alt="Carpeta" height={16} src="/images/folder.png" width={16} />
-                      <span>{item.name}</span>
-                    </div>
-                    {isProjectLevel ? (
-                      item.html_exists ? (
-                        <span className="status-indicator">
-                          <Image alt="Completo" height={20} src="/images/check.png" width={20} />
-                        </span>
-                      ) : (
-                        <button
-                          className="status-button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            runProject(item.name);
-                          }}
-                          type="button"
-                        >
-                          {runningProject === item.name ? (
-                            <span className="spinner" />
-                          ) : (
-                            <Image alt="Ejecutar" height={20} src="/images/play.png" width={20} />
-                          )}
-                        </button>
-                      )
-                    ) : null}
-                  </div>
-                  {isOpen && item.children?.length ? (
-                    <div className="tree-children">{renderTree(item.children, false)}</div>
-                  ) : null}
-                </>
-              ) : (
-                <div
-                  className="file-container"
-                  onClick={() => void previewFile(item)}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    if (!item.username) {
-                      return;
-                    }
-                    const encodedOwner = encodeURIComponent(item.username);
-                    const encodedPath = encodePathSegments(item.path);
-                    window.open(
-                      buildApiUrl(`/api/projects/${encodedOwner}/download/${encodedPath}`),
-                      "_blank",
-                    );
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="item-main">
-                    <Image alt="Archivo" height={16} src="/images/file.png" width={16} />
-                    <span>{item.name}</span>
-                  </div>
-                </div>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    );
-  }
-
   if (loading) {
     return <div className="screen-center">Cargando panel...</div>;
   }
@@ -306,59 +255,78 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }
 
   return (
-    <>
-      <Topbar onLogout={() => void handleLogout()} showLogout />
-      <div className="main-container">
-        <div className="dashboard">
-          <div className="sidebar left">
-            <div id="sidebar-left">
-              <h3>{leftNav?.title ?? "Menú de Acciones"}</h3>
-              <ul>
-                {leftNav?.items.map((item) => (
-                  <li key={item.url}>
-                    <Link href={item.url}>{item.name}</Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-          <div className="content-panel">
-            {showContentOverride ? (
-              <div className="create-project-box">
-                <h2>{previewLabel}</h2>
-                <div className="file-view-box">
-                  {previewContent ? (
-                    <pre className={previewHtml ? "analysis-log" : undefined}>
-                      {previewContent}
-                    </pre>
-                  ) : null}
-                  {previewHtml ? (
-                    <iframe
-                      className="file-preview-frame"
-                      srcDoc={previewHtml}
-                      title={previewLabel}
-                    />
-                  ) : null}
-                </div>
-              </div>
-            ) : (
-              children
-            )}
-          </div>
-          <div className="sidebar right">
-            <div id="sidebar-right">
-              <h3>{rightNav?.title ?? "Mis Proyectos"}</h3>
-              {rightNav?.items?.length ? (
-                renderTree(rightNav.items, true)
+    <div className="flex h-screen w-full overflow-hidden bg-slate-100">
+      <AppSidebar
+        currentPathname={pathname}
+        isCollapsed={sidebarCollapsed}
+        isMobileOpen={mobileSidebarOpen}
+        items={leftNav?.items ?? []}
+        onCloseMobile={() => setMobileSidebarOpen(false)}
+        onLogout={() => void handleLogout()}
+        onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
+      />
+
+      <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
+        <AppHeader
+          onOpenSidebar={() => setMobileSidebarOpen(true)}
+          user={session.user}
+        />
+
+        <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname)} />
+
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
+          <div className={`flex flex-col gap-6 ${showProjectExplorer ? "xl:flex-row" : ""}`}>
+            <section className={`min-w-0 ${showProjectExplorer ? "flex-1" : ""}`}>
+              {showContentOverride ? (
+                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Vista previa
+                      </p>
+                      <h2 className="text-lg font-bold text-slate-900">{previewLabel}</h2>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 min-h-[20rem] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    {previewContent ? (
+                      <pre
+                        className={`overflow-auto px-4 py-4 text-sm leading-6 text-slate-700 ${
+                          previewHtml ? "max-h-80 border-b border-slate-200" : "min-h-[20rem]"
+                        }`}
+                      >
+                        {previewContent}
+                      </pre>
+                    ) : null}
+
+                    {previewHtml ? (
+                      <iframe
+                        className="min-h-[34rem] w-full bg-white"
+                        srcDoc={previewHtml}
+                        title={previewLabel}
+                      />
+                    ) : null}
+                  </div>
+                </section>
               ) : (
-                <ul>
-                  <li>No hay proyectos.</li>
-                </ul>
+                children
               )}
-            </div>
+            </section>
+
+            {showProjectExplorer ? (
+              <ProjectExplorer
+                items={rightNav?.items ?? []}
+                onPreviewFile={(item) => void previewFile(item)}
+                onRunProject={(projectName) => runProject(projectName)}
+                onToggleFolder={toggleFolder}
+                openFolders={openFolders}
+                runningProject={runningProject}
+                title={rightNav?.title ?? "Mis proyectos"}
+              />
+            ) : null}
           </div>
         </div>
-      </div>
-    </>
+      </main>
+    </div>
   );
 }
