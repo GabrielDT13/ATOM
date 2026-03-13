@@ -1,3 +1,11 @@
+DO $$
+BEGIN
+  CREATE TYPE internal.project_member_role AS ENUM ('owner', 'editor', 'viewer');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
+
 CREATE TABLE IF NOT EXISTS internal.projects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   owner_id uuid NOT NULL REFERENCES internal.profiles (id) ON DELETE RESTRICT,
@@ -13,10 +21,9 @@ CREATE TABLE IF NOT EXISTS internal.projects (
 CREATE TABLE IF NOT EXISTS internal.project_members (
   project_id uuid NOT NULL REFERENCES internal.projects (id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES internal.profiles (id) ON DELETE CASCADE,
-  member_role text NOT NULL DEFAULT 'viewer',
+  member_role internal.project_member_role NOT NULL DEFAULT 'viewer',
   created_at timestamptz NOT NULL DEFAULT now(),
-  PRIMARY KEY (project_id, user_id),
-  CHECK (member_role IN ('owner', 'editor', 'viewer'))
+  PRIMARY KEY (project_id, user_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_internal_projects_owner_id ON internal.projects (owner_id);

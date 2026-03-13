@@ -2,7 +2,7 @@ import { buildApiUrl, encodePathSegments } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { DataTableColumn } from "@/components/ui/data-table";
 import { DataTable } from "@/components/ui/data-table";
-import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
 import {
   EyeIcon,
   PencilIcon,
@@ -52,6 +52,8 @@ function ProjectInventoryCell({ project }: { project: ProjectRecord }) {
 }
 
 type ProjectManagementTableProps = {
+  canDeleteProject: (project: ProjectRecord) => boolean;
+  canEditProject: (project: ProjectRecord) => boolean;
   loading: boolean;
   onDelete: (project: ProjectRecord) => void;
   onEdit: (project: ProjectRecord) => void;
@@ -60,6 +62,8 @@ type ProjectManagementTableProps = {
 };
 
 export function ProjectManagementTable({
+  canDeleteProject,
+  canEditProject,
   loading,
   onDelete,
   onEdit,
@@ -151,32 +155,39 @@ export function ProjectManagementTable({
       sortValue: (project) => project.files.join(" ").toLowerCase(),
     },
     {
-      cell: (project) => (
-        <div className="flex justify-end">
-          <RowActionsMenu
-            actions={[
-              {
-                icon: <EyeIcon className="h-4 w-4" />,
-                label: "Ver proyecto",
-                onSelect: () => onView(project),
-              },
-              {
-                icon: <PencilIcon className="h-4 w-4" />,
-                label: "Editar proyecto",
-                onSelect: () => onEdit(project),
-              },
-              {
-                destructive: true,
-                icon: <TrashIcon className="h-4 w-4" />,
-                label: "Eliminar proyecto",
-                onSelect: () => onDelete(project),
-                separatorBefore: true,
-              },
-            ]}
-            ariaLabel={`Abrir acciones para ${project.name}`}
-          />
-        </div>
-      ),
+      cell: (project) => {
+        const actions: RowActionItem[] = [
+          {
+            icon: <EyeIcon className="h-4 w-4" />,
+            label: "Ver proyecto",
+            onSelect: () => onView(project),
+          },
+        ];
+
+        if (canEditProject(project)) {
+          actions.push({
+            icon: <PencilIcon className="h-4 w-4" />,
+            label: "Editar proyecto",
+            onSelect: () => onEdit(project),
+          });
+        }
+
+        if (canDeleteProject(project)) {
+          actions.push({
+            destructive: true,
+            icon: <TrashIcon className="h-4 w-4" />,
+            label: "Eliminar proyecto",
+            onSelect: () => onDelete(project),
+            separatorBefore: canEditProject(project),
+          });
+        }
+
+        return (
+          <div className="flex justify-end">
+            <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${project.name}`} />
+          </div>
+        );
+      },
       cellClassName: "w-[1%] whitespace-nowrap text-right",
       header: "Acciones",
       headerClassName: "text-right",

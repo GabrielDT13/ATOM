@@ -1,76 +1,26 @@
-import type { ProjectDetails, ProjectMapResponse } from "@/types/api";
+import type { ProjectMemberRole, ProjectStatus, ProjectSummary } from "@/types/api";
 
-export type ProjectStatus = "results" | "configured" | "empty";
 export type ProjectStatusFilter = "all" | ProjectStatus;
 export type ProjectOwnerFilter = "all" | string;
 
-export type ProjectRecord = ProjectDetails & {
+export type ProjectRecord = ProjectSummary & {
   additionalFiles: string[];
+  accessRole: ProjectMemberRole;
   htmlFiles: string[];
   id: string;
-  status: ProjectStatus;
   templateFile: string | null;
 };
 
-const TEMPLATE_EXTENSIONS = new Set([".xls", ".xlsx"]);
-const REPORT_EXTENSIONS = new Set([".html", ".htm"]);
-
-function getFileExtension(filename: string) {
-  const segments = filename.toLowerCase().split(".");
-  return segments.length > 1 ? `.${segments.at(-1)}` : "";
-}
-
-function isTemplateFile(filename: string) {
-  const lowerFilename = filename.toLowerCase();
-  return lowerFilename === "template.xlsx" || TEMPLATE_EXTENSIONS.has(getFileExtension(filename));
-}
-
-function isReportFile(filename: string) {
-  return REPORT_EXTENSIONS.has(getFileExtension(filename));
-}
-
-export function buildProjectDetailsMap(detailsList: ProjectDetails[]) {
-  return new Map(detailsList.map((details) => [`${details.owner}::${details.name}`, details]));
-}
-
-export function buildProjectRecords(
-  projectMap: ProjectMapResponse["projects"],
-  detailsList: ProjectDetails[],
-) {
-  const detailsMap = buildProjectDetailsMap(detailsList);
-
-  return Object.entries(projectMap)
-    .flatMap(([owner, projectNames]) =>
-      projectNames.map((projectName) => {
-        const fallbackDetails: ProjectDetails = {
-          files: [],
-          name: projectName,
-          owner,
-        };
-        const details = detailsMap.get(`${owner}::${projectName}`) ?? fallbackDetails;
-        const templateFile = details.files.find(isTemplateFile) ?? null;
-        const htmlFiles = details.files.filter(isReportFile);
-        const additionalFiles = details.files.filter(
-          (file) => file !== templateFile && !isReportFile(file),
-        );
-
-        let status: ProjectStatus = "empty";
-        if (htmlFiles.length > 0) {
-          status = "results";
-        } else if (details.files.length > 0) {
-          status = "configured";
-        }
-
-        return {
-          ...details,
-          additionalFiles,
-          htmlFiles,
-          id: `${owner}::${details.name}`,
-          status,
-          templateFile,
-        } satisfies ProjectRecord;
-      }),
-    )
+export function buildProjectRecords(projects: ProjectSummary[]) {
+  return projects
+    .map((project) => ({
+      ...project,
+      additionalFiles: project.additional_files,
+      accessRole: project.access_role ?? "owner",
+      htmlFiles: project.html_files,
+      id: `${project.owner}::${project.name}`,
+      templateFile: project.template_file,
+    }))
     .sort(
       (left, right) =>
         left.owner.localeCompare(right.owner, "es", { sensitivity: "base" }) ||

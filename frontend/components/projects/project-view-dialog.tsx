@@ -23,6 +23,7 @@ import {
 } from "@/components/projects/project-management-utils";
 
 type ProjectViewDialogProps = {
+  canManage: boolean;
   onEdit: (project: ProjectRecord) => void;
   onOpenChange: (open: boolean) => void;
   open: boolean;
@@ -53,6 +54,7 @@ function InfoCard({
 }
 
 export function ProjectViewDialog({
+  canManage,
   onEdit,
   onOpenChange,
   open,
@@ -158,13 +160,15 @@ export function ProjectViewDialog({
               Cerrar
             </button>
           </DialogClose>
-          <button
-            className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
-            onClick={() => onEdit(project)}
-            type="button"
-          >
-            Editar proyecto
-          </button>
+          {canManage ? (
+            <button
+              className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+              onClick={() => onEdit(project)}
+              type="button"
+            >
+              Editar proyecto
+            </button>
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

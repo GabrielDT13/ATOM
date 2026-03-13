@@ -3,14 +3,10 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiFetch, apiUpload, fetchSession } from "@/lib/api";
+import { fetchSession } from "@/lib/api";
+import { deleteProject, listProjects, updateProject } from "@/lib/projects";
 import { useAppToast } from "@/hooks/use-app-toast";
-import type {
-  MutationResponse,
-  ProjectDetails,
-  ProjectMapResponse,
-  SessionResponse,
-} from "@/types/api";
+import type { SessionResponse } from "@/types/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ProjectEditDialog, type ProjectEditValues } from "@/components/projects/project-edit-dialog";
 import { ProjectManagementFilters } from "@/components/projects/project-management-filters";
@@ -49,32 +45,8 @@ export function ProjectManagement() {
     setLoading(true);
 
     try {
-      const payload = await apiFetch<ProjectMapResponse>("/api/projects");
-      const requestedProjects = Object.entries(payload.projects).flatMap(([owner, projectNames]) =>
-        projectNames.map((projectName) => ({ owner, projectName })),
-      );
-
-      const detailResults = await Promise.allSettled(
-        requestedProjects.map(({ owner, projectName }) =>
-          apiFetch<ProjectDetails>(
-            `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`,
-          ),
-        ),
-      );
-
-      const details = detailResults.flatMap((result) =>
-        result.status === "fulfilled" ? [result.value] : [],
-      );
-
-      setProjects(buildProjectRecords(payload.projects, details));
-
-      const failedDetails = detailResults.filter((result) => result.status === "rejected");
-      if (failedDetails.length > 0) {
-        appToast.warning(
-          "Algunos detalles no se pudieron cargar",
-          "La tabla se muestra igualmente con la información mínima disponible.",
-        );
-      }
+      const payload = await listProjects();
+      setProjects(buildProjectRecords(payload.items));
     } catch (loadError) {
       appToast.error(
         "No se pudieron cargar los proyectos",
@@ -118,26 +90,12 @@ export function ProjectManagement() {
     setUploadState("uploading");
 
     try {
-      const formData = new FormData();
-
-      if (hasNameChange) {
-        formData.append("new_name", nextName);
-      }
-      if (nextTemplate) {
-        formData.append("excel_file", nextTemplate);
-      }
-      values.additionalFiles.forEach((file) => {
-        formData.append("additional_files", file);
+      const response = await updateProject(editingProject.owner, editingProject.name, {
+        additionalFiles: values.additionalFiles,
+        name: hasNameChange ? nextName : undefined,
+        onProgress: setUploadProgress,
+        templateFile: nextTemplate,
       });
-
-      const response = await apiUpload<MutationResponse>(
-        `/api/projects/${encodeURIComponent(editingProject.owner)}/${encodeURIComponent(editingProject.name)}`,
-        formData,
-        {
-          method: "PUT",
-          onProgress: setUploadProgress,
-        },
-      );
 
       if (response.success) {
         setUploadProgress(100);
@@ -167,9 +125,9 @@ export function ProjectManagement() {
     }
 
     try {
-      const response = await apiFetch<MutationResponse>(
-        `/api/projects/${encodeURIComponent(pendingDeleteProject.owner)}/${encodeURIComponent(pendingDeleteProject.name)}`,
-        { method: "DELETE" },
+      const response = await deleteProject(
+        pendingDeleteProject.owner,
+        pendingDeleteProject.name,
       );
 
       if (response.success) {
@@ -195,6 +153,9 @@ export function ProjectManagement() {
     [ownerFilter, projects, search, statusFilter],
   );
   const isAdmin = session?.user?.role === "admin";
+  const canEditProject = (project: ProjectRecord) => Boolean(isAdmin || project.accessRole === "owner" || project.accessRole === "editor");
+  const canDeleteProject = (project: ProjectRecord) => Boolean(isAdmin || project.accessRole === "owner");
+  const canShareProject = (project: ProjectRecord) => Boolean(project.accessRole === "owner");
 
   return (
     <>
@@ -248,6 +209,8 @@ export function ProjectManagement() {
         />
 
         <ProjectManagementTable
+          canDeleteProject={canDeleteProject}
+          canEditProject={canEditProject}
           loading={loading}
           onDelete={setPendingDeleteProject}
           onEdit={setEditingProject}
@@ -257,6 +220,7 @@ export function ProjectManagement() {
       </div>
 
       <ProjectViewDialog
+        canManage={viewProject ? canEditProject(viewProject) : false}
         onEdit={(project) => {
           setViewProject(null);
           setEditingProject(project);
@@ -271,12 +235,18 @@ export function ProjectManagement() {
       />
 
       <ProjectEditDialog
+        canShare={editingProject ? canShareProject(editingProject) : false}
         onOpenChange={(open) => {
           if (!open) {
             setEditingProject(null);
             setUploadProgress(0);
             setUploadState("idle");
           }
+        }}
+        onOwnershipTransferred={async () => {
+          setEditingProject(null);
+          setViewProject(null);
+          await loadProjects();
         }}
         onSubmit={handleEdit}
         open={Boolean(editingProject)}

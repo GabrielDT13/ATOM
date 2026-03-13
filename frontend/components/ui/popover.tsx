@@ -32,9 +32,28 @@ function composeEventHandlers<EventType>(
   };
 }
 
-const Popover = ({ children }: { children: React.ReactNode }) => {
-  const [open, setOpen] = React.useState(false);
+const Popover = ({
+  children,
+  onOpenChange,
+  open: openProp,
+}: {
+  children: React.ReactNode;
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+}) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
   const triggerRef = React.useRef<HTMLElement | null>(null);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = React.useCallback(
+    (value: React.SetStateAction<boolean>) => {
+      const nextValue = typeof value === "function" ? value(open) : value;
+      if (openProp === undefined) {
+        setUncontrolledOpen(nextValue);
+      }
+      onOpenChange?.(nextValue);
+    },
+    [onOpenChange, open, openProp],
+  );
 
   return (
     <PopoverContext.Provider value={{ open, setOpen, triggerRef }}>
@@ -96,11 +115,12 @@ PopoverAnchor.displayName = "PopoverAnchor";
 
 type PopoverContentProps = React.HTMLAttributes<HTMLDivElement> & {
   align?: "center" | "end" | "start";
+  side?: "bottom" | "top";
   sideOffset?: number;
 };
 
 const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
-  ({ align = "end", className, sideOffset = 10, ...props }, forwardedRef) => {
+  ({ align = "end", className, side = "bottom", sideOffset = 10, ...props }, forwardedRef) => {
     const { open, setOpen, triggerRef } = usePopoverContext("PopoverContent");
     const contentRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -159,14 +179,16 @@ const PopoverContent = React.forwardRef<HTMLDivElement, PopoverContentProps>(
     return (
       <div
         className={cn(
-          "absolute top-full z-50 mt-3 w-80 rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/10 outline-none",
+          "absolute z-50 w-80 rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-950/10 outline-none",
+          side === "bottom" && "top-full",
+          side === "top" && "bottom-full",
           align === "end" && "right-0",
           align === "start" && "left-0",
           align === "center" && "left-1/2 -translate-x-1/2",
           className,
         )}
         ref={handleRef}
-        style={{ marginTop: sideOffset }}
+        style={side === "top" ? { marginBottom: sideOffset } : { marginTop: sideOffset }}
         {...props}
       />
     );

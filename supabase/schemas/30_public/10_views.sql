@@ -64,7 +64,7 @@ SELECT
   owner_profile.username AS owner_username,
   member_profile.id AS member_id,
   member_profile.username AS member_username,
-  pm.member_role,
+  pm.member_role::text AS member_role,
   pm.created_at AS member_created_at
 FROM internal.projects p
 JOIN internal.profiles owner_profile

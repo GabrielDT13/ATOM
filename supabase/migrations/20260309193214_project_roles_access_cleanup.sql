@@ -1,130 +1,25 @@
-CREATE OR REPLACE FUNCTION public.update_my_profile(
-  p_username text DEFAULT NULL,
-  p_full_name text DEFAULT NULL,
-  p_avatar_url text DEFAULT NULL
-)
-RETURNS TABLE (
-  id uuid,
-  email text,
-  username text,
-  full_name text,
-  avatar_url text,
-  department text,
-  is_active boolean,
-  created_at timestamptz,
-  updated_at timestamptz,
-  roles text[]
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public, internal
-AS $$
+DO $$
 BEGIN
-  UPDATE internal.profiles
-  SET
-    username = COALESCE(p_username, internal.profiles.username),
-    full_name = COALESCE(p_full_name, internal.profiles.full_name),
-    avatar_url = COALESCE(p_avatar_url, internal.profiles.avatar_url)
-  WHERE internal.profiles.id = auth.uid();
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Perfil no encontrado';
-  END IF;
-
-  RETURN QUERY
-  SELECT *
-  FROM public.vw_profiles
-  WHERE vw_profiles.id = auth.uid();
-END;
+  CREATE TYPE internal.project_member_role AS ENUM ('owner', 'editor', 'viewer');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
 $$;
 
-CREATE OR REPLACE FUNCTION public.create_project(
-  p_name text,
-  p_slug text,
-  p_description text DEFAULT NULL,
-  p_status text DEFAULT 'draft'
-)
-RETURNS TABLE (
-  id uuid,
-  owner_id uuid,
-  owner_username text,
-  name text,
-  slug text,
-  description text,
-  status text,
-  created_at timestamptz,
-  updated_at timestamptz,
-  member_count bigint
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public, internal
-AS $$
-DECLARE
-  created_project_id uuid;
-BEGIN
-  INSERT INTO internal.projects (owner_id, name, slug, description, status)
-  VALUES (auth.uid(), p_name, p_slug, p_description, p_status)
-  RETURNING internal.projects.id INTO created_project_id;
+DROP VIEW IF EXISTS public.vw_projects_with_users;
 
-  INSERT INTO internal.project_members (project_id, user_id, member_role)
-  VALUES (created_project_id, auth.uid(), 'owner')
-  ON CONFLICT (project_id, user_id) DO UPDATE
-  SET member_role = EXCLUDED.member_role;
+ALTER TABLE internal.project_members
+  ALTER COLUMN member_role DROP DEFAULT;
 
-  RETURN QUERY
-  SELECT *
-  FROM public.vw_projects
-  WHERE vw_projects.id = created_project_id;
-END;
-$$;
+ALTER TABLE internal.project_members
+  DROP CONSTRAINT IF EXISTS project_members_member_role_check;
 
-CREATE OR REPLACE FUNCTION public.update_project(
-  p_project_id uuid,
-  p_name text DEFAULT NULL,
-  p_slug text DEFAULT NULL,
-  p_description text DEFAULT NULL,
-  p_status text DEFAULT NULL
-)
-RETURNS TABLE (
-  id uuid,
-  owner_id uuid,
-  owner_username text,
-  name text,
-  slug text,
-  description text,
-  status text,
-  created_at timestamptz,
-  updated_at timestamptz,
-  member_count bigint
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public, internal
-AS $$
-BEGIN
-  UPDATE internal.projects
-  SET
-    name = COALESCE(p_name, internal.projects.name),
-    slug = COALESCE(p_slug, internal.projects.slug),
-    description = COALESCE(p_description, internal.projects.description),
-    status = COALESCE(p_status, internal.projects.status)
-  WHERE internal.projects.id = p_project_id
-    AND (
-      internal.projects.owner_id = auth.uid()
-      OR internal.is_admin()
-    );
+ALTER TABLE internal.project_members
+  ALTER COLUMN member_role TYPE internal.project_member_role
+  USING member_role::text::internal.project_member_role;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Proyecto no encontrado o sin permiso';
-  END IF;
-
-  RETURN QUERY
-  SELECT *
-  FROM public.vw_projects
-  WHERE vw_projects.id = p_project_id;
-END;
-$$;
+ALTER TABLE internal.project_members
+  ALTER COLUMN member_role SET DEFAULT 'viewer';
 
 CREATE OR REPLACE FUNCTION public.admin_create_project(
   p_owner_user_id uuid,
@@ -320,6 +215,33 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION public.admin_remove_project_member(
+  p_project_id uuid,
+  p_target_user_id uuid
+)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = pg_catalog, public, internal
+AS $$
+BEGIN
+  IF auth.role() <> 'service_role' THEN
+    RAISE EXCEPTION 'No autorizado';
+  END IF;
+
+  DELETE FROM internal.project_members
+  WHERE internal.project_members.project_id = p_project_id
+    AND internal.project_members.user_id = p_target_user_id
+    AND internal.project_members.member_role <> 'owner';
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Miembro no encontrado';
+  END IF;
+
+  RETURN true;
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.admin_transfer_project_ownership(
   p_project_id uuid,
   p_new_owner_user_id uuid,
@@ -396,45 +318,41 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION public.admin_remove_project_member(
-  p_project_id uuid,
-  p_target_user_id uuid
-)
-RETURNS boolean
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog, public, internal
-AS $$
-BEGIN
-  IF auth.role() <> 'service_role' THEN
-    RAISE EXCEPTION 'No autorizado';
-  END IF;
+CREATE OR REPLACE VIEW public.vw_projects_with_users
+WITH (security_invoker = true)
+AS
+SELECT
+  p.id AS project_id,
+  p.name AS project_name,
+  p.slug AS project_slug,
+  p.status AS project_status,
+  owner_profile.id AS owner_id,
+  owner_profile.username AS owner_username,
+  member_profile.id AS member_id,
+  member_profile.username AS member_username,
+  pm.member_role::text AS member_role,
+  pm.created_at AS member_created_at
+FROM internal.projects p
+JOIN internal.profiles owner_profile
+  ON owner_profile.id = p.owner_id
+JOIN internal.project_members pm
+  ON pm.project_id = p.id
+JOIN internal.profiles member_profile
+  ON member_profile.id = pm.user_id;
 
-  DELETE FROM internal.project_members
-  WHERE internal.project_members.project_id = p_project_id
-    AND internal.project_members.user_id = p_target_user_id
-    AND internal.project_members.member_role <> 'owner';
-
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Miembro no encontrado';
-  END IF;
-
-  RETURN true;
-END;
-$$;
-
-GRANT EXECUTE ON FUNCTION public.update_my_profile(text, text, text) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.create_project(text, text, text, text) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.update_project(uuid, text, text, text, text) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.admin_create_project(uuid, text, text, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.admin_update_project(uuid, text, text, text, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.admin_delete_project(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.admin_set_project_member(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.admin_remove_project_member(uuid, uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.admin_transfer_project_ownership(uuid, uuid, text) FROM PUBLIC, anon, authenticated;
+
 GRANT EXECUTE ON FUNCTION public.admin_create_project(uuid, text, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.admin_update_project(uuid, text, text, text, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.admin_delete_project(uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.admin_set_project_member(uuid, uuid, text) TO service_role;
 GRANT EXECUTE ON FUNCTION public.admin_remove_project_member(uuid, uuid) TO service_role;
 GRANT EXECUTE ON FUNCTION public.admin_transfer_project_ownership(uuid, uuid, text) TO service_role;
+
+REVOKE ALL ON public.vw_projects_with_users FROM PUBLIC;
+GRANT SELECT ON public.vw_projects_with_users TO authenticated, service_role;
