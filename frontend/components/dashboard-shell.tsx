@@ -272,58 +272,60 @@ export function DashboardShell({ children }: DashboardShellProps) {
           user={session.user}
         />
 
-        <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname)} />
+        <div className="flex-1 overflow-y-auto">
+          <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname)} />
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8">
-          <div className={`flex flex-col gap-6 ${showProjectExplorer ? "xl:flex-row" : ""}`}>
-            <section className={`min-w-0 ${showProjectExplorer ? "flex-1" : ""}`}>
-              {showContentOverride ? (
-                <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Vista previa
-                      </p>
-                      <h2 className="text-lg font-bold text-slate-900">{previewLabel}</h2>
+          <div className="p-4 sm:p-8">
+            <div className={`flex flex-col gap-6 ${showProjectExplorer ? "xl:flex-row" : ""}`}>
+              <section className={`min-w-0 ${showProjectExplorer ? "flex-1" : ""}`}>
+                {showContentOverride ? (
+                  <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          Vista previa
+                        </p>
+                        <h2 className="text-lg font-bold text-slate-900">{previewLabel}</h2>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="mt-5 min-h-[20rem] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                    {previewContent ? (
-                      <pre
-                        className={`overflow-auto px-4 py-4 text-sm leading-6 text-slate-700 ${
-                          previewHtml ? "max-h-80 border-b border-slate-200" : "min-h-[20rem]"
-                        }`}
-                      >
-                        {previewContent}
-                      </pre>
-                    ) : null}
+                    <div className="mt-5 min-h-[20rem] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                      {previewContent ? (
+                        <pre
+                          className={`overflow-auto px-4 py-4 text-sm leading-6 text-slate-700 ${
+                            previewHtml ? "max-h-80 border-b border-slate-200" : "min-h-[20rem]"
+                          }`}
+                        >
+                          {previewContent}
+                        </pre>
+                      ) : null}
 
-                    {previewHtml ? (
-                      <iframe
-                        className="min-h-[34rem] w-full bg-white"
-                        srcDoc={previewHtml}
-                        title={previewLabel}
-                      />
-                    ) : null}
-                  </div>
-                </section>
-              ) : (
-                children
-              )}
-            </section>
+                      {previewHtml ? (
+                        <iframe
+                          className="min-h-[34rem] w-full bg-white"
+                          srcDoc={previewHtml}
+                          title={previewLabel}
+                        />
+                      ) : null}
+                    </div>
+                  </section>
+                ) : (
+                  children
+                )}
+              </section>
 
-            {showProjectExplorer ? (
-              <ProjectExplorer
-                items={rightNav?.items ?? []}
-                onPreviewFile={(item) => void previewFile(item)}
-                onRunProject={(projectName) => runProject(projectName)}
-                onToggleFolder={toggleFolder}
-                openFolders={openFolders}
-                runningProject={runningProject}
-                title={rightNav?.title ?? "Mis proyectos"}
-              />
-            ) : null}
+              {showProjectExplorer ? (
+                <ProjectExplorer
+                  items={rightNav?.items ?? []}
+                  onPreviewFile={(item) => void previewFile(item)}
+                  onRunProject={(projectName) => runProject(projectName)}
+                  onToggleFolder={toggleFolder}
+                  openFolders={openFolders}
+                  runningProject={runningProject}
+                  title={rightNav?.title ?? "Mis proyectos"}
+                />
+              ) : null}
+            </div>
           </div>
         </div>
       </main>
