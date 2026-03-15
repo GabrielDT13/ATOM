@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(24);
+SELECT plan(30);
 
 SELECT ok(
   EXISTS (
@@ -120,6 +120,28 @@ SELECT ok(
   'Debe existir la RPC public.admin_transfer_project_ownership'
 );
 
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'change_my_password'
+  ),
+  'Debe existir la RPC public.change_my_password'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'delete_my_account'
+  ),
+  'Debe existir la RPC public.delete_my_account'
+);
+
 SELECT is(
   (
     SELECT pg_get_function_result(p.oid)
@@ -129,7 +151,7 @@ SELECT is(
       AND p.proname = 'update_my_profile'
     LIMIT 1
   ),
-  'TABLE(id uuid, email text, username text, full_name text, avatar_url text, department text, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, roles text[])',
+  'TABLE(id uuid, email text, username text, full_name text, avatar_url text, department text, bio text, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, roles text[])',
   'public.update_my_profile debe devolver la tabla esperada'
 );
 
@@ -168,7 +190,7 @@ SELECT is(
       AND p.proname = 'admin_set_user_role'
     LIMIT 1
   ),
-  'TABLE(id uuid, email text, username text, full_name text, avatar_url text, department text, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, roles text[])',
+  'TABLE(id uuid, email text, username text, full_name text, avatar_url text, department text, bio text, is_active boolean, created_at timestamp with time zone, updated_at timestamp with time zone, roles text[])',
   'public.admin_set_user_role debe devolver la tabla esperada'
 );
 
@@ -222,6 +244,32 @@ SELECT is(
   ),
   'TABLE(id uuid, owner_id uuid, owner_username text, name text, slug text, description text, status text, created_at timestamp with time zone, updated_at timestamp with time zone, member_count bigint)',
   'public.admin_transfer_project_ownership debe devolver la tabla esperada'
+);
+
+SELECT is(
+  (
+    SELECT pg_get_function_result(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'change_my_password'
+    LIMIT 1
+  ),
+  'boolean',
+  'public.change_my_password debe devolver un boolean'
+);
+
+SELECT is(
+  (
+    SELECT pg_get_function_result(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'delete_my_account'
+    LIMIT 1
+  ),
+  'boolean',
+  'public.delete_my_account debe devolver un boolean'
 );
 
 SELECT ok(
@@ -294,6 +342,30 @@ SELECT ok(
     LIMIT 1
   ) LIKE '%IF NOT FOUND THEN%',
   'public.update_my_profile debe abortar si no encuentra el perfil'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'change_my_password'
+    LIMIT 1
+  ) LIKE '%auth.uid()%',
+  'public.change_my_password debe resolver el usuario autenticado'
+);
+
+SELECT ok(
+  (
+    SELECT pg_get_functiondef(p.oid)
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'delete_my_account'
+    LIMIT 1
+  ) LIKE '%todavía eres propietario de proyectos%',
+  'public.delete_my_account debe bloquear el borrado si el usuario sigue siendo propietario'
 );
 
 SELECT finish();

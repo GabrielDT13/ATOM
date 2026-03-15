@@ -37,14 +37,15 @@ BEGIN
     'user_' || substr(replace(NEW.id::text, '-', ''), 1, 8)
   );
 
-  INSERT INTO internal.profiles (id, email, username, full_name, avatar_url, department)
+  INSERT INTO internal.profiles (id, email, username, full_name, avatar_url, department, bio)
   VALUES (
     NEW.id,
     NEW.email,
     derived_username,
     NULLIF(NEW.raw_user_meta_data ->> 'full_name', ''),
     NULLIF(NEW.raw_user_meta_data ->> 'avatar_url', ''),
-    internal.ensure_department_name(NEW.raw_user_meta_data ->> 'department')
+    internal.ensure_department_name(NEW.raw_user_meta_data ->> 'department'),
+    internal.normalize_profile_bio(NEW.raw_user_meta_data ->> 'bio')
   )
   ON CONFLICT (id) DO UPDATE
   SET
@@ -52,12 +53,15 @@ BEGIN
     username = EXCLUDED.username,
     full_name = COALESCE(EXCLUDED.full_name, internal.profiles.full_name),
     avatar_url = COALESCE(EXCLUDED.avatar_url, internal.profiles.avatar_url),
-    department = EXCLUDED.department,
+    department = COALESCE(EXCLUDED.department, internal.profiles.department),
+    bio = COALESCE(EXCLUDED.bio, internal.profiles.bio),
     updated_at = now();
 
   INSERT INTO internal.user_roles (user_id, role_id)
   VALUES (NEW.id, 'user')
   ON CONFLICT (user_id, role_id) DO NOTHING;
+
+  PERFORM internal.ensure_profile_preferences(NEW.id);
 
   RETURN NEW;
 END;
@@ -73,6 +77,12 @@ EXECUTE FUNCTION app_private.sync_auth_user_profile();
 DROP TRIGGER IF EXISTS set_internal_profiles_updated_at ON internal.profiles;
 CREATE TRIGGER set_internal_profiles_updated_at
 BEFORE UPDATE ON internal.profiles
+FOR EACH ROW
+EXECUTE FUNCTION app_private.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_internal_profile_preferences_updated_at ON internal.profile_preferences;
+CREATE TRIGGER set_internal_profile_preferences_updated_at
+BEFORE UPDATE ON internal.profile_preferences
 FOR EACH ROW
 EXECUTE FUNCTION app_private.set_updated_at();
 
