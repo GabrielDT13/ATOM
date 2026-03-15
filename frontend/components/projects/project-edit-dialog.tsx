@@ -6,12 +6,11 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { DialogHero } from "@/components/ui/dialog-hero";
 import { ProjectFileDropzone } from "@/components/projects/project-file-dropzone";
 import {
   DataFilesIcon,
@@ -165,14 +164,10 @@ export function ProjectEditDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="flex max-h-[calc(100vh-2rem)] max-w-[52rem] flex-col overflow-hidden sm:max-h-[calc(100vh-3rem)]">
-        <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] px-6 pb-6 pt-7 sm:px-8">
-          <DialogHeader className="pr-10">
-            <DialogTitle>Editar proyecto</DialogTitle>
-            <DialogDescription>
-              Ajusta el nombre del proyecto y actualiza sus archivos.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+        <DialogHero
+          description="Ajusta el nombre del proyecto y actualiza sus archivos."
+          title="Editar proyecto"
+        />
 
         <form className="flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={(event) => void handleSubmit(event)}>
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 sm:px-8">
@@ -235,20 +230,14 @@ export function ProjectEditDialog({
 
           <DialogFooter className="shrink-0 border-t border-slate-200 px-6 py-6 sm:px-8">
             <DialogClose asChild>
-              <button
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                type="button"
-              >
-                Cancelar
-              </button>
+              <Button variant="secondary">Cancelar</Button>
             </DialogClose>
-            <button
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-300"
+            <Button
               disabled={submitting}
               type="submit"
             >
               {submitting ? "Guardando..." : "Guardar cambios"}
-            </button>
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

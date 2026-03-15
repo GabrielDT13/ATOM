@@ -5,6 +5,8 @@ import { FormEvent, useEffect, useState } from "react";
 
 import { apiFetch, fetchSession } from "@/lib/api";
 import type { MutationResponse, SessionResponse } from "@/types/api";
+import { Button, buttonStyles } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
 
 export function UserRegistration() {
@@ -72,12 +74,9 @@ export function UserRegistration() {
   return (
     <FormPage
       actions={
-        <Link
-          className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-          href="/dashboard/users"
-        >
+        <ButtonLink href="/dashboard/users" size="lg" tone="on-dark" variant="secondary">
           Volver a usuarios
-        </Link>
+        </ButtonLink>
       }
       description="Alta manual de nuevos accesos para la plataforma."
       eyebrow="Usuarios"
@@ -88,19 +87,15 @@ export function UserRegistration() {
           description="Completa los datos básicos del usuario."
           footer={
             <>
-              <Link
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                href="/dashboard/users"
-              >
+              <ButtonLink href="/dashboard/users" variant="secondary">
                 Cancelar
-              </Link>
-              <button
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-300"
+              </ButtonLink>
+              <Button
                 disabled={submitting}
                 type="submit"
               >
                 {submitting ? "Guardando..." : "Registrar"}
-              </button>
+              </Button>
             </>
           }
           title="Datos del usuario"

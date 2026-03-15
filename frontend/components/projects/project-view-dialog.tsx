@@ -6,11 +6,10 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { DialogHero } from "@/components/ui/dialog-hero";
 import { buildApiUrl, encodePathSegments } from "@/lib/api";
 import {
   DataFilesIcon,
@@ -69,22 +68,19 @@ export function ProjectViewDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="max-w-4xl overflow-hidden">
-        <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] px-6 pb-6 pt-7 sm:px-8">
-          <DialogHeader className="pr-10">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex rounded-full border border-sky-200 bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-                @{project.owner}
-              </span>
-              <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badgeClassName}`}>
-                {statusMeta.label}
-              </span>
-            </div>
-            <DialogTitle className="mt-4">{project.name}</DialogTitle>
-            <DialogDescription>
-              Vista rápida del inventario actual del proyecto y sus archivos disponibles.
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+        <DialogHero
+          description="Vista rápida del inventario actual del proyecto y sus archivos disponibles."
+          title={<span className="mt-4 block">{project.name}</span>}
+        >
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100">
+              @{project.owner}
+            </span>
+            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badgeClassName}`}>
+              {statusMeta.label}
+            </span>
+          </div>
+        </DialogHero>
 
         <div className="grid gap-6 px-6 pb-6 sm:px-8">
           <section className="grid gap-4 md:grid-cols-3">
@@ -153,21 +149,15 @@ export function ProjectViewDialog({
 
         <DialogFooter className="px-6 pb-6 sm:px-8">
           <DialogClose asChild>
-            <button
-              className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-              type="button"
-            >
-              Cerrar
-            </button>
+            <Button variant="secondary">Cerrar</Button>
           </DialogClose>
           {canManage ? (
-            <button
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+            <Button
               onClick={() => onEdit(project)}
               type="button"
             >
               Editar proyecto
-            </button>
+            </Button>
           ) : null}
         </DialogFooter>
       </DialogContent>
