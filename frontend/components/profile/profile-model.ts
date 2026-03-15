@@ -1,8 +1,9 @@
-import type { SessionUser } from "@/types/api";
+import type { ProfileRecord, SessionUser } from "@/types/api";
 
 export type ProfileActivityItem = {
   accentClassName: string;
   description: string;
+  key: string;
   timeLabel: string;
   title: string;
 };
@@ -18,118 +19,185 @@ export type ProfileViewModel = {
   department: string;
   displayName: string;
   email: string;
-  focusLabel: string;
+  interfaceLanguage: "es" | "en";
   joinedLabel: string;
+  lastUpdatedLabel: string;
   metrics: ProfileStatItem[];
-  roleLabel: string;
-  subtitle: string;
+  passwordDescription: string;
+  roleDisplay: string;
+  securityAlertsEnabled: boolean;
+  darkModeEnabled: boolean;
   username: string;
+  emailNotificationsEnabled: boolean;
 };
 
-function buildDisplayName(user: SessionUser | null) {
+function buildDisplayName(
+  profile: ProfileRecord | null,
+  user: SessionUser | null,
+) {
+  if (profile?.display_name?.trim()) {
+    return profile.display_name.trim();
+  }
+
   if (!user) {
-    return "Dra. Inés Martín";
+    return "Perfil de usuario";
   }
 
   const fallbackName = `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim();
   return user.display_name ?? (fallbackName || user.username || "Investigador/a ATOM");
 }
 
-export function buildProfileModel(user: SessionUser | null): ProfileViewModel {
-  const displayName = buildDisplayName(user);
-  const department = user?.department?.trim() || "Bioinformática traslacional";
-  const roleLabel =
-    user?.role === "admin" ? "Administración científica" : "Investigador/a principal";
-  const username = user?.username || "ines.martin";
-  const email = user?.email || "ines.martin@atlanticomics.es";
-  const joinedLabel = user?.role === "admin" ? "Octubre de 2025" : "Febrero de 2026";
-  const focusLabel =
-    user?.role === "admin"
-      ? "Coordina accesos, revisiones de proyecto y acompañamiento de equipos."
-      : `Responsable del seguimiento de proyectos y de la coordinación con ${department}.`;
+function formatMonthYear(dateValue: string | undefined) {
+  if (!dateValue) {
+    return "Pendiente";
+  }
+
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return "Pendiente";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDateTime(dateValue: string | undefined) {
+  if (!dateValue) {
+    return "Sin cambios recientes";
+  }
+
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return "Sin cambios recientes";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatActivityTime(dateValue: string) {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return "Sin fecha";
+  }
+
+  const now = new Date();
+  const diffMs = date.getTime() - now.getTime();
+  const diffMinutes = Math.round(diffMs / 60000);
+  const rtf = new Intl.RelativeTimeFormat("es", { numeric: "auto" });
+
+  if (Math.abs(diffMinutes) < 60) {
+    return rtf.format(diffMinutes, "minute");
+  }
+
+  const diffHours = Math.round(diffMinutes / 60);
+  if (Math.abs(diffHours) < 24) {
+    return rtf.format(diffHours, "hour");
+  }
+
+  const diffDays = Math.round(diffHours / 24);
+  if (Math.abs(diffDays) < 7) {
+    return rtf.format(diffDays, "day");
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function resolveActivityAccent(kind: string) {
+  switch (kind) {
+    case "password_changed":
+      return "bg-violet-500";
+    case "profile_updated":
+      return "bg-emerald-500";
+    case "collaboration":
+      return "bg-sky-500";
+    case "project_updated":
+      return "bg-amber-500";
+    default:
+      return "bg-slate-400";
+  }
+}
+
+export function buildProfileModel(
+  profile: ProfileRecord | null,
+  user: SessionUser | null,
+): ProfileViewModel {
+  const displayName = buildDisplayName(profile, user);
+  const department =
+    profile?.department?.trim() ||
+    user?.department?.trim() ||
+    "Sin departamento asignado";
+  const role = profile?.role ?? user?.role ?? "user";
+  const roleDisplay = role === "admin" ? "Administrador/a" : "Usuario";
+  const username = profile?.username || user?.username || "sin-usuario";
+  const email = profile?.email || user?.email || "sin-correo@atom.local";
+  const joinedLabel = formatMonthYear(profile?.joined_at);
+  const lastUpdatedLabel = formatDateTime(profile?.updated_at);
 
   const activity: ProfileActivityItem[] =
-    user?.role === "admin"
-      ? [
-          {
-            title: "Revisión de permisos del equipo",
-            description: "Se actualizaron accesos para el grupo de transcriptómica.",
-            timeLabel: "Hace 25 min",
-            accentClassName: "bg-sky-500",
-          },
-          {
-            title: "Perfil actualizado",
-            description: "Se revisó la información profesional y el departamento asociado.",
-            timeLabel: "Hoy, 10:40",
-            accentClassName: "bg-emerald-500",
-          },
-          {
-            title: "Cambio de contraseña",
-            description: "Se registró una actualización de credenciales desde la cuenta principal.",
-            timeLabel: "Ayer, 18:20",
-            accentClassName: "bg-violet-500",
-          },
-          {
-            title: "Proyecto compartido",
-            description: "Se concedió acceso de edición al proyecto RNA Atlas 07.",
-            timeLabel: "12 mar 2026",
-            accentClassName: "bg-amber-500",
-          },
-        ]
+    profile?.activity?.length
+      ? profile.activity.map((item) => ({
+          title: item.title,
+          description: item.description,
+          key: `${item.kind}-${item.created_at}-${item.title}`,
+          timeLabel: formatActivityTime(item.created_at),
+          accentClassName: resolveActivityAccent(item.kind),
+        }))
       : [
           {
-            title: "Proyecto actualizado",
-            description: "Se añadieron observaciones al informe del proyecto scRNA Tumor Board.",
-            timeLabel: "Hace 40 min",
-            accentClassName: "bg-sky-500",
-          },
-          {
-            title: "Perfil actualizado",
-            description: "Se ajustó la biografía y la preferencia de notificaciones por correo.",
-            timeLabel: "Hoy, 09:15",
-            accentClassName: "bg-emerald-500",
-          },
-          {
-            title: "Nueva colaboración",
-            description: "Se incorporó al proyecto ATAC Response Cohort como editor/a.",
-            timeLabel: "Ayer, 16:05",
-            accentClassName: "bg-violet-500",
-          },
-          {
-            title: "Cambio de contraseña",
-            description: "Se confirmó la actualización de credenciales sin incidencias.",
-            timeLabel: "10 mar 2026",
-            accentClassName: "bg-amber-500",
+            title: "Sin actividad reciente",
+            description: "Todavía no hay acciones registradas para esta cuenta.",
+            key: "empty-activity",
+            timeLabel: "Ahora mismo",
+            accentClassName: "bg-slate-300",
           },
         ];
 
-  const metrics: ProfileStatItem[] =
-    user?.role === "admin"
-      ? [
-          { label: "Proyectos activos", value: "12" },
-          { label: "Colaboraciones", value: "18" },
-          { label: "Revisiones pendientes", value: "4" },
-        ]
-      : [
-          { label: "Proyectos activos", value: "5" },
-          { label: "Colaboraciones", value: "7" },
-          { label: "Revisiones pendientes", value: "2" },
-        ];
+  const metrics: ProfileStatItem[] = [
+    {
+      label: "Proyectos activos",
+      value: String(profile?.summary.active_projects ?? 0),
+    },
+    {
+      label: "Colaboraciones",
+      value: String(profile?.summary.collaborations ?? 0),
+    },
+    {
+      label: "Revisiones pendientes",
+      value: String(profile?.summary.pending_reviews ?? 0),
+    },
+  ];
 
   return {
     activity,
     bio:
-      user?.role === "admin"
-        ? "Perfil enfocado en la coordinación del espacio de trabajo, la gestión de permisos y el seguimiento de iniciativas del equipo científico."
-        : `Investigador/a vinculado/a al área de ${department}, con foco en la coordinación de experimentos, el seguimiento de resultados y la colaboración entre proyectos.`,
+      profile?.bio?.trim() ||
+      (role === "admin"
+        ? "Perfil orientado a la coordinación del espacio de trabajo y la gestión de accesos del equipo."
+        : `Perfil vinculado al área de ${department}, con seguimiento activo de proyectos y colaboraciones.`),
     department,
     displayName,
     email,
-    focusLabel,
+    emailNotificationsEnabled: profile?.preferences.email_notifications ?? true,
+    interfaceLanguage: profile?.preferences.interface_language ?? "es",
     joinedLabel,
+    lastUpdatedLabel,
     metrics,
-    roleLabel,
-    subtitle: `${roleLabel} · ${department}`,
+    passwordDescription: `Última actualización registrada: ${lastUpdatedLabel}.`,
+    roleDisplay,
+    securityAlertsEnabled: profile?.preferences.security_alerts ?? true,
+    darkModeEnabled: profile?.preferences.dark_mode ?? false,
     username,
   };
 }

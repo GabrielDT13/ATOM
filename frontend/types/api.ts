@@ -14,6 +14,69 @@ export type SessionResponse = {
   user: SessionUser | null;
 };
 
+export type ProfilePreferences = {
+  email_notifications: boolean;
+  security_alerts: boolean;
+  dark_mode: boolean;
+  interface_language: "es" | "en";
+};
+
+export type ProfileActivityRecord = {
+  kind: string;
+  title: string;
+  description: string;
+  created_at: string;
+};
+
+export type ProfileSummary = {
+  active_projects: number;
+  collaborations: number;
+  pending_reviews: number;
+};
+
+export type ProfileOwnedProject = {
+  id: string;
+  name: string;
+  status: string;
+  updated_at: string;
+  member_count: number;
+};
+
+export type ProfileCollaborationProject = {
+  project_id: string;
+  project_name: string;
+  project_status: string;
+  member_role: string;
+  member_created_at: string;
+};
+
+export type ProfileProjectsPreview = {
+  owned: ProfileOwnedProject[];
+  collaborations: ProfileCollaborationProject[];
+};
+
+export type ProfileRecord = {
+  id: string;
+  email: string;
+  username: string;
+  display_name: string;
+  role: "admin" | "user";
+  department?: string | null;
+  bio?: string | null;
+  joined_at: string;
+  updated_at: string;
+  preferences: ProfilePreferences;
+  summary: ProfileSummary;
+  activity: ProfileActivityRecord[];
+  projects_preview: ProfileProjectsPreview;
+};
+
+export type ProfileMutationResponse = {
+  success: boolean;
+  message: string;
+  profile: ProfileRecord | null;
+};
+
 export type SidebarLink = {
   name: string;
   url: string;

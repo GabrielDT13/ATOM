@@ -1,11 +1,23 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { UserIcon } from "@/components/dashboard/dashboard-icons";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  CreatableSelectField,
+  type CreatableSelectOption,
+} from "@/components/ui/creatable-select-field";
+import { useAppToast } from "@/hooks/use-app-toast";
+import { apiFetch } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { SessionUser } from "@/types/api";
+import type {
+  DepartmentRecord,
+  ProfileMutationResponse,
+  ProfileRecord,
+  SessionUser,
+} from "@/types/api";
 
 import {
   CalendarIcon,
@@ -15,8 +27,12 @@ import {
   ShieldIcon,
   SparkIcon,
 } from "@/components/profile/profile-icons";
+import { buildEditableProfileFormValues } from "@/components/profile/profile-form";
 import { buildProfileModel } from "@/components/profile/profile-model";
-import { ProfilePasswordDialog } from "@/components/profile/profile-password-dialog";
+import {
+  ProfilePasswordDialog,
+  type ProfilePasswordValues,
+} from "@/components/profile/profile-password-dialog";
 import {
   DetailRow,
   PreferenceToggle,
@@ -25,25 +41,333 @@ import {
 } from "@/components/profile/profile-primitives";
 
 type ProfileSettingsPageProps = {
+  profileData: ProfileRecord | null;
   user: SessionUser | null;
 };
 
-export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
-  const profile = buildProfileModel(user);
+const EMPTY_PASSWORD_VALUES: ProfilePasswordValues = {
+  confirmPassword: "",
+  current_password: "",
+  new_password: "",
+};
+
+export function ProfileSettingsPage({
+  profileData,
+  user,
+}: ProfileSettingsPageProps) {
+  const router = useRouter();
+  const appToast = useAppToast();
+  const [resolvedProfileData, setResolvedProfileData] = useState<ProfileRecord | null>(
+    profileData,
+  );
+  const profile = buildProfileModel(resolvedProfileData, user);
+  const editableValues = buildEditableProfileFormValues(resolvedProfileData, user);
   const informationSectionRef = useRef<HTMLElement | null>(null);
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [systemTheme, setSystemTheme] = useState(false);
-  const [loginAlerts, setLoginAlerts] = useState(true);
-  const [interfaceLanguage, setInterfaceLanguage] = useState("es");
+  const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
+  const [displayName, setDisplayName] = useState(editableValues.displayName);
+  const [username, setUsername] = useState(editableValues.username);
+  const [email, setEmail] = useState(editableValues.email);
+  const [department, setDepartment] = useState(editableValues.department);
+  const [bio, setBio] = useState(editableValues.bio);
+  const [emailNotifications, setEmailNotifications] = useState(
+    editableValues.emailNotifications,
+  );
+  const [systemTheme, setSystemTheme] = useState(editableValues.systemTheme);
+  const [loginAlerts, setLoginAlerts] = useState(editableValues.loginAlerts);
+  const [interfaceLanguage, setInterfaceLanguage] = useState(
+    editableValues.interfaceLanguage,
+  );
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordConfirmOpen, setPasswordConfirmOpen] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [passwordValues, setPasswordValues] = useState<ProfilePasswordValues>(
+    EMPTY_PASSWORD_VALUES,
+  );
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const departmentOptions: CreatableSelectOption[] = departments.map((departmentOption) => ({
+    label: departmentOption.name,
+    value: departmentOption.name,
+  }));
+  const isAdmin = (resolvedProfileData?.role ?? user?.role) === "admin";
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProfile() {
+      try {
+        const nextProfile = await apiFetch<ProfileRecord>("/api/profile/me");
+        if (!cancelled) {
+          setResolvedProfileData(nextProfile);
+        }
+      } catch {
+        // La pantalla mantiene el fallback local si el perfil no se puede cargar.
+      }
+    }
+
+    void loadProfile();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadDepartments() {
+      try {
+        const nextDepartments = await apiFetch<DepartmentRecord[]>("/api/departments");
+        if (!cancelled) {
+          setDepartments(nextDepartments);
+        }
+      } catch {
+        if (!cancelled) {
+          setDepartments([]);
+        }
+      }
+    }
+
+    void loadDepartments();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setDisplayName(editableValues.displayName);
+    setUsername(editableValues.username);
+    setEmail(editableValues.email);
+    setDepartment(editableValues.department);
+    setBio(editableValues.bio);
+    setEmailNotifications(editableValues.emailNotifications);
+    setSystemTheme(editableValues.systemTheme);
+    setLoginAlerts(editableValues.loginAlerts);
+    setInterfaceLanguage(editableValues.interfaceLanguage);
+  }, [
+    editableValues.bio,
+    editableValues.department,
+    editableValues.displayName,
+    editableValues.email,
+    editableValues.emailNotifications,
+    editableValues.interfaceLanguage,
+    editableValues.loginAlerts,
+    editableValues.systemTheme,
+    editableValues.username,
+  ]);
 
   function scrollToInformationSection() {
     informationSectionRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "start",
     });
+  }
+
+  function resetForm() {
+    setDisplayName(editableValues.displayName);
+    setUsername(editableValues.username);
+    setEmail(editableValues.email);
+    setDepartment(editableValues.department);
+    setBio(editableValues.bio);
+    setEmailNotifications(editableValues.emailNotifications);
+    setSystemTheme(editableValues.systemTheme);
+    setLoginAlerts(editableValues.loginAlerts);
+    setInterfaceLanguage(editableValues.interfaceLanguage);
+  }
+
+  function resetPasswordForm() {
+    setPasswordValues(EMPTY_PASSWORD_VALUES);
+  }
+
+  function updateResolvedProfile(nextProfile: ProfileRecord | null) {
+    if (!nextProfile) {
+      return;
+    }
+
+    setResolvedProfileData(nextProfile);
+
+    const nextDepartment = nextProfile.department?.trim();
+    if (nextDepartment && !departments.some((item) => item.name === nextDepartment)) {
+      setDepartments((current) => [
+        ...current,
+        {
+          id: `profile-${nextDepartment}`,
+          name: nextDepartment,
+          slug: nextDepartment.toLowerCase().replace(/\s+/g, "-"),
+        },
+      ]);
+    }
+  }
+
+  async function handleSaveProfile() {
+    setSavingProfile(true);
+
+    const request = apiFetch<ProfileMutationResponse>("/api/profile/me", {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        username: username.trim(),
+        display_name: displayName.trim() || null,
+        email: email.trim(),
+        department: department.trim() || null,
+        bio: bio.trim() || null,
+        preferences: {
+          email_notifications: emailNotifications,
+          security_alerts: loginAlerts,
+          dark_mode: systemTheme,
+          interface_language: interfaceLanguage,
+        },
+      }),
+    }).then((response) => {
+      if (!response.success || !response.profile) {
+        throw new Error(response.message || "No se pudo actualizar el perfil");
+      }
+      return response;
+    });
+
+    appToast.promise(request, {
+      loading: {
+        title: "Guardando perfil",
+        description: "Estamos actualizando tu información.",
+      },
+      success: {
+        title: "Perfil actualizado",
+        description: "Los cambios se han guardado correctamente.",
+      },
+      error: {
+        title: (error) =>
+          error instanceof Error ? error.message : "No se pudo actualizar el perfil",
+        description: "Revisa los datos e inténtalo de nuevo.",
+      },
+    });
+
+    try {
+      const response = await request;
+      updateResolvedProfile(response.profile);
+      router.refresh();
+    } catch {
+      // El feedback ya se muestra en el toast.
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  function handlePasswordDialogOpenChange(open: boolean) {
+    setPasswordDialogOpen(open);
+    if (!open) {
+      setPasswordConfirmOpen(false);
+      resetPasswordForm();
+    }
+  }
+
+  function requestPasswordConfirmation(values: ProfilePasswordValues) {
+    if (!values.current_password.trim() || !values.new_password.trim() || !values.confirmPassword.trim()) {
+      appToast.error("Completa todos los campos", "Introduce la contraseña actual y la nueva contraseña.");
+      return;
+    }
+
+    if (values.new_password.trim().length < 8) {
+      appToast.error("Contraseña no válida", "La nueva contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    if (values.new_password !== values.confirmPassword) {
+      appToast.error("Las contraseñas no coinciden", "Repite la nueva contraseña para confirmar el cambio.");
+      return;
+    }
+
+    setPasswordConfirmOpen(true);
+  }
+
+  async function handleChangePassword() {
+    setChangingPassword(true);
+
+    const request = apiFetch<ProfileMutationResponse>("/api/profile/me/password", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        current_password: passwordValues.current_password.trim(),
+        new_password: passwordValues.new_password.trim(),
+      }),
+    }).then((response) => {
+      if (!response.success) {
+        throw new Error(response.message || "No se pudo actualizar la contraseña");
+      }
+      return response;
+    });
+
+    appToast.promise(request, {
+      loading: {
+        title: "Actualizando contraseña",
+        description: "Estamos aplicando el cambio de seguridad.",
+      },
+      success: {
+        title: "Contraseña actualizada",
+        description: "Tu contraseña se ha cambiado correctamente.",
+      },
+      error: {
+        title: (error) =>
+          error instanceof Error ? error.message : "No se pudo actualizar la contraseña",
+        description: "Verifica la contraseña actual e inténtalo otra vez.",
+      },
+    });
+
+    try {
+      await request;
+      setPasswordConfirmOpen(false);
+      setPasswordDialogOpen(false);
+      resetPasswordForm();
+    } catch {
+      // El feedback ya se muestra en el toast.
+    } finally {
+      setChangingPassword(false);
+    }
+  }
+
+  async function handleDeleteAccount() {
+    setDeletingAccount(true);
+
+    const request = apiFetch<ProfileMutationResponse>("/api/profile/me", {
+      method: "DELETE",
+    }).then((response) => {
+      if (!response.success) {
+        throw new Error(response.message || "No se pudo eliminar la cuenta");
+      }
+      return response;
+    });
+
+    appToast.promise(request, {
+      loading: {
+        title: "Eliminando cuenta",
+        description: "Estamos cerrando tu acceso y eliminando la cuenta.",
+      },
+      success: {
+        title: "Cuenta eliminada",
+        description: "Se ha cerrado tu sesión.",
+      },
+      error: {
+        title: (error) =>
+          error instanceof Error ? error.message : "No se pudo eliminar la cuenta",
+        description: "La cuenta no se ha eliminado. Inténtalo de nuevo.",
+      },
+    });
+
+    try {
+      await request;
+      setDeleteConfirmOpen(false);
+      router.replace("/login");
+      router.refresh();
+    } catch {
+      // El feedback ya se muestra en el toast.
+    } finally {
+      setDeletingAccount(false);
+    }
   }
 
   return (
@@ -65,16 +389,18 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600">
-                    {profile.roleLabel}
+                    {profile.roleDisplay}
                   </span>
                 </div>
 
                 <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
                   {profile.displayName}
                 </h1>
-                <p className="mt-2 text-base text-slate-600">{profile.subtitle}</p>
+                <p className="mt-2 text-base font-medium text-slate-600">
+                  {profile.department}
+                </p>
                 <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-500">
-                  {profile.focusLabel}
+                  {profile.bio}
                 </p>
               </div>
             </div>
@@ -120,7 +446,7 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                 Rol
               </dt>
               <dd className="mt-2 text-sm font-medium text-slate-900">
-                {profile.roleLabel}
+                {profile.roleDisplay}
               </dd>
             </div>
             <div className="bg-white px-6 py-5">
@@ -153,7 +479,7 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                 <DetailRow
                   icon={<ShieldIcon className="h-5 w-5" />}
                   label="Rol asignado"
-                  value={profile.roleLabel}
+                  value={profile.roleDisplay}
                 />
                 <DetailRow
                   icon={<CalendarIcon className="h-5 w-5" />}
@@ -201,7 +527,7 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                     <div className="min-w-0">
                       <p className="text-base font-semibold text-slate-950">Contraseña</p>
                       <p className="mt-2 text-sm leading-6 text-slate-500">
-                        Actualiza tu contraseña para mantener tu cuenta protegida.
+                        {profile.passwordDescription}
                       </p>
                     </div>
                   </div>
@@ -215,22 +541,24 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                   </button>
                 </div>
 
-                <div className="rounded-[28px] border border-rose-200 bg-rose-50/80 p-5">
-                  <div className="min-w-0">
-                    <p className="text-base font-semibold text-rose-900">Eliminar cuenta</p>
-                    <p className="mt-2 text-sm leading-6 text-rose-700">
-                      Esta acción eliminará el acceso a la cuenta y requiere confirmación.
-                    </p>
-                  </div>
+                {!isAdmin ? (
+                  <div className="rounded-[28px] border border-rose-200 bg-rose-50/80 p-5">
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-rose-900">Eliminar cuenta</p>
+                      <p className="mt-2 text-sm leading-6 text-rose-700">
+                        Esta acción eliminará el acceso a la cuenta y requiere confirmación.
+                      </p>
+                    </div>
 
-                  <button
-                    className="mt-5 inline-flex rounded-full border border-rose-300 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                    onClick={() => setDeleteConfirmOpen(true)}
-                    type="button"
-                  >
-                    Eliminar cuenta
-                  </button>
-                </div>
+                    <button
+                      className="mt-5 inline-flex rounded-full border border-rose-300 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                      onClick={() => setDeleteConfirmOpen(true)}
+                      type="button"
+                    >
+                      Eliminar cuenta
+                    </button>
+                  </div>
+                ) : null}
               </div>
             </SectionCard>
           </aside>
@@ -250,8 +578,9 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                     </span>
                     <input
                       className="mt-2 block w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-primary focus:ring-primary"
-                      defaultValue={profile.displayName}
+                      onChange={(event) => setDisplayName(event.target.value)}
                       type="text"
+                      value={displayName}
                     />
                   </label>
 
@@ -259,8 +588,9 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                     <span className="text-sm font-semibold text-slate-700">Usuario</span>
                     <input
                       className="mt-2 block w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-primary focus:ring-primary"
-                      defaultValue={profile.username}
+                      onChange={(event) => setUsername(event.target.value)}
                       type="text"
+                      value={username}
                     />
                   </label>
 
@@ -268,25 +598,28 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                     <span className="text-sm font-semibold text-slate-700">Correo</span>
                     <input
                       className="mt-2 block w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-primary focus:ring-primary"
-                      defaultValue={profile.email}
+                      onChange={(event) => setEmail(event.target.value)}
                       type="email"
+                      value={email}
                     />
                   </label>
 
-                  <label className="block md:col-span-2">
-                    <span className="text-sm font-semibold text-slate-700">Departamento</span>
-                    <input
-                      className="mt-2 block w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-primary focus:ring-primary"
-                      defaultValue={profile.department}
-                      type="text"
+                  <div className="md:col-span-2">
+                    <CreatableSelectField
+                      createPlaceholder="Escribe un nuevo departamento"
+                      label="Departamento"
+                      onChange={setDepartment}
+                      options={departmentOptions}
+                      value={department}
                     />
-                  </label>
+                  </div>
 
                   <label className="block md:col-span-2">
                     <span className="text-sm font-semibold text-slate-700">Biografía</span>
                     <textarea
                       className="mt-2 block min-h-[140px] w-full rounded-3xl border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 shadow-sm transition focus:border-primary focus:ring-primary"
-                      defaultValue={profile.bio}
+                      onChange={(event) => setBio(event.target.value)}
+                      value={bio}
                     />
                   </label>
                 </div>
@@ -294,15 +627,18 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                 <div className="mt-6 flex flex-wrap justify-end gap-3">
                   <button
                     className="rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                    onClick={resetForm}
                     type="button"
                   >
                     Cancelar
                   </button>
                   <button
-                    className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_-20px_rgba(13,127,242,0.85)] transition hover:bg-primary-dark"
+                    className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_-20px_rgba(13,127,242,0.85)] transition hover:bg-primary-dark disabled:bg-sky-300"
+                    disabled={savingProfile}
+                    onClick={() => void handleSaveProfile()}
                     type="button"
                   >
-                    Guardar cambios
+                    {savingProfile ? "Guardando..." : "Guardar cambios"}
                   </button>
                 </div>
               </section>
@@ -342,7 +678,9 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
                   </span>
                   <select
                     className="mt-2 block w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-primary focus:ring-primary"
-                    onChange={(event) => setInterfaceLanguage(event.target.value)}
+                    onChange={(event) =>
+                      setInterfaceLanguage(event.target.value as "es" | "en")
+                    }
                     value={interfaceLanguage}
                   >
                     <option value="es">Español</option>
@@ -378,7 +716,7 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
 
               <div className="relative space-y-6 border-l border-slate-200 pl-6">
                 {profile.activity.map((item) => (
-                  <article className="relative" key={`${item.title}-${item.timeLabel}`}>
+                  <article className="relative" key={item.key}>
                     <span
                       className={cn(
                         "absolute -left-[33px] top-1 h-4 w-4 rounded-full border-4 border-white shadow-sm",
@@ -409,19 +747,20 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
       </div>
 
       <ProfilePasswordDialog
-        onConfirm={() => setPasswordConfirmOpen(true)}
-        onOpenChange={setPasswordDialogOpen}
+        onConfirm={requestPasswordConfirmation}
+        onOpenChange={handlePasswordDialogOpenChange}
+        onValuesChange={setPasswordValues}
         open={passwordDialogOpen}
+        submitting={changingPassword}
+        values={passwordValues}
       />
 
       <ConfirmDialog
         actionLabel="Confirmar cambio"
         body="Se actualizará la contraseña de tu cuenta."
+        confirmDisabled={changingPassword}
         confirmVariant="primary"
-        onConfirm={() => {
-          setPasswordConfirmOpen(false);
-          setPasswordDialogOpen(false);
-        }}
+        onConfirm={handleChangePassword}
         onOpenChange={setPasswordConfirmOpen}
         open={passwordConfirmOpen}
         title="Confirmar cambio de contraseña"
@@ -430,10 +769,9 @@ export function ProfileSettingsPage({ user }: ProfileSettingsPageProps) {
       <ConfirmDialog
         actionLabel="Eliminar cuenta"
         body="Esta acción no se puede deshacer. Se eliminará tu cuenta cuando confirmes."
+        confirmDisabled={deletingAccount}
         confirmVariant="danger"
-        onConfirm={() => {
-          setDeleteConfirmOpen(false);
-        }}
+        onConfirm={handleDeleteAccount}
         onOpenChange={setDeleteConfirmOpen}
         open={deleteConfirmOpen}
         title="Confirmar eliminación de cuenta"

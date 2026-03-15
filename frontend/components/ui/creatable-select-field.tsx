@@ -39,6 +39,26 @@ function PlusIcon() {
   );
 }
 
+function ChevronUpIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M6 14L12 8L18 14"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
 export function CreatableSelectField({
   addButtonLabel = "Añadir opción",
   createPlaceholder = "Escribe una nueva opción",
@@ -124,7 +144,7 @@ export function CreatableSelectField({
           onClick={() => setIsCreating((current) => !current)}
           type="button"
         >
-          <PlusIcon />
+          {isCreating ? <ChevronUpIcon /> : <PlusIcon />}
         </button>
       </div>
 
