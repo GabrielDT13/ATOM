@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 
-import type { ProfileRecord, SessionResponse } from "@/types/api";
+import type {
+  DashboardOverview,
+  ProfileRecord,
+  SessionResponse,
+} from "@/types/api";
 
 function getServerBackendOrigin() {
   if (process.env.BACKEND_INTERNAL_URL) {
@@ -45,4 +49,8 @@ export async function fetchServerSession(): Promise<SessionResponse | null> {
 
 export async function fetchServerProfile(): Promise<ProfileRecord | null> {
   return fetchServerBackend<ProfileRecord>("/api/profile/me");
+}
+
+export async function fetchServerDashboardOverview(): Promise<DashboardOverview | null> {
+  return fetchServerBackend<DashboardOverview>("/api/dashboard/overview");
 }
