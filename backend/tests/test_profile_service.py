@@ -152,7 +152,7 @@ def test_get_my_profile_uses_defaults_when_preferences_are_missing(monkeypatch) 
         "collaborations": 0,
         "pending_reviews": 0,
     }
-    assert payload["activity"][0]["title"] == "Sin actividad reciente"
+    assert payload["activity"] == []
 
 
 def test_update_my_profile_updates_auth_rpc_preferences_and_activity(monkeypatch) -> None:
