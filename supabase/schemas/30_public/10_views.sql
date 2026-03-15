@@ -9,6 +9,8 @@ SELECT
   d.slug
 FROM internal.departments d;
 
+DROP VIEW IF EXISTS public.vw_profiles CASCADE;
+
 CREATE OR REPLACE VIEW public.vw_profiles
 WITH (security_invoker = true)
 AS
@@ -19,6 +21,7 @@ SELECT
   p.full_name,
   p.avatar_url,
   p.department,
+  p.bio,
   p.is_active,
   p.created_at,
   p.updated_at,
@@ -74,8 +77,37 @@ JOIN internal.project_members pm
 JOIN internal.profiles member_profile
   ON member_profile.id = pm.user_id;
 
+CREATE OR REPLACE VIEW public.vw_profile_preferences
+WITH (security_invoker = true)
+AS
+SELECT
+  pp.user_id,
+  pp.email_notifications,
+  pp.security_alerts,
+  pp.dark_mode,
+  pp.interface_language,
+  pp.created_at,
+  pp.updated_at
+FROM internal.profile_preferences pp;
+
+CREATE OR REPLACE VIEW public.vw_profile_activity
+WITH (security_invoker = true)
+AS
+SELECT
+  pa.id,
+  pa.user_id,
+  pa.activity_type,
+  pa.title,
+  pa.description,
+  pa.created_at
+FROM internal.profile_activity pa;
+
 REVOKE ALL ON public.vw_profiles FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.vw_profiles TO service_role;
 GRANT SELECT ON public.vw_departments TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects_with_users TO authenticated, service_role;
+GRANT SELECT, UPDATE ON public.vw_profile_preferences TO authenticated;
+GRANT SELECT ON public.vw_profile_activity TO authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.vw_profile_preferences TO service_role;
+GRANT SELECT, INSERT ON public.vw_profile_activity TO service_role;

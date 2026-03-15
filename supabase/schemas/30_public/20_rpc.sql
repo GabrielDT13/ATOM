@@ -1,7 +1,9 @@
 CREATE OR REPLACE FUNCTION public.update_my_profile(
   p_username text DEFAULT NULL,
   p_full_name text DEFAULT NULL,
-  p_avatar_url text DEFAULT NULL
+  p_avatar_url text DEFAULT NULL,
+  p_department text DEFAULT NULL,
+  p_bio text DEFAULT NULL
 )
 RETURNS TABLE (
   id uuid,
@@ -10,6 +12,7 @@ RETURNS TABLE (
   full_name text,
   avatar_url text,
   department text,
+  bio text,
   is_active boolean,
   created_at timestamptz,
   updated_at timestamptz,
@@ -22,9 +25,23 @@ AS $$
 BEGIN
   UPDATE internal.profiles
   SET
-    username = COALESCE(p_username, internal.profiles.username),
-    full_name = COALESCE(p_full_name, internal.profiles.full_name),
-    avatar_url = COALESCE(p_avatar_url, internal.profiles.avatar_url)
+    username = COALESCE(NULLIF(trim(p_username), ''), internal.profiles.username),
+    full_name = CASE
+      WHEN p_full_name IS NULL THEN internal.profiles.full_name
+      ELSE NULLIF(trim(p_full_name), '')
+    END,
+    avatar_url = CASE
+      WHEN p_avatar_url IS NULL THEN internal.profiles.avatar_url
+      ELSE NULLIF(trim(p_avatar_url), '')
+    END,
+    department = CASE
+      WHEN p_department IS NULL THEN internal.profiles.department
+      ELSE internal.ensure_department_name(p_department)
+    END,
+    bio = CASE
+      WHEN p_bio IS NULL THEN internal.profiles.bio
+      ELSE internal.normalize_profile_bio(p_bio)
+    END
   WHERE internal.profiles.id = auth.uid();
 
   IF NOT FOUND THEN
@@ -423,7 +440,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.update_my_profile(text, text, text) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.update_my_profile(text, text, text, text, text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.create_project(text, text, text, text) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.update_project(uuid, text, text, text, text) TO authenticated, service_role;
 REVOKE ALL ON FUNCTION public.admin_create_project(uuid, text, text, text, text) FROM PUBLIC, anon, authenticated;

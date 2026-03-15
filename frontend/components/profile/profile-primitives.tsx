@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { CheckIcon } from "@/components/dashboard/dashboard-icons";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 export type PreferenceToggleProps = {
@@ -79,31 +79,14 @@ export function PreferenceToggle({
   title,
 }: PreferenceToggleProps) {
   return (
-    <button
-      aria-pressed={checked}
+    <div
       className="flex w-full items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 px-5 py-4 text-left transition hover:border-primary/30 hover:bg-white"
-      onClick={() => onCheckedChange(!checked)}
-      type="button"
     >
       <div className="min-w-0">
         <p className="text-sm font-semibold text-slate-900">{title}</p>
         <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
       </div>
-      <span
-        className={cn(
-          "relative inline-flex h-7 w-12 shrink-0 rounded-full border transition",
-          checked ? "border-primary bg-primary" : "border-slate-300 bg-slate-200",
-        )}
-      >
-        <span
-          className={cn(
-            "absolute top-1 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition",
-            checked ? "left-6" : "left-1",
-          )}
-        >
-          {checked ? <CheckIcon className="h-3.5 w-3.5 text-primary" /> : null}
-        </span>
-      </span>
-    </button>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
   );
 }

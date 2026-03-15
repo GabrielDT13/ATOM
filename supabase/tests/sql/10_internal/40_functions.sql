@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(9);
+SELECT plan(10);
 
 SELECT ok(
   EXISTS (
@@ -110,6 +110,18 @@ SELECT ok(
       AND COALESCE(array_to_string(p.proconfig, ','), '') LIKE '%search_path=pg_catalog%'
   ),
   'internal.normalize_department_slug debe fijar search_path'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'app_private'
+      AND p.proname = 'sync_auth_user_profile'
+      AND pg_get_functiondef(p.oid) LIKE '%department = COALESCE(EXCLUDED.department, internal.profiles.department)%'
+  ),
+  'app_private.sync_auth_user_profile debe conservar el departamento existente cuando auth no lo envia'
 );
 
 SELECT finish();

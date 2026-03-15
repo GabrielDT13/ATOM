@@ -1,3 +1,5 @@
+DROP FUNCTION IF EXISTS public.admin_set_user_role(uuid, uuid, text);
+
 CREATE OR REPLACE FUNCTION public.admin_set_user_role(
   p_actor_user_id uuid,
   p_target_user_id uuid,
@@ -10,6 +12,7 @@ RETURNS TABLE (
   full_name text,
   avatar_url text,
   department text,
+  bio text,
   is_active boolean,
   created_at timestamptz,
   updated_at timestamptz,

@@ -12,11 +12,15 @@ CREATE TABLE IF NOT EXISTS internal.profiles (
   full_name text,
   avatar_url text,
   department text,
+  bio text,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CHECK (char_length(username) >= 3)
 );
+
+ALTER TABLE internal.profiles
+ADD COLUMN IF NOT EXISTS bio text;
 
 CREATE TABLE IF NOT EXISTS internal.roles (
   id text PRIMARY KEY,
