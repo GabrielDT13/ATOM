@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { ChangeEvent, useState } from "react";
 
 import type {
   DashboardStatusBreakdown,
@@ -44,6 +44,15 @@ const ACTIVITY_RANGE_OPTIONS: ActivityRangeOption[] = [
   { days: 90, helper: "Últimos 3 meses", label: "90 días" },
   { days: 180, helper: "Últimos 6 meses", label: "180 días" },
 ];
+
+function parseActivityRange(value: string): ActivityRangeDays {
+  const parsed = Number(value);
+  if (parsed === 7 || parsed === 30 || parsed === 90 || parsed === 180) {
+    return parsed;
+  }
+
+  return 30;
+}
 
 function parseBucketDate(point: DashboardTimelinePoint) {
   const parsed = new Date(point.bucket_start);
@@ -166,6 +175,10 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
     ACTIVITY_RANGE_OPTIONS.find((option) => option.days === selectedRange) ??
     ACTIVITY_RANGE_OPTIONS[1];
 
+  function handleRangeChange(event: ChangeEvent<HTMLSelectElement>) {
+    setSelectedRange(parseActivityRange(event.target.value));
+  }
+
   return (
     <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
       <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -183,25 +196,31 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
         </div>
 
         <div className="flex flex-col items-start gap-3 xl:items-end">
-          <div className="flex flex-wrap gap-2 rounded-full bg-slate-100/90 p-1">
-            {ACTIVITY_RANGE_OPTIONS.map((option) => (
-              <button
-                aria-pressed={option.days === selectedRange}
-                className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
-                  option.days === selectedRange
-                    ? "bg-slate-950 text-white shadow-sm"
-                    : "text-slate-500 hover:bg-white hover:text-slate-900"
-                }`}
-                key={option.days}
-                onClick={() => setSelectedRange(option.days)}
-                type="button"
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-3 rounded-[22px] border border-slate-200 bg-slate-50/80 px-4 py-3 shadow-sm sm:flex-nowrap xl:w-auto xl:max-w-[15rem]">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                Rango
+              </p>
+              <p className="mt-1 text-sm font-semibold text-slate-950">
+                {selectedRangeMeta.helper}
+              </p>
+            </div>
+
+            <label className="min-w-0 sm:ml-auto">
+              <span className="sr-only">Seleccionar rango temporal</span>
+              <select
+                aria-label="Seleccionar rango temporal"
+                className="h-11 w-full min-w-0 max-w-full rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none transition focus:border-slate-300 focus:ring-4 focus:ring-sky-100 sm:w-[8.5rem]"
+                onChange={handleRangeChange}
+                value={selectedRange}
               >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            {selectedRangeMeta.helper}
+                {ACTIVITY_RANGE_OPTIONS.map((option) => (
+                  <option key={option.days} value={option.days}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
       </div>

@@ -72,7 +72,9 @@ describe("DashboardActivityChart", () => {
     expect(screen.getByText("3 mov.")).toBeInTheDocument();
     expect(screen.getByText("Análisis completados")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "7 días" }));
+    fireEvent.change(screen.getByLabelText("Seleccionar rango temporal"), {
+      target: { value: "7" },
+    });
 
     expect(screen.getByText("Última semana")).toBeInTheDocument();
     expect(screen.getByText("5 mov.")).toBeInTheDocument();
