@@ -190,6 +190,130 @@ def test_list_projects_for_user_includes_owned_supabase_records_without_local_fo
     assert seeded_project["file_count"] == 0
 
 
+def test_list_sidebar_projects_for_user_builds_project_links(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        project_service,
+        "list_projects_for_user",
+        lambda session_user_id, session_username, role: {
+            "items": [
+                {
+                    "access_role": "owner",
+                    "file_count": 4,
+                    "html_files": ["results/report.html"],
+                    "id": "project-1",
+                    "name": "RNA Atlas",
+                    "owner": "researcher",
+                    "slug": "researcher-rna-atlas",
+                    "status": "results",
+                    "updated_at": "2026-03-05T10:00:00+00:00",
+                },
+                {
+                    "access_role": "viewer",
+                    "file_count": 1,
+                    "html_files": [],
+                    "id": "project-2",
+                    "name": "Shared Project",
+                    "owner": "shared-lab",
+                    "slug": None,
+                    "status": "configured",
+                    "updated_at": "2026-03-06T10:00:00+00:00",
+                },
+            ]
+        },
+    )
+
+    payload = project_service.list_sidebar_projects_for_user(
+        "user-1",
+        "researcher",
+        "user",
+    )
+
+    assert payload == {
+        "items": [
+            {
+                "access_role": "owner",
+                "can_run": True,
+                "file_count": 4,
+                "html_count": 1,
+                "id": "project-1",
+                "name": "RNA Atlas",
+                "owner": "researcher",
+                "route_ref": "researcher-rna-atlas",
+                "slug": "researcher-rna-atlas",
+                "status": "results",
+                "updated_at": "2026-03-05T10:00:00+00:00",
+            },
+            {
+                "access_role": "viewer",
+                "can_run": False,
+                "file_count": 1,
+                "html_count": 0,
+                "id": "project-2",
+                "name": "Shared Project",
+                "owner": "shared-lab",
+                "route_ref": "project-2",
+                "slug": None,
+                "status": "configured",
+                "updated_at": "2026-03-06T10:00:00+00:00",
+            },
+        ],
+        "title": "Proyectos",
+    }
+
+
+def test_get_project_details_by_ref_uses_supabase_metadata(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    project_dir.mkdir(parents=True)
+    (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
+
+    monkeypatch.setattr(
+        project_service,
+        "_get_project_record_by_ref",
+        lambda project_ref: {
+            "id": "project-1",
+            "name": "RNA Atlas",
+            "owner_username": "researcher",
+            "slug": project_ref,
+            "created_at": "2026-03-04T09:00:00+00:00",
+            "updated_at": "2026-03-05T09:00:00+00:00",
+        },
+    )
+
+    payload = project_service.get_project_details_by_ref("researcher-rna-atlas")
+
+    assert payload["id"] == "project-1"
+    assert payload["slug"] == "researcher-rna-atlas"
+    assert payload["owner"] == "researcher"
+    assert payload["name"] == "RNA Atlas"
+
+
+def test_get_project_members_by_ref_resolves_owner_and_name(monkeypatch) -> None:
+    monkeypatch.setattr(
+        project_service,
+        "_get_project_record_by_ref",
+        lambda project_ref: {
+            "id": "project-1",
+            "name": "RNA Atlas",
+            "owner_username": "researcher",
+            "slug": project_ref,
+        },
+    )
+    monkeypatch.setattr(
+        project_service,
+        "get_project_members",
+        lambda owner, project_name: [{"id": "user-1", "username": owner, "is_owner": True}],
+    )
+
+    members = project_service.get_project_members_by_ref("researcher-rna-atlas")
+
+    assert members == [{"id": "user-1", "username": "researcher", "is_owner": True}]
+
+
 def test_update_project_renames_and_replaces_inputs_without_deleting_results(
     isolated_app_env: dict[str, Path],
     monkeypatch,

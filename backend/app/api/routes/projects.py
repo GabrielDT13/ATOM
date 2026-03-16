@@ -19,10 +19,13 @@ from backend.app.services.projects import (
     delete_project,
     get_download_path,
     get_project_details,
+    get_project_details_by_ref,
     get_project_members,
+    get_project_members_by_ref,
     list_projects_for_user,
     read_project_file,
     remove_project_member,
+    resolve_project_reference,
     search_project_share_candidates,
     transfer_project_ownership,
     update_project,
@@ -57,12 +60,33 @@ def _require_project_edit_access(request: Request, owner: str, project_name: str
     raise HTTPException(status_code=403, detail="No autorizado")
 
 
+def _resolve_project_for_ref(project_ref: str) -> dict[str, object]:
+    project = resolve_project_reference(project_ref)
+    if not project:
+        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    return project
+
+
 @router.get("", response_model=ProjectCollectionResponse)
 async def get_projects(request: Request) -> ProjectCollectionResponse:
     current_user = get_current_user(request)
     return ProjectCollectionResponse(
         **list_projects_for_user(str(current_user["id"]), str(current_user["username"]), str(current_user["role"]))
     )
+
+
+@router.get("/by-ref/{project_ref}", response_model=ProjectResponse)
+async def get_project_by_ref(project_ref: str, request: Request) -> ProjectResponse:
+    project = _resolve_project_for_ref(project_ref)
+    owner = str(project.get("owner_username") or "").strip()
+    project_name = str(project.get("name") or "").strip()
+    _require_project_view_access(request, owner, project_name)
+    try:
+        return ProjectResponse(**get_project_details_by_ref(project_ref))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{owner}/{project_name}", response_model=ProjectResponse)
@@ -132,6 +156,21 @@ async def remove_project(owner: str, project_name: str, request: Request) -> Pro
         project_name,
     )
     return ProjectMutationResponse(success=success, message=message, project=None)
+
+
+@router.get("/by-ref/{project_ref}/members", response_model=ProjectMembersResponse)
+async def get_project_members_by_ref_route(
+    project_ref: str,
+    request: Request,
+) -> ProjectMembersResponse:
+    project = _resolve_project_for_ref(project_ref)
+    owner = str(project.get("owner_username") or "").strip()
+    project_name = str(project.get("name") or "").strip()
+    _require_project_view_access(request, owner, project_name)
+    try:
+        return ProjectMembersResponse(members=get_project_members_by_ref(project_ref))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{owner}/{project_name}/members", response_model=ProjectMembersResponse)

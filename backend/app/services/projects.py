@@ -32,6 +32,7 @@ from backend.app.services.project_supabase import (
     _get_project_access_role,
     _get_project_member,
     _get_project_record,
+    _get_project_record_by_ref,
     _list_all_project_records,
     _list_owned_project_records,
     _list_project_members_by_project_id,
@@ -91,54 +92,53 @@ def list_sidebar_left(role: str) -> dict[str, object]:
     }
 
 
-def build_project_tree(username: str) -> dict[str, object]:
-    user_dir = ensure_user_dir(username)
+def list_sidebar_projects_for_user(
+    session_user_id: str,
+    session_username: str,
+    role: str,
+) -> dict[str, object]:
+    collection = list_projects_for_user(session_user_id, session_username, role)
+    items: list[dict[str, object]] = []
 
-    def _build_tree(path: Path, current_project: str | None = None, parent: Path = Path("")):
-        tree: list[dict[str, object]] = []
-        html_exists_in_folder = False
+    for project in collection["items"]:
+        if not isinstance(project, dict):
+            continue
 
-        if not path.exists():
-            return tree, False
+        project_id = str(project.get("id") or "").strip() or None
+        project_slug = str(project.get("slug") or "").strip() or None
+        owner = str(project.get("owner") or "").strip()
+        name = str(project.get("name") or "").strip()
+        html_files = project.get("html_files")
+        html_count = len(html_files) if isinstance(html_files, list) else 0
+        route_ref = project_slug or project_id
 
-        for entry in sorted(path.iterdir(), key=lambda item: item.name.lower()):
-            relative_path = parent / entry.name if str(parent) else Path(entry.name)
-            rel_path_str = relative_path.as_posix()
+        if not route_ref or not owner or not name:
+            continue
 
-            if entry.is_dir():
-                project_name = entry.name if current_project is None else current_project
-                child_tree, child_has_html = _build_tree(entry, project_name, relative_path)
-                tree.append(
-                    {
-                        "name": entry.name,
-                        "type": "folder",
-                        "html_exists": child_has_html,
-                        "children": child_tree,
-                        "path": rel_path_str,
-                        "project_name": project_name,
-                    }
-                )
-                if child_has_html:
-                    html_exists_in_folder = True
-                continue
+        items.append(
+            {
+                "access_role": project.get("access_role"),
+                "can_run": owner == session_username,
+                "file_count": int(project.get("file_count") or 0),
+                "html_count": html_count,
+                "id": project_id,
+                "name": name,
+                "owner": owner,
+                "route_ref": route_ref,
+                "slug": project_slug,
+                "status": str(project.get("status") or "empty").strip() or "empty",
+                "updated_at": str(project.get("updated_at") or "").strip(),
+            }
+        )
 
-            is_html = entry.suffix.lower() == ".html"
-            if is_html:
-                html_exists_in_folder = True
-            tree.append(
-                {
-                    "name": entry.name,
-                    "type": "file",
-                    "username": username,
-                    "project_name": current_project,
-                    "path": rel_path_str,
-                }
-            )
+    items.sort(
+        key=lambda item: (
+            str(item.get("owner") or "").lower(),
+            str(item.get("name") or "").lower(),
+        )
+    )
 
-        return tree, html_exists_in_folder
-
-    tree, _ = _build_tree(user_dir)
-    return {"title": "Mis Proyectos", "items": tree}
+    return {"title": "Proyectos", "items": items}
 
 
 def list_projects_for_user(session_user_id: str, session_username: str, role: str) -> dict[str, object]:
@@ -162,7 +162,16 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
             )
             projects[owner] = [directory.name for directory in project_dirs]
             for project_dir in project_dirs:
-                payload = _build_project_payload(owner, project_dir)
+                try:
+                    metadata: dict[str, Any] | None = _get_project_record(owner, project_dir.name)
+                except SupabaseError:
+                    metadata = None
+                if metadata is None:
+                    try:
+                        metadata = _upsert_project_record(owner, project_dir.name)
+                    except SupabaseError:
+                        metadata = None
+                payload = _build_project_payload(owner, project_dir, metadata)
                 payload["access_role"] = "owner" if owner == session_username else "viewer"
                 indexed_items[f"{owner}::{project_dir.name}"] = payload
         else:
@@ -217,6 +226,7 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
     )
 
     return {"projects": projects, "items": items}
+
 
 async def create_project(
     actor_user_id: str | None,
@@ -279,10 +289,31 @@ async def create_project(
 
 def get_project_details(owner: str, project_name: str) -> dict[str, object]:
     project_dir = get_project_dir(owner, project_name)
-    if not project_dir.exists() or not project_dir.is_dir():
+    try:
+        metadata = _get_project_record(owner, normalize_project_name(project_name))
+    except SupabaseError:
+        metadata = None
+    if (not project_dir.exists() or not project_dir.is_dir()) and metadata is None:
         raise FileNotFoundError("Proyecto no encontrado")
 
-    metadata = _get_project_record(owner, normalize_project_name(project_name))
+    return _build_project_payload(owner, project_dir, metadata)
+
+
+def resolve_project_reference(project_ref: str) -> dict[str, Any] | None:
+    return _get_project_record_by_ref(project_ref)
+
+
+def get_project_details_by_ref(project_ref: str) -> dict[str, object]:
+    metadata = _get_project_record_by_ref(project_ref)
+    if not metadata:
+        raise FileNotFoundError("Proyecto no encontrado")
+
+    owner = str(metadata.get("owner_username") or "").strip()
+    project_name = str(metadata.get("name") or "").strip()
+    if not owner or not project_name:
+        raise FileNotFoundError("Proyecto no encontrado")
+
+    project_dir = get_settings().projects_dir / owner / project_name
     return _build_project_payload(owner, project_dir, metadata)
 
 
@@ -356,6 +387,19 @@ def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
         )
     )
     return payload
+
+
+def get_project_members_by_ref(project_ref: str) -> list[dict[str, Any]]:
+    metadata = _get_project_record_by_ref(project_ref)
+    if not metadata:
+        raise FileNotFoundError("Proyecto no encontrado")
+
+    owner = str(metadata.get("owner_username") or "").strip()
+    project_name = str(metadata.get("name") or "").strip()
+    if not owner or not project_name:
+        raise FileNotFoundError("Proyecto no encontrado")
+
+    return get_project_members(owner, project_name)
 
 
 def search_project_share_candidates(owner: str, project_name: str, query: str, limit: int = 8) -> list[dict[str, Any]]:

@@ -18,6 +18,61 @@ CREATE TABLE IF NOT EXISTS internal.projects (
   CHECK (status IN ('draft', 'active', 'archived'))
 );
 
+CREATE OR REPLACE FUNCTION internal.normalize_project_slug_part(raw_value text)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+SET search_path = pg_catalog, public
+AS $$
+  SELECT NULLIF(
+    trim(
+      BOTH '-'
+      FROM regexp_replace(
+        lower(public.unaccent(COALESCE(trim(raw_value), ''))),
+        '[^a-z0-9]+',
+        '-',
+        'g'
+      )
+    ),
+    ''
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION internal.ensure_project_slug(
+  raw_owner_username text,
+  raw_project_name text,
+  current_project_id uuid DEFAULT NULL
+)
+RETURNS text
+LANGUAGE plpgsql
+SET search_path = pg_catalog, internal, public
+AS $$
+DECLARE
+  base_slug text;
+  candidate_slug text;
+  suffix integer := 1;
+BEGIN
+  base_slug := concat_ws(
+    '-',
+    internal.normalize_project_slug_part(raw_owner_username),
+    internal.normalize_project_slug_part(raw_project_name)
+  );
+  candidate_slug := COALESCE(base_slug, 'project');
+
+  WHILE EXISTS (
+    SELECT 1
+    FROM internal.projects p
+    WHERE p.slug = candidate_slug
+      AND (current_project_id IS NULL OR p.id <> current_project_id)
+  ) LOOP
+    suffix := suffix + 1;
+    candidate_slug := format('%s-%s', COALESCE(base_slug, 'project'), suffix);
+  END LOOP;
+
+  RETURN candidate_slug;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS internal.project_members (
   project_id uuid NOT NULL REFERENCES internal.projects (id) ON DELETE CASCADE,
   user_id uuid NOT NULL REFERENCES internal.profiles (id) ON DELETE CASCADE,
@@ -37,6 +92,8 @@ REVOKE ALL ON internal.project_members FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON internal.projects TO authenticated;
 GRANT SELECT ON internal.project_members TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA internal TO service_role;
+GRANT EXECUTE ON FUNCTION internal.normalize_project_slug_part(text) TO service_role;
+GRANT EXECUTE ON FUNCTION internal.ensure_project_slug(text, text, uuid) TO service_role;
 
 DROP POLICY IF EXISTS "projects_select_member_or_admin" ON internal.projects;
 CREATE POLICY "projects_select_member_or_admin"
