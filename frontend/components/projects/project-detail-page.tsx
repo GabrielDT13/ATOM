@@ -48,7 +48,15 @@ import {
   buildStreamUrl,
   fetchSession,
 } from "@/lib/api";
-import { getProject, listProjectMembers } from "@/lib/projects";
+import {
+  buildProjectDetailHref,
+  buildProjectReportHref,
+  getProject,
+  getProjectByRef,
+  listProjectMembers,
+  listProjectMembersByRef,
+  resolveProjectRouteRef,
+} from "@/lib/projects";
 import { cn } from "@/lib/utils";
 import type {
   FileContentResponse,
@@ -58,10 +66,17 @@ import type {
   SessionResponse,
 } from "@/types/api";
 
-type ProjectDetailPageProps = {
-  owner: string;
-  projectName: string;
-};
+type ProjectDetailPageProps =
+  | {
+      owner: string;
+      projectName: string;
+      projectRef?: never;
+    }
+  | {
+      owner?: never;
+      projectName?: never;
+      projectRef: string;
+    };
 
 function ProjectDetailLoadingState() {
   return (
@@ -300,17 +315,15 @@ function ProjectSidebar({
 function ProjectPrimaryReport({
   activeDeliverables,
   activeExecutionGroup,
-  owner,
+  projectReportHref,
   preview,
   previewLoading,
-  projectName,
 }: {
   activeDeliverables: ProjectFileEntry[];
   activeExecutionGroup: ProjectExecutionGroup | null;
-  owner: string;
   preview: PreviewState | null;
   previewLoading: boolean;
-  projectName: string;
+  projectReportHref: string | null;
 }) {
   return (
     <div className="flex min-w-0 flex-col">
@@ -318,9 +331,9 @@ function ProjectPrimaryReport({
         className="flex h-full flex-col"
         contentClassName="flex flex-1 flex-col"
         actions={
-          activeExecutionGroup?.htmlFile ? (
+          activeExecutionGroup?.htmlFile && projectReportHref ? (
             <ButtonLink
-              href={`/dashboard/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/report?path=${encodeURIComponent(activeExecutionGroup.htmlFile.path)}`}
+              href={projectReportHref}
               rel="noreferrer"
               target="_blank"
               variant="secondary"
@@ -378,6 +391,7 @@ function ProjectResultsSections({
   analysisLog,
   featuredDeliverable,
   owner,
+  projectRef,
   preview,
   previewLoading,
   project,
@@ -391,6 +405,7 @@ function ProjectResultsSections({
   featuredDeliverable: ProjectFileEntry | null;
   onPreview: (file: ProjectFileEntry) => void;
   owner: string;
+  projectRef: string | null;
   preview: PreviewState | null;
   previewLoading: boolean;
   project: ProjectDetails;
@@ -436,6 +451,7 @@ function ProjectResultsSections({
             <DeliverableCard
               file={featuredDeliverable}
               owner={owner}
+              projectRef={projectRef ?? `${project.owner}::${project.name}`}
               projectName={project.name}
               variant="featured"
             />
@@ -447,6 +463,7 @@ function ProjectResultsSections({
                     file={file}
                     key={file.path}
                     owner={owner}
+                    projectRef={projectRef ?? `${project.owner}::${project.name}`}
                     projectName={project.name}
                   />
                 ))}
@@ -532,6 +549,7 @@ function ProjectResultsSections({
 export function ProjectDetailPage({
   owner,
   projectName,
+  projectRef,
 }: ProjectDetailPageProps) {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
@@ -551,10 +569,19 @@ export function ProjectDetailPage({
     setError(null);
 
     try {
+      const projectRequest =
+        typeof projectRef === "string"
+          ? getProjectByRef(projectRef)
+          : getProject(owner, projectName);
+      const membersRequest =
+        typeof projectRef === "string"
+          ? listProjectMembersByRef(projectRef)
+          : listProjectMembers(owner, projectName);
+
       const [sessionResponse, projectResponse, membersResponse] = await Promise.all([
         fetchSession(),
-        getProject(owner, projectName),
-        listProjectMembers(owner, projectName),
+        projectRequest,
+        membersRequest,
       ]);
 
       if (isCancelled()) {
@@ -591,8 +618,12 @@ export function ProjectDetailPage({
     detailModel?.executionGroups[0] ??
     null;
 
-  async function handlePreview(file: ProjectFileEntry, currentProjectName = project?.name) {
-    if (!currentProjectName) {
+  async function handlePreview(
+    file: ProjectFileEntry,
+    currentProjectName = project?.name,
+    currentProjectOwner = project?.owner,
+  ) {
+    if (!currentProjectName || !currentProjectOwner) {
       return;
     }
 
@@ -601,7 +632,7 @@ export function ProjectDetailPage({
 
       try {
         const fileContent = await apiFetch<FileContentResponse>(
-          buildProjectFilePreviewPath(owner, currentProjectName, file.path),
+          buildProjectFilePreviewPath(currentProjectOwner, currentProjectName, file.path),
         );
 
         setActiveReport(parseProjectReportHtml(fileContent.content));
@@ -629,7 +660,7 @@ export function ProjectDetailPage({
             "Intentaremos mostrar este archivo aquí mismo. Si tu navegador no puede visualizarlo correctamente, puedes abrirlo en una pestaña aparte.",
           label: file.path,
           mode: "embed",
-          src: buildProjectFileUrl(owner, currentProjectName, file.path),
+          src: buildProjectFileUrl(currentProjectOwner, currentProjectName, file.path),
         });
         return;
       }
@@ -642,7 +673,7 @@ export function ProjectDetailPage({
 
     try {
       const fileContent = await apiFetch<FileContentResponse>(
-        `${buildProjectFilePreviewPath(owner, currentProjectName, file.path)}?max_lines=120`,
+        `${buildProjectFilePreviewPath(currentProjectOwner, currentProjectName, file.path)}?max_lines=120`,
       );
 
       setPreview({
@@ -668,7 +699,7 @@ export function ProjectDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [owner, projectName]);
+  }, [owner, projectName, projectRef]);
 
   useEffect(() => {
     if (!detailModel?.executionGroups.length) {
@@ -767,6 +798,16 @@ export function ProjectDetailPage({
   }
 
   const statusMeta = getProjectStatusMeta(project.status);
+  const resolvedProjectRef = resolveProjectRouteRef(project);
+  const projectHref = resolvedProjectRef
+    ? buildProjectDetailHref(resolvedProjectRef)
+    : `/dashboard/projects/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
+  const projectReportHref =
+    resolvedProjectRef && activeExecutionGroup?.htmlFile
+      ? buildProjectReportHref(resolvedProjectRef, activeExecutionGroup.htmlFile.path)
+      : activeExecutionGroup?.htmlFile
+        ? `${projectHref}/report?path=${encodeURIComponent(activeExecutionGroup.htmlFile.path)}`
+        : null;
   const accessRole =
     session?.user?.role === "admin"
       ? project.access_role === "owner"
@@ -817,10 +858,9 @@ export function ProjectDetailPage({
         <ProjectPrimaryReport
           activeDeliverables={activeDeliverables}
           activeExecutionGroup={activeExecutionGroup}
-          owner={project.owner}
           preview={preview}
           previewLoading={previewLoading}
-          projectName={project.name}
+          projectReportHref={projectReportHref}
         />
       </div>
 
@@ -830,6 +870,7 @@ export function ProjectDetailPage({
         featuredDeliverable={featuredDeliverable}
         onPreview={(file) => void handlePreview(file)}
         owner={project.owner}
+        projectRef={resolvedProjectRef}
         preview={preview}
         previewLoading={previewLoading}
         project={project}

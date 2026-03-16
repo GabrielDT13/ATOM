@@ -19,11 +19,10 @@ import {
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { ProjectExplorer } from "@/components/dashboard/project-explorer";
 import type {
-  FileContentResponse,
   SessionResponse,
   SidebarLink,
+  SidebarProjectItem,
   SidebarResponse,
-  SidebarTreeItem,
 } from "@/types/api";
 
 type DashboardShellProps = {
@@ -37,15 +36,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const [leftNav, setLeftNav] =
     useState<SidebarResponse<SidebarLink> | null>(null);
   const [rightNav, setRightNav] =
-    useState<SidebarResponse<SidebarTreeItem> | null>(null);
-  const [previewLabel, setPreviewLabel] = useState<string>("Sin selección");
+    useState<SidebarResponse<SidebarProjectItem> | null>(null);
+  const [previewLabel, setPreviewLabel] = useState<string>("Estado de la ejecución");
   const [previewContent, setPreviewContent] = useState<string>(
-    "Selecciona un archivo del panel de proyectos para visualizar su contenido.",
+    "Inicia una ejecución desde el panel lateral para seguir aquí su progreso.",
   );
-  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
   const [showContentOverride, setShowContentOverride] = useState(false);
   const [runningProject, setRunningProject] = useState<string | null>(null);
-  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileProjectExplorerOpen, setMobileProjectExplorerOpen] = useState(false);
@@ -58,7 +55,6 @@ export function DashboardShell({ children }: DashboardShellProps) {
     setMobileSidebarOpen(false);
     setMobileProjectExplorerOpen(false);
     setShowContentOverride(false);
-    setPreviewHtml(null);
   }, [pathname]);
 
   useEffect(() => {
@@ -91,7 +87,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         const [leftData, rightData] = await Promise.all([
           apiFetch<SidebarResponse<SidebarLink>>("/api/navigation/sidebar-left"),
-          apiFetch<SidebarResponse<SidebarTreeItem>>(
+          apiFetch<SidebarResponse<SidebarProjectItem>>(
             "/api/navigation/sidebar-right",
           ),
         ]);
@@ -143,58 +139,11 @@ export function DashboardShell({ children }: DashboardShellProps) {
     router.refresh();
   }
 
-  async function previewFile(item: SidebarTreeItem) {
-    if (!item.username) {
-      return;
-    }
-
-    try {
-      const encodedOwner = encodeURIComponent(item.username);
-      const encodedPath = item.path
-        .split("/")
-        .map((segment) => encodeURIComponent(segment))
-        .join("/");
-      const isHtml = item.name.toLowerCase().endsWith(".html");
-      const payload = await apiFetch<FileContentResponse>(
-        isHtml
-          ? `/api/projects/${encodedOwner}/files/${encodedPath}`
-          : `/api/projects/${encodedOwner}/files/${encodedPath}?max_lines=30`,
-      );
-
-      setPreviewLabel(item.path);
-      setPreviewHtml(isHtml ? payload.content : null);
-      setPreviewContent(
-        isHtml
-          ? ""
-          : payload.truncated
-            ? `${payload.content}\n...`
-            : payload.content,
-      );
-      setShowContentOverride(true);
-    } catch (previewError) {
-      setPreviewLabel(item.path);
-      setPreviewHtml(null);
-      setPreviewContent(
-        previewError instanceof Error
-          ? previewError.message
-          : "No se pudo leer el archivo",
-      );
-      setShowContentOverride(true);
-    }
-  }
-
   async function refreshRightNav() {
-    const payload = await apiFetch<SidebarResponse<SidebarTreeItem>>(
+    const payload = await apiFetch<SidebarResponse<SidebarProjectItem>>(
       "/api/navigation/sidebar-right",
     );
     setRightNav(payload);
-  }
-
-  function toggleFolder(path: string) {
-    setOpenFolders((current) => ({
-      ...current,
-      [path]: !current[path],
-    }));
   }
 
   function runProject(projectName: string) {
@@ -206,8 +155,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     );
 
     setRunningProject(projectName);
-    setPreviewLabel("Salida del análisis");
-    setPreviewHtml(null);
+    setPreviewLabel(`Ejecución de ${projectName}`);
     setPreviewContent("");
     setShowContentOverride(true);
 
@@ -287,7 +235,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   size="sm"
                   variant="ghost"
                 >
-                  Archivos y proyectos
+                  Proyectos
                 </Button>
               </div>
             ) : null}
@@ -306,23 +254,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
                     </div>
 
                     <div className="mt-5 min-h-[20rem] overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                      {previewContent ? (
-                        <pre
-                          className={`overflow-auto px-4 py-4 text-sm leading-6 text-slate-700 ${
-                            previewHtml ? "max-h-80 border-b border-slate-200" : "min-h-[20rem]"
-                          }`}
-                        >
-                          {previewContent}
-                        </pre>
-                      ) : null}
-
-                      {previewHtml ? (
-                        <iframe
-                          className="min-h-[34rem] w-full bg-white"
-                          srcDoc={previewHtml}
-                          title={previewLabel}
-                        />
-                      ) : null}
+                      <pre className="min-h-[20rem] overflow-auto px-4 py-4 text-sm leading-6 text-slate-700">
+                        {previewContent}
+                      </pre>
                     </div>
                   </section>
                 ) : (
@@ -336,11 +270,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   isMobileOpen={mobileProjectExplorerOpen}
                   items={rightNav?.items ?? []}
                   onCloseMobile={() => setMobileProjectExplorerOpen(false)}
-                  onPreviewFile={(item) => void previewFile(item)}
                   onRunProject={(projectName) => runProject(projectName)}
                   onToggleCollapse={() => setProjectExplorerCollapsed((current) => !current)}
-                  onToggleFolder={toggleFolder}
-                  openFolders={openFolders}
                   runningProject={runningProject}
                   title={rightNav?.title ?? "Mis proyectos"}
                 />

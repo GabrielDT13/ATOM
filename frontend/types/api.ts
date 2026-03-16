@@ -93,6 +93,20 @@ export type SidebarTreeItem = {
   children?: SidebarTreeItem[] | null;
 };
 
+export type SidebarProjectItem = {
+  access_role?: ProjectMemberRole | null;
+  can_run: boolean;
+  file_count: number;
+  html_count: number;
+  id?: string | null;
+  name: string;
+  owner: string;
+  route_ref: string;
+  slug?: string | null;
+  status: ProjectStatus;
+  updated_at: string;
+};
+
 export type SidebarResponse<T> = {
   title: string;
   items: T[];
@@ -140,8 +154,10 @@ export type ProjectSummary = {
   file_count: number;
   files: string[];
   html_files: string[];
+  id?: string | null;
   name: string;
   owner: string;
+  slug?: string | null;
   status: ProjectStatus;
   template_file: string | null;
   updated_at: string;

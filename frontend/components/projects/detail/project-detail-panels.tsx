@@ -17,6 +17,7 @@ import {
 } from "@/components/projects/detail/project-detail-helpers";
 import type { PreviewState } from "@/components/projects/detail/project-detail-types";
 import { buttonStyles } from "@/components/ui/button";
+import { buildProjectReportHref } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 import type { ProjectFileEntry, ProjectMemberRecord } from "@/types/api";
 import { UserAvatar, UserProfilePopover } from "@/components/users/user-profile-popover";
@@ -240,18 +241,20 @@ export function ExecutionSelectorCard({
 export function DeliverableCard({
   file,
   owner,
+  projectRef,
   projectName,
   variant = "compact",
 }: {
   file: ProjectFileEntry;
   owner: string;
+  projectRef: string;
   projectName: string;
   variant?: "compact" | "featured";
 }) {
   const extension = file.extension.toLowerCase();
   const isHtmlDeliverable = extension === ".html" || extension === ".htm";
   const href = isHtmlDeliverable
-    ? `/dashboard/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/report?path=${encodeURIComponent(file.path)}`
+    ? buildProjectReportHref(projectRef, file.path)
     : buildProjectFileUrl(owner, projectName, file.path);
   const icon =
     extension === ".rmd" ? (

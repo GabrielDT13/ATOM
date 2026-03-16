@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { buildApiUrl, encodePathSegments } from "@/lib/api";
+import { buildProjectDetailHref } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 import type { DataTableColumn } from "@/components/ui/data-table";
 import { DataTable } from "@/components/ui/data-table";
@@ -90,7 +91,7 @@ export function ProjectManagementTable({
             <div className="min-w-0">
               <Link
                 className="truncate text-sm font-semibold text-slate-900 transition hover:text-primary"
-                href={`/dashboard/projects/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`}
+                href={buildProjectDetailHref(project.routeRef)}
               >
                 {project.name}
               </Link>

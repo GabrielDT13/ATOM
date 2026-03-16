@@ -10,20 +10,31 @@ import { DownloadIcon, EyeIcon, ProjectStackIcon } from "@/components/projects/p
 import { ButtonLink } from "@/components/ui/button-link";
 import { buttonStyles } from "@/components/ui/button";
 import { apiFetch } from "@/lib/api";
+import { buildProjectDetailHref, getProjectByRef } from "@/lib/projects";
 import { parseProjectReportHtml } from "@/components/projects/project-report-utils";
 import type { FileContentResponse } from "@/types/api";
 
-type ProjectReportViewProps = {
-  owner: string;
-  projectName: string;
-  reportPath: string | null;
-};
+type ProjectReportViewProps =
+  | {
+      owner: string;
+      projectName: string;
+      projectRef?: never;
+      reportPath: string | null;
+    }
+  | {
+      owner?: never;
+      projectName?: never;
+      projectRef: string;
+      reportPath: string | null;
+    };
 
 export function ProjectReportView({
   owner,
   projectName,
+  projectRef,
   reportPath,
 }: ProjectReportViewProps) {
+  const [projectIdentity, setProjectIdentity] = useState<{ name: string; owner: string } | null>(null);
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,13 +53,34 @@ export function ProjectReportView({
       setLoading(true);
       setError(null);
       setReportHtml(null);
+      setProjectIdentity(null);
 
       try {
+        const resolvedProject =
+          typeof projectRef === "string"
+            ? await getProjectByRef(projectRef)
+            : ({
+                name: projectName,
+                owner,
+              } as const);
+
+        if (cancelled) {
+          return;
+        }
+
         const payload = await apiFetch<FileContentResponse>(
-          buildProjectFilePreviewPath(owner, projectName, currentReportPath),
+          buildProjectFilePreviewPath(
+            resolvedProject.owner,
+            resolvedProject.name,
+            currentReportPath,
+          ),
         );
 
         if (!cancelled) {
+          setProjectIdentity({
+            name: resolvedProject.name,
+            owner: resolvedProject.owner,
+          });
           setReportHtml(payload.content);
         }
       } catch (loadError) {
@@ -71,7 +103,7 @@ export function ProjectReportView({
     return () => {
       cancelled = true;
     };
-  }, [owner, projectName, reportPath]);
+  }, [owner, projectName, projectRef, reportPath]);
 
   const reportTitle = useMemo(() => {
     if (!reportHtml) {
@@ -103,17 +135,21 @@ export function ProjectReportView({
 
           <div className="flex flex-wrap gap-3">
             <ButtonLink
-              href={`/dashboard/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`}
+              href={
+                typeof projectRef === "string"
+                  ? buildProjectDetailHref(projectRef)
+                  : `/dashboard/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`
+              }
               size="lg"
               tone="on-dark"
               variant="secondary"
             >
               Volver al proyecto
             </ButtonLink>
-            {reportPath ? (
+            {reportPath && projectIdentity ? (
               <a
                 className={buttonStyles({ size: "lg", tone: "on-dark", variant: "ghost" })}
-                href={buildProjectFileUrl(owner, projectName, reportPath)}
+                href={buildProjectFileUrl(projectIdentity.owner, projectIdentity.name, reportPath)}
                 rel="noreferrer"
                 target="_blank"
               >

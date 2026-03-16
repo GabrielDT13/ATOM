@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchSession } from "@/lib/api";
-import { deleteProject, listProjects, updateProject } from "@/lib/projects";
+import {
+  buildProjectDetailHref,
+  deleteProject,
+  listProjects,
+  updateProject,
+} from "@/lib/projects";
 import { useAppToast } from "@/hooks/use-app-toast";
 import type { SessionResponse } from "@/types/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -214,9 +219,7 @@ export function ProjectManagement() {
           onDelete={setPendingDeleteProject}
           onEdit={setEditingProject}
           onView={(project) =>
-            router.push(
-              `/dashboard/projects/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`,
-            )
+            router.push(buildProjectDetailHref(project.routeRef))
           }
           projects={filteredProjects}
         />
