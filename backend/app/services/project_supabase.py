@@ -84,6 +84,14 @@ def _get_project_record(owner: str, project_name: str) -> dict[str, Any] | None:
     return projects[0] if projects else None
 
 
+def _list_all_project_records() -> list[dict[str, Any]]:
+    return _fetch_project_records()
+
+
+def _list_owned_project_records(username: str) -> list[dict[str, Any]]:
+    return _fetch_project_records(filters={"owner_username": f"eq.{username}"})
+
+
 def _list_shared_project_records(user_id: str) -> list[dict[str, Any]]:
     payload = request_with_service_role(
         "GET",

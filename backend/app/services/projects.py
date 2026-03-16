@@ -32,6 +32,8 @@ from backend.app.services.project_supabase import (
     _get_project_access_role,
     _get_project_member,
     _get_project_record,
+    _list_all_project_records,
+    _list_owned_project_records,
     _list_project_members_by_project_id,
     _list_shared_project_records,
     _rename_project_record,
@@ -165,6 +167,30 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
                 indexed_items[f"{owner}::{project_dir.name}"] = payload
         else:
             projects[owner] = []
+
+    try:
+        supabase_records = (
+            _list_all_project_records()
+            if role == "admin"
+            else _list_owned_project_records(session_username)
+        )
+    except SupabaseError:
+        supabase_records = []
+
+    for record in supabase_records:
+        owner = str(record.get("owner_username") or "").strip()
+        project_name = str(record.get("name") or "").strip()
+        if not owner or not project_name:
+            continue
+
+        project_dir = get_settings().projects_dir / owner / project_name
+        projects.setdefault(owner, [])
+        if project_name not in projects[owner]:
+            projects[owner].append(project_name)
+
+        payload = _build_project_payload(owner, project_dir, record)
+        payload["access_role"] = "owner" if owner == session_username else ("editor" if role == "admin" else None)
+        indexed_items[f"{owner}::{project_name}"] = payload
 
     if role != "admin":
         for record in _list_shared_project_records(session_user_id):

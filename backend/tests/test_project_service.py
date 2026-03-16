@@ -102,6 +102,7 @@ def test_list_projects_for_admin_returns_project_map_and_items(
     cell_dir.mkdir(parents=True)
     (cell_dir / "notes.csv").write_text("notes", encoding="utf-8")
 
+    monkeypatch.setattr(project_service, "_list_all_project_records", lambda: [])
     monkeypatch.setattr(project_service, "_list_shared_project_records", lambda user_id: [])
 
     payload = project_service.list_projects_for_user(
@@ -119,6 +120,74 @@ def test_list_projects_for_admin_returns_project_map_and_items(
     assert [item["access_role"] for item in payload["items"]] == ["viewer", "owner"]
     assert payload["items"][0]["status"] == "configured"
     assert payload["items"][1]["template_file"] == "template.xlsx"
+
+
+def test_list_projects_for_admin_includes_supabase_records_without_local_folder(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    atlas_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    atlas_dir.mkdir(parents=True)
+    (atlas_dir / "template.xlsx").write_text("template", encoding="utf-8")
+
+    monkeypatch.setattr(project_service, "_list_shared_project_records", lambda user_id: [])
+    monkeypatch.setattr(
+        project_service,
+        "_list_all_project_records",
+        lambda: [
+            {
+                "created_at": "2026-03-01T10:00:00+00:00",
+                "name": "Admin Seed Project",
+                "owner_username": "admin",
+                "updated_at": "2026-03-02T10:00:00+00:00",
+            }
+        ],
+    )
+
+    payload = project_service.list_projects_for_user(
+        "11111111-1111-1111-1111-111111111111",
+        "researcher",
+        "admin",
+    )
+
+    assert payload["projects"]["admin"] == ["Admin Seed Project"]
+    seeded_project = next(
+        item for item in payload["items"] if item["name"] == "Admin Seed Project"
+    )
+    assert seeded_project["owner"] == "admin"
+    assert seeded_project["access_role"] == "editor"
+    assert seeded_project["file_count"] == 0
+    assert seeded_project["created_at"] == "2026-03-01T10:00:00+00:00"
+
+
+def test_list_projects_for_user_includes_owned_supabase_records_without_local_folder(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(project_service, "_list_shared_project_records", lambda user_id: [])
+    monkeypatch.setattr(
+        project_service,
+        "_list_owned_project_records",
+        lambda username: [
+            {
+                "created_at": "2026-03-04T10:00:00+00:00",
+                "name": "Workspace Seed",
+                "owner_username": username,
+                "updated_at": "2026-03-05T10:00:00+00:00",
+            }
+        ],
+    )
+
+    payload = project_service.list_projects_for_user(
+        "33333333-3333-3333-3333-333333333333",
+        "userdemo",
+        "user",
+    )
+
+    assert payload["projects"]["userdemo"] == ["Workspace Seed"]
+    seeded_project = next(item for item in payload["items"] if item["name"] == "Workspace Seed")
+    assert seeded_project["owner"] == "userdemo"
+    assert seeded_project["access_role"] == "owner"
+    assert seeded_project["file_count"] == 0
 
 
 def test_update_project_renames_and_replaces_inputs_without_deleting_results(
