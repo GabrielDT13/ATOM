@@ -25,6 +25,7 @@ Carpeta para tests de base de datos y flujos relacionados con Supabase.
 - `sql/30_seeds/10_roles.sql`: valida seeds de roles.
 - `sql/30_seeds/20_users.sql`: valida seeds de usuarios y rol admin.
 - `sql/30_seeds/30_projects.sql`: valida seeds de proyectos y membresias.
+- `sql/30_seeds/35_dashboard_activity.sql`: valida seeds de actividad demo para el dashboard.
 
 ## Ejecucion sugerida
 
@@ -42,6 +43,7 @@ psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/tests/s
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/tests/sql/30_seeds/10_roles.sql
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/tests/sql/30_seeds/20_users.sql
 psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/tests/sql/30_seeds/30_projects.sql
+psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -f supabase/tests/sql/30_seeds/35_dashboard_activity.sql
 ```
 
 Ejecuta `supabase db reset` antes del test de seeds para asegurar un estado reproducible.
