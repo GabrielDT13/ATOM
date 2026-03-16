@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(19);
+SELECT plan(21);
 
 SELECT ok(
   EXISTS (
@@ -75,11 +75,35 @@ SELECT ok(
     SELECT 1
     FROM information_schema.role_table_grants
     WHERE table_schema = 'public'
+      AND table_name = 'vw_dashboard_activity'
+      AND grantee = 'authenticated'
+      AND privilege_type = 'SELECT'
+  ),
+  'authenticated debe poder hacer SELECT sobre public.vw_dashboard_activity'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
       AND table_name = 'vw_profile_activity'
       AND grantee = 'service_role'
       AND privilege_type = 'INSERT'
   ),
   'service_role debe poder hacer INSERT sobre public.vw_profile_activity'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.role_table_grants
+    WHERE table_schema = 'public'
+      AND table_name = 'vw_dashboard_activity'
+      AND grantee = 'service_role'
+      AND privilege_type = 'INSERT'
+  ),
+  'service_role debe poder hacer INSERT sobre public.vw_dashboard_activity'
 );
 
 SELECT ok(

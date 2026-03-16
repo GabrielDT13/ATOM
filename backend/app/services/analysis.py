@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Iterator
 
 from backend.app.core.config import get_settings
+from backend.app.services.dashboard_activity import log_analysis_dashboard_event
 from backend.app.services.projects import get_project_dir
 from openpyxl import load_workbook
 
@@ -38,6 +39,28 @@ def resolve_template_file(project_dir: Path) -> Path:
         if candidate.is_file() and candidate.suffix.lower() in {".xlsx", ".xls"}:
             return candidate
     raise FileNotFoundError("Archivo template.xlsx no encontrado")
+
+
+def _log_analysis_event(
+    kind: str,
+    *,
+    username: str,
+    analysis_type: str,
+    design_id: str,
+    project_name: str,
+    title: str,
+    description: str,
+) -> None:
+    log_analysis_dashboard_event(
+        kind,
+        actor_username=username,
+        analysis_type=analysis_type,
+        description=description,
+        design_id=design_id,
+        project_name=project_name,
+        project_owner_username=username,
+        title=title,
+    )
 
 
 def stream_analysis(username: str, project_name: str) -> Iterator[str]:
@@ -113,6 +136,15 @@ def stream_analysis(username: str, project_name: str) -> Iterator[str]:
             ),
         ]
 
+        _log_analysis_event(
+            "analysis_started",
+            username=username,
+            analysis_type=str(analysis_type),
+            description=f"Se ha iniciado la ejecución de {analysis_type}.Rmd para {design_id}.",
+            design_id=str(design_id),
+            project_name=project_name,
+            title=f"Análisis iniciado en {project_name}",
+        )
         yield f"data:Running analysis for designID {design_id} using {analysis_type}.Rmd\n\n"
 
         try:
@@ -138,8 +170,26 @@ def stream_analysis(username: str, project_name: str) -> Iterator[str]:
 
         process.wait()
         if process.returncode == 0:
+            _log_analysis_event(
+                "analysis_completed",
+                username=username,
+                analysis_type=str(analysis_type),
+                description=f"El análisis {analysis_type}.Rmd para {design_id} terminó correctamente.",
+                design_id=str(design_id),
+                project_name=project_name,
+                title=f"Análisis completado en {project_name}",
+            )
             yield f"data:Finished analysis for designID {design_id}\n\n"
         else:
+            _log_analysis_event(
+                "analysis_failed",
+                username=username,
+                analysis_type=str(analysis_type),
+                description=f"El análisis {analysis_type}.Rmd para {design_id} terminó con código {process.returncode}.",
+                design_id=str(design_id),
+                project_name=project_name,
+                title=f"Análisis con incidencias en {project_name}",
+            )
             yield (
                 f"data:El análisis de {design_id} terminó con código {process.returncode}\n\n"
             )

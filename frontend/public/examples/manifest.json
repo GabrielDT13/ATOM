@@ -1,0 +1,35 @@
+{
+  "quick_start_steps": [
+    {
+      "step": 1,
+      "title": "Cargar plantilla base",
+      "description": "Descarga la plantilla pública y súbela al proyecto con el nombre template.xlsx para reutilizar la estructura esperada por la plataforma."
+    },
+    {
+      "step": 2,
+      "title": "Añadir datos de entrada",
+      "description": "Sube el fichero de conteos público o sustitúyelo por tus datos propios respetando el diseño experimental indicado en la plantilla."
+    },
+    {
+      "step": 3,
+      "title": "Ejecutar y revisar",
+      "description": "Lanza el análisis desde el proyecto y consulta el informe HTML generado cuando el flujo finalice correctamente."
+    }
+  ],
+  "resources": [
+    {
+      "relative_path": "template_publico.xlsx",
+      "name": "template_publico.xlsx",
+      "kind": "template",
+      "title": "Plantilla pública de proyecto",
+      "description": "Excel base con metadata y diseño experimental para iniciar un análisis nuevo en la plataforma."
+    },
+    {
+      "relative_path": "counts_publicos.txt",
+      "name": "counts_publicos.txt",
+      "kind": "counts",
+      "title": "Matriz pública de conteos",
+      "description": "TXT de ejemplo con conteos listos para validar el flujo de carga y ejecución antes de usar datos reales."
+    }
+  ]
+}

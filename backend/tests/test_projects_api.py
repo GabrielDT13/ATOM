@@ -123,7 +123,8 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         lambda request: {"id": "user-1", "username": "researcher", "role": "user"},
     )
 
-    async def fake_create_project(username, project_name, template_file, additional_files):
+    async def fake_create_project(actor_user_id, username, project_name, template_file, additional_files):
+        captured["actor_user_id"] = actor_user_id
         captured["username"] = username
         captured["project_name"] = project_name
         captured["template_file"] = template_file.filename
@@ -202,6 +203,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         "success": True,
     }
     assert captured == {
+        "actor_user_id": "user-1",
         "username": "researcher",
         "project_name": "RNA Atlas",
         "template_file": "template.xlsx",
@@ -223,7 +225,15 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         lambda request, owner, project_name: None,
     )
 
-    async def fake_update_project(owner, project_name, new_name, excel_file, additional_files):
+    monkeypatch.setattr(
+        project_routes,
+        "get_current_user",
+        lambda request: {"id": "user-1", "username": "researcher", "role": "user"},
+    )
+
+    async def fake_update_project(actor_user_id, actor_username, owner, project_name, new_name, excel_file, additional_files):
+        captured["actor_user_id"] = actor_user_id
+        captured["actor_username"] = actor_username
         captured["owner"] = owner
         captured["project_name"] = project_name
         captured["new_name"] = new_name
@@ -302,7 +312,11 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         },
         "success": True,
     }
+    assert captured["actor_user_id"] == "user-1"
+    assert captured["actor_username"] == "researcher"
     assert captured == {
+        "actor_user_id": "user-1",
+        "actor_username": "researcher",
         "owner": "researcher",
         "project_name": "RNA Atlas",
         "new_name": "RNA Atlas 2026",

@@ -207,7 +207,7 @@ export type DashboardSummary = {
   pending_analysis: number;
   empty_projects: number;
   total_files: number;
-  sample_files: number;
+  example_files: number;
   workflow_count: number;
   distinct_owners: number;
   completion_rate: number;
@@ -215,8 +215,8 @@ export type DashboardSummary = {
 
 export type DashboardTimelinePoint = {
   label: string;
-  total_projects: number;
-  results_ready: number;
+  completed_analyses: number;
+  total_events: number;
 };
 
 export type DashboardStatusBreakdown = {
@@ -238,7 +238,7 @@ export type DashboardProjectHighlight = {
 };
 
 export type DashboardActivityItem = {
-  kind: "project" | "result" | "sample";
+  kind: "analysis" | "project" | "result";
   title: string;
   description: string;
   created_at: string;
@@ -253,12 +253,15 @@ export type DashboardWorkflow = {
   project_matches: number;
 };
 
-export type DashboardSampleFile = {
+export type DashboardExampleFile = {
+  title: string;
+  description: string;
   kind: "template" | "counts" | "other";
   name: string;
   relative_path: string;
   size_bytes: number;
   updated_at: string;
+  public_url: string;
 };
 
 export type DashboardFileBreakdown = {
@@ -289,5 +292,5 @@ export type DashboardOverview = {
   recent_activity: DashboardActivityItem[];
   quick_start_steps: DashboardQuickStartStep[];
   workflows: DashboardWorkflow[];
-  sample_library: DashboardSampleFile[];
+  example_library: DashboardExampleFile[];
 };

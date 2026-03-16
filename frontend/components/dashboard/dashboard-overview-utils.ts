@@ -1,8 +1,53 @@
 import type {
+  DashboardOverview,
+  DashboardExampleFile,
   DashboardProjectHighlight,
-  DashboardSampleFile,
   ProjectStatus,
 } from "@/types/api";
+
+export function createEmptyDashboardOverview(): DashboardOverview {
+  return {
+    access_summary: {
+      editable_projects: 0,
+      owned_projects: 0,
+      shared_projects: 0,
+    },
+    activity_timeline: [
+      { completed_analyses: 0, label: "Ene", total_events: 0 },
+      { completed_analyses: 0, label: "Feb", total_events: 0 },
+      { completed_analyses: 0, label: "Mar", total_events: 0 },
+      { completed_analyses: 0, label: "Abr", total_events: 0 },
+      { completed_analyses: 0, label: "May", total_events: 0 },
+      { completed_analyses: 0, label: "Jun", total_events: 0 },
+    ],
+    featured_projects: [],
+    file_breakdown: {
+      additional: 0,
+      results: 0,
+      templates: 0,
+    },
+    quick_start_steps: [],
+    recent_activity: [],
+    example_library: [],
+    status_breakdown: [
+      { label: "Resultados listos", status: "results", value: 0 },
+      { label: "Pendientes de análisis", status: "configured", value: 0 },
+      { label: "Sin archivos", status: "empty", value: 0 },
+    ],
+    summary: {
+      completion_rate: 0,
+      distinct_owners: 0,
+      empty_projects: 0,
+      example_files: 0,
+      pending_analysis: 0,
+      results_ready: 0,
+      total_files: 0,
+      total_projects: 0,
+      workflow_count: 0,
+    },
+    workflows: [],
+  };
+}
 
 export function formatNumber(value: number) {
   return new Intl.NumberFormat("es-ES").format(value);
@@ -74,8 +119,8 @@ export function getStatusMeta(status: ProjectStatus) {
   }
 }
 
-export function getSampleKindMeta(sample: DashboardSampleFile) {
-  switch (sample.kind) {
+export function getExampleKindMeta(exampleFile: DashboardExampleFile) {
+  switch (exampleFile.kind) {
     case "template":
       return {
         badgeClassName: "bg-sky-100 text-sky-700",

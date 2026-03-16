@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 from backend.app.constants.navigation import SIDEBAR_LEFT_LINKS, SIDEBAR_LEFT_TITLE
 from backend.app.core.config import get_settings
+from backend.app.services.dashboard_activity import log_project_dashboard_event
 from backend.app.services.data import resolve_project_path
 from backend.app.services.supabase import (
     SupabaseError,
@@ -111,6 +112,27 @@ def _normalize_timestamp(value: Any) -> str | None:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return None
+
+
+def _log_project_event(
+    kind: str,
+    *,
+    actor_user_id: str | None,
+    actor_username: str,
+    description: str,
+    owner: str,
+    project_name: str,
+    title: str,
+) -> None:
+    log_project_dashboard_event(
+        kind,
+        actor_user_id=actor_user_id,
+        actor_username=actor_username,
+        description=description,
+        project_name=project_name,
+        project_owner_username=owner,
+        title=title,
+    )
 
 
 def _fetch_profiles(
@@ -518,6 +540,7 @@ async def _save_upload(target_path: Path, upload: UploadFile) -> None:
 
 
 async def create_project(
+    actor_user_id: str | None,
     username: str,
     project_name: str,
     template_file: UploadFile,
@@ -549,6 +572,15 @@ async def create_project(
                 safe_name = _normalize_upload_filename(upload.filename)
                 await _save_upload(project_dir / safe_name, upload)
         _upsert_project_record(username, normalized_name)
+        _log_project_event(
+            "project_created",
+            actor_user_id=actor_user_id,
+            actor_username=username,
+            description=f"Se creó el proyecto {normalized_name} con su plantilla base y {len(additional_files)} archivo(s) adicional(es).",
+            owner=username,
+            project_name=normalized_name,
+            title=f"Proyecto creado: {normalized_name}",
+        )
         return True, f"Proyecto '{normalized_name}' creado correctamente."
     except ValueError as exc:
         if project_dir.exists():
@@ -806,6 +838,8 @@ def remove_project_member(owner: str, project_name: str, username: str) -> tuple
 
 
 async def update_project(
+    actor_user_id: str | None,
+    actor_username: str,
     owner: str,
     project_name: str,
     new_name: str | None,
@@ -846,18 +880,19 @@ async def update_project(
             project_dir = new_dir
             current_name = normalized_new_name
 
+    uploaded_template = bool(excel_file and excel_file.filename)
+    uploaded_additional_count = len([upload for upload in additional_files if upload.filename])
     has_uploads = bool(
-        (excel_file and excel_file.filename)
-        or any(upload.filename for upload in additional_files)
+        uploaded_template or uploaded_additional_count > 0
     )
     if has_uploads:
-        if excel_file and excel_file.filename:
+        if uploaded_template:
             for current_file in _list_project_files(project_dir):
                 relative_path = current_file.relative_to(project_dir).as_posix()
                 if _classify_project_file(relative_path) == "template":
                     current_file.unlink()
 
-            excel_name = _normalize_upload_filename(excel_file.filename)
+            excel_name = _normalize_upload_filename(excel_file.filename or "")
             await _save_upload(project_dir / _template_storage_name(excel_name), excel_file)
 
         uploads_to_store = [upload for upload in additional_files if upload.filename]
@@ -871,10 +906,34 @@ async def update_project(
                 safe_name = _normalize_upload_filename(upload.filename or "")
                 await _save_upload(project_dir / safe_name, upload)
 
+    update_segments: list[str] = []
+    if new_name and new_name.strip():
+        update_segments.append("nombre actualizado")
+    if uploaded_template:
+        update_segments.append("plantilla reemplazada")
+    if uploaded_additional_count:
+        update_segments.append(
+            f"{uploaded_additional_count} archivo(s) adicional(es) actualizado(s)"
+        )
+
+    _log_project_event(
+        "project_updated",
+        actor_user_id=actor_user_id,
+        actor_username=actor_username,
+        description=f"Se actualizó {current_name}: {', '.join(update_segments) if update_segments else 'sin cambios de archivos, solo ajustes internos'}.",
+        owner=owner,
+        project_name=current_name,
+        title=f"Proyecto actualizado: {current_name}",
+    )
     return True, "Proyecto actualizado correctamente", current_name
 
 
-def delete_project(owner: str, project_name: str) -> tuple[bool, str]:
+def delete_project(
+    actor_user_id: str | None,
+    actor_username: str,
+    owner: str,
+    project_name: str,
+) -> tuple[bool, str]:
     try:
         normalized_name = normalize_project_name(project_name)
         project_dir = get_project_dir(owner, normalized_name)
@@ -888,6 +947,15 @@ def delete_project(owner: str, project_name: str) -> tuple[bool, str]:
         _delete_project_record(owner, normalized_name)
     except SupabaseError as exc:
         return False, str(exc)
+    _log_project_event(
+        "project_deleted",
+        actor_user_id=actor_user_id,
+        actor_username=actor_username,
+        description=f"Se eliminó el proyecto {normalized_name} del espacio de trabajo.",
+        owner=owner,
+        project_name=normalized_name,
+        title=f"Proyecto eliminado: {normalized_name}",
+    )
     return True, f"Proyecto '{normalized_name}' eliminado correctamente."
 
 

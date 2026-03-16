@@ -17,12 +17,13 @@ import {
 } from "@/components/dashboard/dashboard-overview-charts";
 import { buttonStyles } from "@/components/ui/button";
 import {
+  createEmptyDashboardOverview,
   formatBytes,
   formatDate,
   formatDateLong,
   formatNumber,
+  getExampleKindMeta,
   getProjectSupportingText,
-  getSampleKindMeta,
   getStatusMeta,
 } from "@/components/dashboard/dashboard-overview-utils";
 import { MetricCard } from "@/components/ui/metric-card";
@@ -33,49 +34,7 @@ type DashboardOverviewProps = {
 };
 
 export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
-  const dashboard =
-    overview ??
-    ({
-      activity_timeline: [
-        { label: "Ene", results_ready: 0, total_projects: 0 },
-        { label: "Feb", results_ready: 0, total_projects: 0 },
-        { label: "Mar", results_ready: 0, total_projects: 0 },
-        { label: "Abr", results_ready: 0, total_projects: 0 },
-        { label: "May", results_ready: 0, total_projects: 0 },
-        { label: "Jun", results_ready: 0, total_projects: 0 },
-      ],
-      featured_projects: [],
-      file_breakdown: {
-        additional: 0,
-        results: 0,
-        templates: 0,
-      },
-      recent_activity: [],
-      access_summary: {
-        editable_projects: 0,
-        owned_projects: 0,
-        shared_projects: 0,
-      },
-      quick_start_steps: [],
-      sample_library: [],
-      status_breakdown: [
-        { label: "Resultados listos", status: "results", value: 0 },
-        { label: "Pendientes de análisis", status: "configured", value: 0 },
-        { label: "Sin archivos", status: "empty", value: 0 },
-      ],
-      summary: {
-        completion_rate: 0,
-        distinct_owners: 0,
-        empty_projects: 0,
-        pending_analysis: 0,
-        results_ready: 0,
-        sample_files: 0,
-        total_files: 0,
-        total_projects: 0,
-        workflow_count: 0,
-      },
-      workflows: [],
-    } satisfies DashboardOverview);
+  const dashboard = overview ?? createEmptyDashboardOverview();
 
   const metrics = [
     {
@@ -94,7 +53,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
     },
     {
       accentClassName: "bg-amber-100 text-amber-700",
-      description: `${formatNumber(dashboard.summary.sample_files)} muestras de ejemplo y ${formatNumber(dashboard.summary.total_files)} archivos inventariados.`,
+      description: `${formatNumber(dashboard.summary.example_files)} archivos públicos de ejemplo y ${formatNumber(dashboard.summary.total_files)} archivos inventariados.`,
       icon: <DatabaseIcon className="h-6 w-6" />,
       title: "Biblioteca de datos",
       value: formatNumber(dashboard.summary.total_files),
@@ -131,7 +90,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <span className="rounded-full bg-white/10 px-4 py-2 text-sm text-slate-200">
-                {formatNumber(dashboard.summary.sample_files)} muestras disponibles
+                {formatNumber(dashboard.summary.example_files)} archivos de ejemplo
               </span>
               <span className="rounded-full bg-white/10 px-4 py-2 text-sm text-slate-200">
                 {formatNumber(dashboard.summary.workflow_count)} flujos preparados
@@ -194,9 +153,9 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
-                  <span className="text-sm text-slate-200">Muestras de inicio</span>
+                  <span className="text-sm text-slate-200">Ejemplos públicos</span>
                   <span className="text-sm font-semibold text-white">
-                    {formatNumber(dashboard.summary.sample_files)}
+                    {formatNumber(dashboard.summary.example_files)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
@@ -420,10 +379,10 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Muestras
+                Recursos
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Biblioteca de ejemplo
+                Biblioteca pública de ejemplos
               </h3>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
@@ -432,21 +391,21 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           </div>
 
           <div className="mt-6 space-y-3">
-            {dashboard.sample_library.length ? dashboard.sample_library.map((sample) => {
-              const meta = getSampleKindMeta(sample);
+            {dashboard.example_library.length ? dashboard.example_library.map((exampleFile) => {
+              const meta = getExampleKindMeta(exampleFile);
 
               return (
                 <div
-                  className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-4"
-                  key={sample.relative_path}
+                  className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 px-4 py-4"
+                  key={exampleFile.relative_path}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-slate-900">
-                        {sample.name}
+                        {exampleFile.title}
                       </p>
-                      <p className="mt-1 text-xs text-slate-500">
-                        {sample.relative_path}
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {exampleFile.description}
                       </p>
                     </div>
                     <span
@@ -455,15 +414,28 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                       {meta.label}
                     </span>
                   </div>
-                  <div className="mt-3 flex items-center justify-between text-xs text-slate-500">
-                    <span>{formatBytes(sample.size_bytes)}</span>
-                    <span>{formatDate(sample.updated_at)}</span>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+                    <div className="flex items-center gap-3">
+                      <span>{formatBytes(exampleFile.size_bytes)}</span>
+                      <span>{formatDate(exampleFile.updated_at)}</span>
+                    </div>
+                    <a
+                      className="font-semibold text-primary transition hover:text-primary-dark"
+                      href={exampleFile.public_url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Descargar
+                    </a>
                   </div>
+                  <p className="mt-3 truncate text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                    {exampleFile.relative_path}
+                  </p>
                 </div>
               );
             }) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                No hay archivos de ejemplo visibles en este momento.
+                No hay archivos públicos de ejemplo visibles en este momento.
               </div>
             )}
           </div>
@@ -561,18 +533,18 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="mt-6 space-y-3">
             {dashboard.recent_activity.length ? dashboard.recent_activity.map((item) => {
               const accentClassName =
-                item.kind === "result"
+                item.kind === "analysis"
+                  ? "bg-violet-100 text-violet-700"
+                  : item.kind === "result"
                   ? "bg-emerald-100 text-emerald-700"
-                  : item.kind === "sample"
-                    ? "bg-amber-100 text-amber-700"
-                    : "bg-sky-100 text-sky-700";
+                  : "bg-sky-100 text-sky-700";
 
               const Icon =
-                item.kind === "result"
+                item.kind === "analysis"
+                  ? ScienceIcon
+                  : item.kind === "result"
                   ? ChartLineIcon
-                  : item.kind === "sample"
-                    ? DatabaseIcon
-                    : UsersIcon;
+                  : UsersIcon;
 
               return (
                 <article
@@ -603,7 +575,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
               );
             }) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                Aún no se han registrado movimientos recientes de proyectos, resultados o muestras.
+                Aún no se han registrado movimientos recientes de proyectos o ejecuciones.
               </div>
             )}
           </div>

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 from backend.app.core.config import get_settings
+from backend.app.services.dashboard_activity import list_dashboard_events
+from backend.app.services.dashboard_examples import load_public_examples_catalog
 from backend.app.services.projects import (
     _build_project_payload,
     list_projects_for_user,
@@ -140,12 +141,46 @@ def _month_window(window_size: int) -> list[tuple[int, int, str]]:
     return window
 
 
-def _build_activity_timeline(projects: list[dict[str, object]]) -> list[dict[str, object]]:
+def _build_activity_timeline(
+    events: list[dict[str, object]],
+    visible_project_keys: set[tuple[str, str]],
+    projects: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    if events:
+        buckets = {
+            (year, month): {
+                "completed_analyses": 0,
+                "label": label,
+                "total_events": 0,
+            }
+            for year, month, label in _month_window(6)
+        }
+
+        for event in events:
+            owner = str(event.get("project_owner_username") or "").strip()
+            project_name = str(event.get("project_name") or "").strip()
+            if (owner, project_name) not in visible_project_keys:
+                continue
+
+            created_at = _parse_timestamp(event.get("created_at"))
+            if not created_at:
+                continue
+
+            bucket = buckets.get((created_at.year, created_at.month))
+            if bucket is None:
+                continue
+
+            bucket["total_events"] += 1
+            if event.get("activity_type") == "analysis_completed":
+                bucket["completed_analyses"] += 1
+
+        return list(buckets.values())
+
     buckets = {
         (year, month): {
+            "completed_analyses": 0,
             "label": label,
-            "results_ready": 0,
-            "total_projects": 0,
+            "total_events": 0,
         }
         for year, month, label in _month_window(6)
     }
@@ -159,9 +194,9 @@ def _build_activity_timeline(projects: list[dict[str, object]]) -> list[dict[str
         if bucket is None:
             continue
 
-        bucket["total_projects"] += 1
+        bucket["total_events"] += 1
         if project.get("status") == "results":
-            bucket["results_ready"] += 1
+            bucket["completed_analyses"] += 1
 
     return list(buckets.values())
 
@@ -257,47 +292,6 @@ def _build_project_activity(project: dict[str, object]) -> dict[str, object]:
         "kind": kind,
         "title": title,
     }
-
-
-def _classify_sample_file(file_path: Path) -> str:
-    name = file_path.name.lower()
-    if name.endswith((".xls", ".xlsx")):
-        return "template"
-    if "count" in name:
-        return "counts"
-    return "other"
-
-
-def _list_sample_library() -> list[dict[str, object]]:
-    settings = get_settings()
-    sample_dir = settings.project_root / "samples"
-    if not sample_dir.exists():
-        return []
-
-    files = sorted(
-        [path for path in sample_dir.rglob("*") if path.is_file()],
-        key=lambda path: path.relative_to(sample_dir).as_posix().lower(),
-    )
-
-    items: list[dict[str, object]] = []
-    for file_path in files:
-        relative_path = file_path.relative_to(sample_dir).as_posix()
-        items.append(
-            {
-                "kind": _classify_sample_file(file_path),
-                "name": file_path.name,
-                "relative_path": relative_path,
-                "size_bytes": file_path.stat().st_size,
-                "updated_at": datetime.fromtimestamp(
-                    file_path.stat().st_mtime,
-                    timezone.utc,
-                ).isoformat(),
-            }
-        )
-
-    return items
-
-
 def _count_workflow_matches(projects: list[dict[str, object]], keywords: tuple[str, ...]) -> int:
     matches = 0
     for project in projects:
@@ -338,9 +332,33 @@ def _build_workflows(projects: list[dict[str, object]]) -> list[dict[str, object
 
 
 def _build_recent_activity(
+    events: list[dict[str, object]],
+    visible_project_keys: set[tuple[str, str]],
     projects: list[dict[str, object]],
-    sample_library: list[dict[str, object]],
 ) -> list[dict[str, object]]:
+    if events:
+        activity_items: list[dict[str, object]] = []
+        for event in events:
+            owner = str(event.get("project_owner_username") or "").strip()
+            project_name = str(event.get("project_name") or "").strip()
+            if (owner, project_name) not in visible_project_keys:
+                continue
+
+            kind = str(event.get("activity_type") or "").strip().lower()
+            ui_kind = "analysis" if kind.startswith("analysis_") else "project"
+            activity_items.append(
+                {
+                    "created_at": str(event.get("created_at") or datetime.now(timezone.utc).isoformat()),
+                    "description": str(event.get("description") or "").strip(),
+                    "kind": ui_kind,
+                    "title": str(event.get("title") or "").strip() or "Actividad registrada",
+                }
+            )
+            if len(activity_items) >= 5:
+                break
+        if activity_items:
+            return activity_items
+
     project_activity = [
         _build_project_activity(project)
         for project in sorted(
@@ -350,21 +368,7 @@ def _build_recent_activity(
         )
     ]
 
-    sample_activity = [
-        {
-            "created_at": str(sample.get("updated_at") or datetime.now(timezone.utc).isoformat()),
-            "description": f"Muestra disponible: {sample['name']}",
-            "kind": "sample",
-            "title": "Biblioteca de ejemplos actual",
-        }
-        for sample in sorted(
-            sample_library,
-            key=lambda item: _parse_timestamp(item.get("updated_at")) or datetime.min.replace(tzinfo=timezone.utc),
-            reverse=True,
-        )
-    ]
-
-    activity = project_activity + sample_activity
+    activity = project_activity
     activity.sort(
         key=lambda item: _parse_timestamp(item.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc),
         reverse=True,
@@ -421,62 +425,23 @@ def _build_access_summary(
         "owned_projects": owned_projects,
         "shared_projects": shared_projects,
     }
-
-
-def _build_quick_start_steps() -> list[dict[str, object]]:
-    fallback_steps = [
-        {
-            "description": "Sube una de las plantillas de ejemplo al proyecto usando el nombre template.xlsx.",
-            "step": 1,
-            "title": "Cargar plantilla base",
-        },
-        {
-            "description": "Añade el archivo de counts o los recursos asociados según la metadata de la plantilla.",
-            "step": 2,
-            "title": "Adjuntar datos de entrada",
-        },
-        {
-            "description": "Ejecuta el proyecto y revisa el HTML generado desde el panel lateral de archivos.",
-            "step": 3,
-            "title": "Lanzar y revisar resultados",
-        },
-    ]
-
-    readme_path = get_settings().project_root / "samples" / "README.md"
-    if not readme_path.exists():
-        return fallback_steps
-
-    lines = readme_path.read_text(encoding="utf-8").splitlines()
-    parsed_descriptions = [
-        line.split(".", 1)[1].strip()
-        for line in lines
-        if line.strip().startswith(("1.", "2.", "3."))
-    ]
-    if len(parsed_descriptions) < 3:
-        return fallback_steps
-
-    titles = [
-        "Cargar plantilla base",
-        "Adjuntar datos de entrada",
-        "Lanzar y revisar resultados",
-    ]
-    return [
-        {
-            "description": description,
-            "step": index + 1,
-            "title": titles[index],
-        }
-        for index, description in enumerate(parsed_descriptions[:3])
-    ]
-
-
 def get_dashboard_overview(
     session_user_id: str,
     session_username: str,
     role: str,
 ) -> dict[str, object]:
     projects = _list_dashboard_projects(session_user_id, session_username, role)
-    sample_library = _list_sample_library()
+    dashboard_events = list_dashboard_events()
+    visible_project_keys = {
+        (
+            str(project.get("owner") or "").strip(),
+            str(project.get("name") or "").strip(),
+        )
+        for project in projects
+        if str(project.get("owner") or "").strip() and str(project.get("name") or "").strip()
+    }
+    public_examples = load_public_examples_catalog()
+    example_library = public_examples["example_library"]
     workflows = _build_workflows(projects)
 
     total_projects = len(projects)
@@ -495,20 +460,28 @@ def get_dashboard_overview(
 
     return {
         "access_summary": _build_access_summary(projects, session_username),
-        "activity_timeline": _build_activity_timeline(projects),
+        "activity_timeline": _build_activity_timeline(
+            dashboard_events,
+            visible_project_keys,
+            projects,
+        ),
         "featured_projects": _build_featured_projects(projects),
         "file_breakdown": _build_file_breakdown(projects),
-        "recent_activity": _build_recent_activity(projects, sample_library),
-        "quick_start_steps": _build_quick_start_steps(),
-        "sample_library": sample_library,
+        "recent_activity": _build_recent_activity(
+            dashboard_events,
+            visible_project_keys,
+            projects,
+        ),
+        "quick_start_steps": public_examples["quick_start_steps"],
+        "example_library": example_library,
         "status_breakdown": _build_status_breakdown(projects),
         "summary": {
             "completion_rate": completion_rate,
             "distinct_owners": distinct_owners,
             "empty_projects": empty_projects,
+            "example_files": len(example_library),
             "pending_analysis": pending_analysis,
             "results_ready": results_ready,
-            "sample_files": len(sample_library),
             "total_files": total_files,
             "total_projects": total_projects,
             "workflow_count": len(workflows),

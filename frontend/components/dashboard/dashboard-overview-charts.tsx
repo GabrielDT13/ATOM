@@ -22,11 +22,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function DashboardActivityChart({ points }: ActivityChartProps) {
   const hasActivity = points.some(
-    (point) => point.total_projects > 0 || point.results_ready > 0,
+    (point) => point.total_events > 0 || point.completed_analyses > 0,
   );
   const maxValue = Math.max(
     1,
-    ...points.map((point) => Math.max(point.total_projects, point.results_ready)),
+    ...points.map((point) => Math.max(point.total_events, point.completed_analyses)),
   );
 
   return (
@@ -37,10 +37,10 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
             Actividad
           </p>
           <h3 className="mt-2 text-xl font-semibold text-slate-950">
-            Evolución reciente de proyectos
+            Evolución reciente de actividad
           </h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Seguimiento real de actualizaciones visibles y entregables disponibles
+            Seguimiento real de eventos registrados en proyectos y análisis
             durante los últimos seis meses.
           </p>
         </div>
@@ -52,12 +52,12 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
       <div className="grid h-72 grid-cols-6 gap-3">
         {points.map((point) => {
           const totalHeight =
-            point.total_projects > 0
-              ? Math.max(12, Math.round((point.total_projects / maxValue) * 100))
+            point.total_events > 0
+              ? Math.max(12, Math.round((point.total_events / maxValue) * 100))
               : 0;
           const readyHeight =
-            point.results_ready > 0
-              ? Math.max(10, Math.round((point.results_ready / maxValue) * 100))
+            point.completed_analyses > 0
+              ? Math.max(10, Math.round((point.completed_analyses / maxValue) * 100))
               : 0;
 
           return (
@@ -85,7 +85,7 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
                   {point.label}
                 </p>
                 <p className="text-xs text-slate-500">
-                  {formatNumber(point.total_projects)} act.
+                  {formatNumber(point.total_events)} mov.
                 </p>
               </div>
             </div>
@@ -95,18 +95,18 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
 
       {!hasActivity ? (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
-          Aún no hay suficiente actividad reciente para dibujar una tendencia con datos reales.
+          Aún no hay suficientes eventos registrados para dibujar una tendencia con datos reales.
         </div>
       ) : null}
 
       <div className="mt-5 flex flex-wrap gap-3 text-xs text-slate-500">
         <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1">
           <span className="h-2.5 w-2.5 rounded-full bg-sky-300" />
-          Proyectos actualizados
+          Movimientos registrados
         </span>
         <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-          Resultados listos
+          Análisis completados
         </span>
       </div>
     </div>

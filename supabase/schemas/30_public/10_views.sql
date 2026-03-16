@@ -102,6 +102,22 @@ SELECT
   pa.created_at
 FROM internal.profile_activity pa;
 
+CREATE OR REPLACE VIEW public.vw_dashboard_activity
+WITH (security_invoker = true)
+AS
+SELECT
+  da.id,
+  da.user_id,
+  da.activity_type,
+  da.title,
+  da.description,
+  da.project_owner_username,
+  da.project_name,
+  da.analysis_type,
+  da.design_id,
+  da.created_at
+FROM internal.dashboard_activity da;
+
 REVOKE ALL ON public.vw_profiles FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.vw_profiles TO service_role;
 GRANT SELECT ON public.vw_departments TO authenticated, service_role;
@@ -109,5 +125,7 @@ GRANT SELECT ON public.vw_projects TO authenticated, service_role;
 GRANT SELECT ON public.vw_projects_with_users TO authenticated, service_role;
 GRANT SELECT, UPDATE ON public.vw_profile_preferences TO authenticated;
 GRANT SELECT ON public.vw_profile_activity TO authenticated;
+GRANT SELECT ON public.vw_dashboard_activity TO authenticated;
 GRANT SELECT, INSERT, UPDATE ON public.vw_profile_preferences TO service_role;
 GRANT SELECT, INSERT ON public.vw_profile_activity TO service_role;
+GRANT SELECT, INSERT ON public.vw_dashboard_activity TO service_role;

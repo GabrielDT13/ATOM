@@ -16,6 +16,7 @@ def test_create_project_saves_template_and_additional_files(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
+    monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         project_service,
         "_upsert_project_record",
@@ -23,6 +24,7 @@ def test_create_project_saves_template_and_additional_files(
     )
     success, message = asyncio.run(
         project_service.create_project(
+            "user-1",
             "researcher",
             "RNA Atlas",
             _make_upload("study.xls", b"excel-content"),
@@ -123,6 +125,7 @@ def test_update_project_renames_and_replaces_inputs_without_deleting_results(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
+    monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
     project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
     results_dir = project_dir / "results"
     results_dir.mkdir(parents=True)
@@ -134,6 +137,8 @@ def test_update_project_renames_and_replaces_inputs_without_deleting_results(
 
     success, message, effective_name = asyncio.run(
         project_service.update_project(
+            "user-1",
+            "researcher",
             "researcher",
             "RNA Atlas",
             "RNA Atlas 2026",

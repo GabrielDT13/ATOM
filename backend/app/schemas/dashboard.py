@@ -5,8 +5,8 @@ from typing import Literal
 from pydantic import BaseModel
 
 DashboardProjectStatus = Literal["configured", "empty", "results"]
-DashboardActivityKind = Literal["project", "result", "sample"]
-DashboardSampleKind = Literal["template", "counts", "other"]
+DashboardActivityKind = Literal["analysis", "project", "result"]
+DashboardExampleKind = Literal["template", "counts", "other"]
 
 
 class DashboardSummaryResponse(BaseModel):
@@ -15,7 +15,7 @@ class DashboardSummaryResponse(BaseModel):
     pending_analysis: int
     empty_projects: int
     total_files: int
-    sample_files: int
+    example_files: int
     workflow_count: int
     distinct_owners: int
     completion_rate: int
@@ -23,8 +23,8 @@ class DashboardSummaryResponse(BaseModel):
 
 class DashboardTimelinePointResponse(BaseModel):
     label: str
-    total_projects: int
-    results_ready: int
+    completed_analyses: int
+    total_events: int
 
 
 class DashboardStatusBreakdownResponse(BaseModel):
@@ -61,12 +61,15 @@ class DashboardWorkflowCardResponse(BaseModel):
     project_matches: int
 
 
-class DashboardSampleFileResponse(BaseModel):
-    kind: DashboardSampleKind
+class DashboardExampleFileResponse(BaseModel):
+    title: str
+    description: str
+    kind: DashboardExampleKind
     name: str
     relative_path: str
     size_bytes: int
     updated_at: str
+    public_url: str
 
 
 class DashboardFileBreakdownResponse(BaseModel):
@@ -97,4 +100,4 @@ class DashboardOverviewResponse(BaseModel):
     recent_activity: list[DashboardActivityItemResponse]
     quick_start_steps: list[DashboardQuickStartStepResponse]
     workflows: list[DashboardWorkflowCardResponse]
-    sample_library: list[DashboardSampleFileResponse]
+    example_library: list[DashboardExampleFileResponse]

@@ -12,6 +12,7 @@ class Settings:
     data_dir: Path
     projects_dir: Path
     r_scripts_dir: Path
+    public_examples_dir: Path
     session_secret: str
     backend_host: str
     backend_port: int
@@ -45,6 +46,11 @@ def get_settings() -> Settings:
         data_dir=_resolve_path("ATOM_DATA_DIR", "data", project_root),
         projects_dir=_resolve_path("ATOM_PROJECTS_DIR", "projects", project_root),
         r_scripts_dir=_resolve_path("ATOM_R_SCRIPTS_DIR", "r_scripts", project_root),
+        public_examples_dir=_resolve_path(
+            "ATOM_PUBLIC_EXAMPLES_DIR",
+            "frontend/public/examples",
+            project_root,
+        ),
         session_secret=os.getenv("SESSION_SECRET", "change-this-in-production"),
         backend_host=os.getenv("BACKEND_HOST", "0.0.0.0"),
         backend_port=int(os.getenv("BACKEND_PORT", "8000")),
