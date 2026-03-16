@@ -295,6 +295,8 @@ def test_get_project_members_returns_owner_fallback_when_supabase_fails(monkeypa
 
     assert members == [
         {
+            "avatar_url": None,
+            "bio": None,
             "department": None,
             "display_name": "researcher",
             "email": None,

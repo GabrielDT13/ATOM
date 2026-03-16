@@ -298,6 +298,8 @@ def user_can_edit_project(user_id: str, username: str, role: str, owner: str, pr
 def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
     fallback_owner_member = [
         {
+            "avatar_url": None,
+            "bio": None,
             "department": None,
             "display_name": owner,
             "email": None,
@@ -335,6 +337,8 @@ def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
         username = str(member.get("member_username") or profile.get("username") or "").strip()
         payload.append(
             {
+                "avatar_url": str(profile.get("avatar_url") or "").strip() or None,
+                "bio": str(profile.get("bio") or "").strip() or None,
                 "department": str(profile.get("department") or "").strip() or None,
                 "display_name": str(profile.get("full_name") or "").strip() or username,
                 "email": str(profile.get("email") or "").strip().lower() or None,
@@ -384,6 +388,8 @@ def search_project_share_candidates(owner: str, project_name: str, query: str, l
 
         candidates.append(
             {
+                "avatar_url": str(profile.get("avatar_url") or "").strip() or None,
+                "bio": str(profile.get("bio") or "").strip() or None,
                 "department": str(profile.get("department") or "").strip() or None,
                 "display_name": display_name,
                 "email": email or None,
