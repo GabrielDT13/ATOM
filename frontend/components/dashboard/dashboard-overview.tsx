@@ -18,10 +18,12 @@ import {
 import { buttonStyles } from "@/components/ui/button";
 import {
   createEmptyDashboardOverview,
+  formatDateTime,
   formatBytes,
   formatDate,
   formatDateLong,
   formatNumber,
+  getDashboardActivityMeta,
   getExampleKindMeta,
   getProjectSupportingText,
   getStatusMeta,
@@ -327,11 +329,11 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             {dashboard.workflows.length ? dashboard.workflows.map((workflow) => (
               <article
-                className="group overflow-hidden rounded-[28px] border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg"
+                className="group h-full overflow-hidden rounded-[28px] border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-lg"
                 key={workflow.key}
               >
-                <div className="relative min-h-[13rem] overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_30%),linear-gradient(135deg,_#eff6ff_0%,_#ffffff_48%,_#ecfeff_100%)]">
-                  <div className="absolute inset-y-0 left-0 w-full bg-[linear-gradient(90deg,_rgba(15,23,42,0.04)_0%,_transparent_45%)]" />
+                <div className="relative flex h-full min-h-[13rem] overflow-hidden bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_30%),linear-gradient(135deg,_#eff6ff_0%,_#ffffff_48%,_#ecfeff_100%)]">
+                  <div className="absolute inset-0 bg-[linear-gradient(90deg,_rgba(15,23,42,0.04)_0%,_transparent_45%)]" />
                   <div className="relative flex h-full flex-col justify-between gap-5 p-5">
                     <div className="flex items-start justify-between gap-4">
                       <span className="rounded-full bg-white/90 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 shadow-sm">
@@ -379,63 +381,107 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Recursos
+                Actividad reciente
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Biblioteca pública de ejemplos
+                Últimos movimientos visibles
               </h3>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-              <FileIcon className="h-5 w-5" />
+              <DashboardIcon className="h-5 w-5" />
             </div>
           </div>
 
-          <div className="mt-6 space-y-3">
-            {dashboard.example_library.length ? dashboard.example_library.map((exampleFile) => {
-              const meta = getExampleKindMeta(exampleFile);
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-slate-50 px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                Eventos
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">
+                {formatNumber(dashboard.activity_summary.total_events)}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                Última señal
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-950">
+                {dashboard.activity_summary.last_event_at
+                  ? formatDateTime(dashboard.activity_summary.last_event_at)
+                  : "Sin registros"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-600">
+                Completados
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-emerald-700">
+                {formatNumber(dashboard.activity_summary.analyses_completed)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-amber-600">
+                Con incidencias
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-amber-700">
+                {formatNumber(dashboard.activity_summary.analyses_failed)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {dashboard.recent_activity.length ? dashboard.recent_activity.map((item) => {
+              const meta = getDashboardActivityMeta(item);
+
+              const Icon =
+                item.kind === "analysis"
+                  ? ScienceIcon
+                  : item.kind === "result"
+                  ? ChartLineIcon
+                  : UsersIcon;
 
               return (
-                <div
-                  className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 px-4 py-4"
-                  key={exampleFile.relative_path}
+                <article
+                  className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4"
+                  key={`${item.created_at}-${item.title}`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">
-                        {exampleFile.title}
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        {exampleFile.description}
+                  <div className="flex gap-3">
+                    <div
+                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${meta.badgeClassName}`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-sm font-semibold text-slate-900">
+                          {item.title}
+                        </h4>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${meta.badgeClassName}`}
+                        >
+                          {meta.label}
+                        </span>
+                        <span className="text-xs text-slate-400">
+                          {formatDate(item.created_at)}
+                        </span>
+                      </div>
+                      {(item.project_name || item.analysis_type || item.design_id) ? (
+                        <div className="mt-2 flex flex-wrap gap-2 text-[11px] uppercase tracking-[0.16em] text-slate-400">
+                          {item.project_name ? <span>{item.project_name}</span> : null}
+                          {item.analysis_type ? <span>{item.analysis_type}</span> : null}
+                          {item.design_id ? <span>{item.design_id}</span> : null}
+                        </div>
+                      ) : null}
+                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                        {item.description}
                       </p>
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-[11px] font-semibold ${meta.badgeClassName}`}
-                    >
-                      {meta.label}
-                    </span>
                   </div>
-                  <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
-                    <div className="flex items-center gap-3">
-                      <span>{formatBytes(exampleFile.size_bytes)}</span>
-                      <span>{formatDate(exampleFile.updated_at)}</span>
-                    </div>
-                    <a
-                      className="font-semibold text-primary transition hover:text-primary-dark"
-                      href={exampleFile.public_url}
-                      rel="noreferrer"
-                      target="_blank"
-                    >
-                      Descargar
-                    </a>
-                  </div>
-                  <p className="mt-3 truncate text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                    {exampleFile.relative_path}
-                  </p>
-                </div>
+                </article>
               );
             }) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                No hay archivos públicos de ejemplo visibles en este momento.
+                Aún no se han registrado movimientos recientes de proyectos o ejecuciones.
               </div>
             )}
           </div>
@@ -519,63 +565,60 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Actividad reciente
+                Recursos
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Últimos movimientos visibles
+                Biblioteca pública de ejemplos
               </h3>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-              <DashboardIcon className="h-5 w-5" />
+              <FileIcon className="h-5 w-5" />
             </div>
           </div>
 
-          <div className="mt-6 space-y-3">
-            {dashboard.recent_activity.length ? dashboard.recent_activity.map((item) => {
-              const accentClassName =
-                item.kind === "analysis"
-                  ? "bg-violet-100 text-violet-700"
-                  : item.kind === "result"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : "bg-sky-100 text-sky-700";
-
-              const Icon =
-                item.kind === "analysis"
-                  ? ScienceIcon
-                  : item.kind === "result"
-                  ? ChartLineIcon
-                  : UsersIcon;
+          <div className="mt-6 space-y-2.5">
+            {dashboard.example_library.length ? dashboard.example_library.map((exampleFile) => {
+              const meta = getExampleKindMeta(exampleFile);
 
               return (
-                <article
-                  className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-4"
-                  key={`${item.created_at}-${item.title}`}
+                <div
+                  className="rounded-[22px] border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100/80 px-4 py-3.5"
+                  key={exampleFile.relative_path}
                 >
-                  <div className="flex gap-3">
-                    <div
-                      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${accentClassName}`}
-                    >
-                      <Icon className="h-5 w-5" />
-                    </div>
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-sm font-semibold text-slate-900">
-                          {item.title}
-                        </h4>
-                        <span className="text-xs text-slate-400">
-                          {formatDate(item.created_at)}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                        {item.description}
+                      <p className="truncate text-sm font-semibold text-slate-900">
+                        {exampleFile.title}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                        {exampleFile.description}
                       </p>
                     </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${meta.badgeClassName}`}
+                    >
+                      {meta.label}
+                    </span>
                   </div>
-                </article>
+                  <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+                    <div className="flex items-center gap-3">
+                      <span>{formatBytes(exampleFile.size_bytes)}</span>
+                      <span>{formatDate(exampleFile.updated_at)}</span>
+                    </div>
+                    <a
+                      className="font-semibold text-primary transition hover:text-primary-dark"
+                      href={exampleFile.public_url}
+                      rel="noreferrer"
+                      target="_blank"
+                    >
+                      Descargar
+                    </a>
+                  </div>
+                </div>
               );
             }) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                Aún no se han registrado movimientos recientes de proyectos o ejecuciones.
+                No hay archivos públicos de ejemplo visibles en este momento.
               </div>
             )}
           </div>

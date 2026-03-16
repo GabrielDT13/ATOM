@@ -31,6 +31,14 @@ function buildOverview(totalProjects: number): DashboardOverview {
       owned_projects: 1,
       shared_projects: 0,
     },
+    activity_summary: {
+      analyses_completed: 1,
+      analyses_failed: 0,
+      analyses_started: 1,
+      last_event_at: "2026-03-10T12:00:00+00:00",
+      project_events: 0,
+      total_events: 2,
+    },
     activity_timeline: [
       {
         completed_analyses: 1,

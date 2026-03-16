@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Literal
 
 from backend.app.core.config import get_settings
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 FALLBACK_QUICK_START_STEPS = [
     {
@@ -28,6 +29,31 @@ FALLBACK_QUICK_START_STEPS = [
 ALLOWED_EXAMPLE_KINDS = {"template", "counts", "other"}
 
 
+class ExampleManifestResource(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    description: str = ""
+    kind: Literal["template", "counts", "other"] | None = None
+    name: str = ""
+    relative_path: str
+    title: str = ""
+
+
+class ExampleManifestStep(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    description: str
+    step: int | None = None
+    title: str
+
+
+class ExampleManifest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    quick_start_steps: list[ExampleManifestStep] = []
+    resources: list[ExampleManifestResource] = []
+
+
 def _classify_example_file(file_path: Path) -> str:
     name = file_path.name.lower()
     if name.endswith((".xls", ".xlsx")):
@@ -37,17 +63,16 @@ def _classify_example_file(file_path: Path) -> str:
     return "other"
 
 
-def _read_manifest(examples_dir: Path) -> dict[str, Any]:
+def _read_manifest(examples_dir: Path) -> ExampleManifest | None:
     manifest_path = examples_dir / "manifest.json"
     if not manifest_path.exists():
-        return {}
+        return None
 
     try:
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-
-    return payload if isinstance(payload, dict) else {}
+        return ExampleManifest.model_validate(payload)
+    except (OSError, json.JSONDecodeError, ValidationError):
+        return None
 
 
 def _build_example_item_from_file(file_path: Path, examples_dir: Path) -> dict[str, object]:
@@ -74,18 +99,11 @@ def _normalize_example_kind(raw_kind: object, file_path: Path) -> str:
 
 def _list_examples_from_manifest(
     examples_dir: Path,
-    manifest: dict[str, Any],
+    manifest: ExampleManifest,
 ) -> list[dict[str, object]]:
-    resources = manifest.get("resources")
-    if not isinstance(resources, list):
-        return []
-
     items: list[dict[str, object]] = []
-    for resource in resources:
-        if not isinstance(resource, dict):
-            continue
-
-        relative_path = str(resource.get("relative_path") or "").strip()
+    for resource in manifest.resources:
+        relative_path = resource.relative_path.strip()
         if not relative_path:
             continue
 
@@ -100,14 +118,14 @@ def _list_examples_from_manifest(
 
         stats = file_path.stat()
         item = {
-            "description": str(resource.get("description") or "").strip()
+            "description": resource.description.strip()
             or "Recurso público disponible para descargar y reutilizar en nuevos proyectos.",
-            "kind": _normalize_example_kind(resource.get("kind"), file_path),
-            "name": str(resource.get("name") or file_path.name).strip() or file_path.name,
+            "kind": _normalize_example_kind(resource.kind, file_path),
+            "name": resource.name.strip() or file_path.name,
             "public_url": f"/examples/{relative_path}",
             "relative_path": relative_path,
             "size_bytes": stats.st_size,
-            "title": str(resource.get("title") or file_path.stem).strip() or file_path.stem,
+            "title": resource.title.strip() or file_path.stem,
             "updated_at": datetime.fromtimestamp(stats.st_mtime, timezone.utc).isoformat(),
         }
         items.append(item)
@@ -123,23 +141,15 @@ def _list_examples_from_directory(examples_dir: Path) -> list[dict[str, object]]
     return [_build_example_item_from_file(file_path, examples_dir) for file_path in files]
 
 
-def _build_quick_start_steps_from_manifest(manifest: dict[str, Any]) -> list[dict[str, object]]:
-    items = manifest.get("quick_start_steps")
-    if not isinstance(items, list):
-        return []
-
+def _build_quick_start_steps_from_manifest(manifest: ExampleManifest) -> list[dict[str, object]]:
     steps: list[dict[str, object]] = []
-    for index, item in enumerate(items, start=1):
-        if not isinstance(item, dict):
-            continue
-
-        title = str(item.get("title") or "").strip()
-        description = str(item.get("description") or "").strip()
+    for index, item in enumerate(manifest.quick_start_steps, start=1):
+        title = item.title.strip()
+        description = item.description.strip()
         if not title or not description:
             continue
 
-        step_value = item.get("step")
-        step = int(step_value) if isinstance(step_value, int) else index
+        step = item.step if isinstance(item.step, int) else index
         steps.append(
             {
                 "description": description,
@@ -160,11 +170,11 @@ def load_public_examples_catalog() -> dict[str, list[dict[str, object]]]:
         }
 
     manifest = _read_manifest(examples_dir)
-    example_library = _list_examples_from_manifest(examples_dir, manifest)
+    example_library = _list_examples_from_manifest(examples_dir, manifest) if manifest else []
     if not example_library:
         example_library = _list_examples_from_directory(examples_dir)
 
-    quick_start_steps = _build_quick_start_steps_from_manifest(manifest)
+    quick_start_steps = _build_quick_start_steps_from_manifest(manifest) if manifest else []
     if not quick_start_steps:
         quick_start_steps = FALLBACK_QUICK_START_STEPS
 

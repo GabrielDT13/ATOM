@@ -1,4 +1,5 @@
 import type {
+  DashboardActivityItem,
   DashboardOverview,
   DashboardExampleFile,
   DashboardProjectHighlight,
@@ -11,6 +12,14 @@ export function createEmptyDashboardOverview(): DashboardOverview {
       editable_projects: 0,
       owned_projects: 0,
       shared_projects: 0,
+    },
+    activity_summary: {
+      total_events: 0,
+      analyses_started: 0,
+      analyses_completed: 0,
+      analyses_failed: 0,
+      project_events: 0,
+      last_event_at: null,
     },
     activity_timeline: [
       { completed_analyses: 0, label: "Ene", total_events: 0 },
@@ -75,6 +84,20 @@ export function formatDateLong(value: string) {
     day: "numeric",
     month: "long",
     year: "numeric",
+  }).format(date);
+}
+
+export function formatDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
   }).format(date);
 }
 
@@ -149,4 +172,32 @@ export function getProjectSupportingText(project: DashboardProjectHighlight) {
   }
 
   return "Todavía no hay archivos cargados en este proyecto.";
+}
+
+export function getDashboardActivityMeta(item: DashboardActivityItem) {
+  if (item.status === "running") {
+    return {
+      badgeClassName: "bg-violet-100 text-violet-700",
+      label: "En curso",
+    };
+  }
+
+  if (item.status === "success") {
+    return {
+      badgeClassName: "bg-emerald-100 text-emerald-700",
+      label: "Completado",
+    };
+  }
+
+  if (item.status === "warning") {
+    return {
+      badgeClassName: "bg-amber-100 text-amber-700",
+      label: "Con incidencias",
+    };
+  }
+
+  return {
+    badgeClassName: "bg-sky-100 text-sky-700",
+    label: "Proyecto",
+  };
 }

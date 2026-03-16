@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 DashboardProjectStatus = Literal["configured", "empty", "results"]
 DashboardActivityKind = Literal["analysis", "project", "result"]
+DashboardActivityStatus = Literal["info", "running", "success", "warning"]
 DashboardExampleKind = Literal["template", "counts", "other"]
 
 
@@ -25,6 +26,15 @@ class DashboardTimelinePointResponse(BaseModel):
     label: str
     completed_analyses: int
     total_events: int
+
+
+class DashboardActivitySummaryResponse(BaseModel):
+    total_events: int
+    analyses_started: int
+    analyses_completed: int
+    analyses_failed: int
+    project_events: int
+    last_event_at: str | None = None
 
 
 class DashboardStatusBreakdownResponse(BaseModel):
@@ -47,9 +57,14 @@ class DashboardProjectHighlightResponse(BaseModel):
 
 class DashboardActivityItemResponse(BaseModel):
     kind: DashboardActivityKind
+    status: DashboardActivityStatus
     title: str
     description: str
     created_at: str
+    project_name: str | None = None
+    owner: str | None = None
+    analysis_type: str | None = None
+    design_id: str | None = None
 
 
 class DashboardWorkflowCardResponse(BaseModel):
@@ -93,6 +108,7 @@ class DashboardQuickStartStepResponse(BaseModel):
 class DashboardOverviewResponse(BaseModel):
     summary: DashboardSummaryResponse
     access_summary: DashboardAccessSummaryResponse
+    activity_summary: DashboardActivitySummaryResponse
     activity_timeline: list[DashboardTimelinePointResponse]
     file_breakdown: DashboardFileBreakdownResponse
     status_breakdown: list[DashboardStatusBreakdownResponse]

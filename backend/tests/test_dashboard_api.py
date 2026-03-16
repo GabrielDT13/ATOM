@@ -25,6 +25,14 @@ def test_get_dashboard_overview_route_returns_structured_payload(
                 "owned_projects": 1,
                 "shared_projects": 1,
             },
+            "activity_summary": {
+                "analyses_completed": 1,
+                "analyses_failed": 0,
+                "analyses_started": 1,
+                "last_event_at": "2026-03-15T10:00:00+00:00",
+                "project_events": 1,
+                "total_events": 3,
+            },
             "summary": {
                 "completion_rate": 50,
                 "distinct_owners": 2,
@@ -64,9 +72,14 @@ def test_get_dashboard_overview_route_returns_structured_payload(
             ],
             "recent_activity": [
                 {
+                    "analysis_type": "rna-seq",
                     "created_at": "2026-03-15T10:00:00+00:00",
+                    "design_id": "D-001",
                     "description": "researcher dispone de 1 informe(s) HTML y 5 archivo(s) asociados.",
                     "kind": "result",
+                    "owner": "researcher",
+                    "project_name": "RNA Atlas",
+                    "status": "success",
                     "title": "RNA Atlas listo para revisar",
                 }
             ],
@@ -95,7 +108,7 @@ def test_get_dashboard_overview_route_returns_structured_payload(
                     "public_url": "/examples/template.xlsx",
                     "relative_path": "template.xlsx",
                     "size_bytes": 1024,
-                    "title": "Plantilla pública",
+                    "title": "template",
                     "updated_at": "2026-03-15T09:00:00+00:00",
                 }
             ],
@@ -107,6 +120,7 @@ def test_get_dashboard_overview_route_returns_structured_payload(
     assert response.status_code == 200
     assert response.json()["summary"]["total_projects"] == 2
     assert response.json()["access_summary"]["editable_projects"] == 2
+    assert response.json()["activity_summary"]["total_events"] == 3
     assert response.json()["workflows"][0]["key"] == "rna-seq"
     assert response.json()["featured_projects"][0]["name"] == "RNA Atlas"
 
@@ -126,12 +140,12 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
     {
       "step": 1,
       "title": "Cargar plantilla base",
-      "description": "Descarga la plantilla pública."
+      "description": "Descarga template.xlsx."
     },
     {
       "step": 2,
       "title": "Añadir datos de entrada",
-      "description": "Sube el fichero de conteos."
+      "description": "Sube counts.txt."
     },
     {
       "step": 3,
@@ -143,13 +157,13 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
     {
       "relative_path": "template.xlsx",
       "kind": "template",
-      "title": "Plantilla pública",
+      "title": "template",
       "description": "Excel base para configurar el proyecto."
     },
     {
-      "relative_path": "counts_app_type_a.txt",
+      "relative_path": "counts.txt",
       "kind": "counts",
-      "title": "Conteos públicos",
+      "title": "counts",
       "description": "Matriz de conteos pública."
     }
   ]
@@ -158,7 +172,7 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
         encoding="utf-8",
     )
     (examples_dir / "template.xlsx").write_bytes(b"template")
-    (examples_dir / "counts_app_type_a.txt").write_text("gene\tcount\nA\t4\n")
+    (examples_dir / "counts.txt").write_text("gene\tcount\nA\t4\n")
 
     r_scripts_dir = project_root / "r_scripts"
     (r_scripts_dir / "rna-seq.Rmd").write_text("---\ntitle: RNA\n---\n")
@@ -171,11 +185,11 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
             "items": [
                 {
                     "access_role": "owner",
-                    "additional_files": ["counts_app_type_a.txt"],
+                    "additional_files": ["counts.txt"],
                     "created_at": "2026-02-05T10:00:00+00:00",
                     "file_count": 3,
                     "files": [
-                        "counts_app_type_a.txt",
+                        "counts.txt",
                         "report/index.html",
                         "template.xlsx",
                     ],
@@ -278,19 +292,29 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
         "total_events": 2,
     }
     assert overview["quick_start_steps"][0] == {
-        "description": "Descarga la plantilla pública.",
+        "description": "Descarga template.xlsx.",
         "step": 1,
         "title": "Cargar plantilla base",
+    }
+    assert overview["activity_summary"] == {
+        "analyses_completed": 1,
+        "analyses_failed": 0,
+        "analyses_started": 1,
+        "last_event_at": "2026-03-10T12:00:00+00:00",
+        "project_events": 1,
+        "total_events": 3,
     }
     assert overview["featured_projects"][0]["name"] == "RNA Atlas"
     assert overview["featured_projects"][0]["result_count"] == 1
     assert overview["workflows"][0]["key"] == "rna-seq"
-    assert overview["example_library"][0]["title"] == "Plantilla pública"
+    assert overview["example_library"][0]["title"] == "template"
     assert overview["example_library"][0]["description"] == "Excel base para configurar el proyecto."
-    assert overview["example_library"][1]["name"] == "counts_app_type_a.txt"
-    assert overview["example_library"][1]["public_url"] == "/examples/counts_app_type_a.txt"
-    assert overview["recent_activity"][0]["kind"] == "analysis"
+    assert overview["example_library"][1]["name"] == "counts.txt"
+    assert overview["example_library"][1]["public_url"] == "/examples/counts.txt"
+    assert overview["recent_activity"][0]["kind"] == "result"
     assert overview["recent_activity"][0]["title"] == "Análisis completado en RNA Atlas"
+    assert overview["recent_activity"][0]["status"] == "success"
+    assert overview["recent_activity"][0]["analysis_type"] == "rna-seq"
 
 
 def test_public_examples_catalog_uses_manifest_and_filters_missing_files(
@@ -311,7 +335,7 @@ def test_public_examples_catalog_uses_manifest_and_filters_missing_files(
   ],
   "resources": [
     {
-      "relative_path": "template_publico.xlsx",
+      "relative_path": "template.xlsx",
       "kind": "template",
       "title": "Plantilla visible",
       "description": "Archivo disponible."
@@ -327,7 +351,7 @@ def test_public_examples_catalog_uses_manifest_and_filters_missing_files(
         """.strip(),
         encoding="utf-8",
     )
-    (examples_dir / "template_publico.xlsx").write_bytes(b"template")
+    (examples_dir / "template.xlsx").write_bytes(b"template")
 
     catalog = load_public_examples_catalog()
 
@@ -342,14 +366,29 @@ def test_public_examples_catalog_uses_manifest_and_filters_missing_files(
         {
             "description": "Archivo disponible.",
             "kind": "template",
-            "name": "template_publico.xlsx",
-            "public_url": "/examples/template_publico.xlsx",
-            "relative_path": "template_publico.xlsx",
+            "name": "template.xlsx",
+            "public_url": "/examples/template.xlsx",
+            "relative_path": "template.xlsx",
             "size_bytes": 8,
             "title": "Plantilla visible",
             "updated_at": catalog["example_library"][0]["updated_at"],
         }
     ]
+
+
+def test_public_examples_catalog_falls_back_when_manifest_is_invalid(
+    isolated_app_env: dict[str, Path],
+) -> None:
+    from backend.app.services.dashboard_examples import load_public_examples_catalog
+
+    examples_dir = isolated_app_env["examples_dir"]
+    (examples_dir / "manifest.json").write_text("{ invalid json", encoding="utf-8")
+    (examples_dir / "template.xlsx").write_bytes(b"template")
+
+    catalog = load_public_examples_catalog()
+
+    assert catalog["quick_start_steps"][0]["title"] == "Cargar plantilla base"
+    assert catalog["example_library"][0]["name"] == "template.xlsx"
 
 
 def test_dashboard_activity_log_persists_and_orders_events(

@@ -8,3 +8,7 @@ La fuente funcional que utiliza backend es `manifest.json`, donde se define:
 - la clasificación de cada recurso
 
 Los ficheros de este directorio son independientes de `samples/` y están pensados únicamente para exposición pública dentro de la plataforma.
+
+Recursos actuales:
+- `template.xlsx`
+- `counts.txt`

@@ -219,6 +219,15 @@ export type DashboardTimelinePoint = {
   total_events: number;
 };
 
+export type DashboardActivitySummary = {
+  total_events: number;
+  analyses_started: number;
+  analyses_completed: number;
+  analyses_failed: number;
+  project_events: number;
+  last_event_at: string | null;
+};
+
 export type DashboardStatusBreakdown = {
   status: ProjectStatus;
   label: string;
@@ -239,9 +248,14 @@ export type DashboardProjectHighlight = {
 
 export type DashboardActivityItem = {
   kind: "analysis" | "project" | "result";
+  status: "info" | "running" | "success" | "warning";
   title: string;
   description: string;
   created_at: string;
+  project_name?: string | null;
+  owner?: string | null;
+  analysis_type?: string | null;
+  design_id?: string | null;
 };
 
 export type DashboardWorkflow = {
@@ -284,6 +298,7 @@ export type DashboardQuickStartStep = {
 
 export type DashboardOverview = {
   access_summary: DashboardAccessSummary;
+  activity_summary: DashboardActivitySummary;
   summary: DashboardSummary;
   activity_timeline: DashboardTimelinePoint[];
   file_breakdown: DashboardFileBreakdown;

@@ -11,6 +11,7 @@ import {
   subscribeToAuthFailure,
 } from "@/lib/api";
 import { AppHeader } from "@/components/dashboard/app-header";
+import { Button } from "@/components/ui/button";
 import {
   buildDashboardBreadcrumbs,
   DashboardBreadcrumb,
@@ -47,12 +48,15 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileProjectExplorerOpen, setMobileProjectExplorerOpen] = useState(false);
+  const [projectExplorerCollapsed, setProjectExplorerCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const showProjectExplorer = pathname === "/dashboard";
 
   useEffect(() => {
     setMobileSidebarOpen(false);
+    setMobileProjectExplorerOpen(false);
     setShowContentOverride(false);
     setPreviewHtml(null);
   }, [pathname]);
@@ -276,6 +280,18 @@ export function DashboardShell({ children }: DashboardShellProps) {
           <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname)} />
 
           <div className="p-4 sm:p-8">
+            {showProjectExplorer ? (
+              <div className="mb-4 flex items-center justify-end xl:hidden">
+                <Button
+                  onClick={() => setMobileProjectExplorerOpen(true)}
+                  size="sm"
+                  variant="ghost"
+                >
+                  Archivos y proyectos
+                </Button>
+              </div>
+            ) : null}
+
             <div className={`flex flex-col gap-6 ${showProjectExplorer ? "xl:flex-row" : ""}`}>
               <section className={`min-w-0 ${showProjectExplorer ? "flex-1" : ""}`}>
                 {showContentOverride ? (
@@ -316,9 +332,13 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
               {showProjectExplorer ? (
                 <ProjectExplorer
+                  isCollapsed={projectExplorerCollapsed}
+                  isMobileOpen={mobileProjectExplorerOpen}
                   items={rightNav?.items ?? []}
+                  onCloseMobile={() => setMobileProjectExplorerOpen(false)}
                   onPreviewFile={(item) => void previewFile(item)}
                   onRunProject={(projectName) => runProject(projectName)}
+                  onToggleCollapse={() => setProjectExplorerCollapsed((current) => !current)}
                   onToggleFolder={toggleFolder}
                   openFolders={openFolders}
                   runningProject={runningProject}

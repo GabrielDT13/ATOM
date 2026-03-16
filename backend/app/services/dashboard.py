@@ -287,11 +287,50 @@ def _build_project_activity(project: dict[str, object]) -> dict[str, object]:
         kind = "project"
 
     return {
+        "analysis_type": None,
         "created_at": created_at,
+        "design_id": None,
         "description": description,
         "kind": kind,
+        "owner": owner or None,
+        "project_name": name,
+        "status": "success" if kind == "result" else "info",
         "title": title,
     }
+
+
+def _event_ui_kind(activity_type: str) -> str:
+    if activity_type == "analysis_completed":
+        return "result"
+    if activity_type.startswith("analysis_"):
+        return "analysis"
+    return "project"
+
+
+def _event_status(activity_type: str) -> str:
+    if activity_type == "analysis_completed":
+        return "success"
+    if activity_type == "analysis_failed":
+        return "warning"
+    if activity_type == "analysis_started":
+        return "running"
+    return "info"
+
+
+def _filter_visible_events(
+    events: list[dict[str, object]],
+    visible_project_keys: set[tuple[str, str]],
+) -> list[dict[str, object]]:
+    items: list[dict[str, object]] = []
+    for event in events:
+        owner = str(event.get("project_owner_username") or "").strip()
+        project_name = str(event.get("project_name") or "").strip()
+        if (owner, project_name) not in visible_project_keys:
+            continue
+        items.append(event)
+    return items
+
+
 def _count_workflow_matches(projects: list[dict[str, object]], keywords: tuple[str, ...]) -> int:
     matches = 0
     for project in projects:
@@ -336,21 +375,21 @@ def _build_recent_activity(
     visible_project_keys: set[tuple[str, str]],
     projects: list[dict[str, object]],
 ) -> list[dict[str, object]]:
-    if events:
+    visible_events = _filter_visible_events(events, visible_project_keys)
+    if visible_events:
         activity_items: list[dict[str, object]] = []
-        for event in events:
-            owner = str(event.get("project_owner_username") or "").strip()
-            project_name = str(event.get("project_name") or "").strip()
-            if (owner, project_name) not in visible_project_keys:
-                continue
-
+        for event in visible_events:
             kind = str(event.get("activity_type") or "").strip().lower()
-            ui_kind = "analysis" if kind.startswith("analysis_") else "project"
             activity_items.append(
                 {
+                    "analysis_type": str(event.get("analysis_type") or "").strip() or None,
                     "created_at": str(event.get("created_at") or datetime.now(timezone.utc).isoformat()),
                     "description": str(event.get("description") or "").strip(),
-                    "kind": ui_kind,
+                    "design_id": str(event.get("design_id") or "").strip() or None,
+                    "kind": _event_ui_kind(kind),
+                    "owner": str(event.get("project_owner_username") or "").strip() or None,
+                    "project_name": str(event.get("project_name") or "").strip() or None,
+                    "status": _event_status(kind),
                     "title": str(event.get("title") or "").strip() or "Actividad registrada",
                 }
             )
@@ -374,6 +413,40 @@ def _build_recent_activity(
         reverse=True,
     )
     return activity[:5]
+
+
+def _build_activity_summary(
+    events: list[dict[str, object]],
+    visible_project_keys: set[tuple[str, str]],
+) -> dict[str, object]:
+    visible_events = _filter_visible_events(events, visible_project_keys)
+    summary = {
+        "analyses_completed": 0,
+        "analyses_failed": 0,
+        "analyses_started": 0,
+        "last_event_at": None,
+        "project_events": 0,
+        "total_events": len(visible_events),
+    }
+
+    latest_timestamp: datetime | None = None
+    for event in visible_events:
+        activity_type = str(event.get("activity_type") or "").strip().lower()
+        created_at = _parse_timestamp(event.get("created_at"))
+        if created_at and (latest_timestamp is None or created_at > latest_timestamp):
+            latest_timestamp = created_at
+
+        if activity_type == "analysis_started":
+            summary["analyses_started"] += 1
+        elif activity_type == "analysis_completed":
+            summary["analyses_completed"] += 1
+        elif activity_type == "analysis_failed":
+            summary["analyses_failed"] += 1
+        else:
+            summary["project_events"] += 1
+
+    summary["last_event_at"] = latest_timestamp.isoformat() if latest_timestamp else None
+    return summary
 
 
 def _build_file_breakdown(projects: list[dict[str, object]]) -> dict[str, int]:
@@ -425,6 +498,8 @@ def _build_access_summary(
         "owned_projects": owned_projects,
         "shared_projects": shared_projects,
     }
+
+
 def get_dashboard_overview(
     session_user_id: str,
     session_username: str,
@@ -460,6 +535,10 @@ def get_dashboard_overview(
 
     return {
         "access_summary": _build_access_summary(projects, session_username),
+        "activity_summary": _build_activity_summary(
+            dashboard_events,
+            visible_project_keys,
+        ),
         "activity_timeline": _build_activity_timeline(
             dashboard_events,
             visible_project_keys,
