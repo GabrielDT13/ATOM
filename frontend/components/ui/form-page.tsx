@@ -15,18 +15,18 @@ export function FormPage({
 }) {
   return (
     <div className="flex flex-col gap-6">
-      <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_36%),linear-gradient(180deg,_#ffffff_0%,_#f7fbff_100%)] p-6 shadow-sm sm:p-8">
+      <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             {eyebrow ? (
-              <div className="inline-flex items-center rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+              <div className="page-hero-badge rounded-full px-3 py-1">
                 {eyebrow}
               </div>
             ) : null}
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {title}
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
               {description}
             </p>
           </div>

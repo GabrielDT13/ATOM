@@ -11,15 +11,18 @@ def isolated_app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     data_dir = tmp_path / "data"
     projects_dir = tmp_path / "projects"
     r_scripts_dir = tmp_path / "r_scripts"
+    examples_dir = tmp_path / "frontend" / "public" / "examples"
 
     data_dir.mkdir()
     projects_dir.mkdir()
     r_scripts_dir.mkdir()
+    examples_dir.mkdir(parents=True)
 
     monkeypatch.setenv("ATOM_PROJECT_ROOT", str(tmp_path))
     monkeypatch.setenv("ATOM_DATA_DIR", str(data_dir))
     monkeypatch.setenv("ATOM_PROJECTS_DIR", str(projects_dir))
     monkeypatch.setenv("ATOM_R_SCRIPTS_DIR", str(r_scripts_dir))
+    monkeypatch.setenv("ATOM_PUBLIC_EXAMPLES_DIR", str(examples_dir))
     monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
     monkeypatch.setenv("JWT_SECRET", "test-jwt-secret")
     monkeypatch.setenv("SUPABASE_JWT_AUD", "authenticated")
@@ -27,6 +30,7 @@ def isolated_app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     get_settings.cache_clear()
     yield {
         "data_dir": data_dir,
+        "examples_dir": examples_dir,
         "projects_dir": projects_dir,
     }
     get_settings.cache_clear()

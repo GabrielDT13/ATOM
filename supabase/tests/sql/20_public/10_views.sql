@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(18);
+SELECT plan(21);
 
 SELECT has_view('public', 'vw_departments', 'Debe existir la vista public.vw_departments');
 SELECT has_view('public', 'vw_profiles', 'Debe existir la vista public.vw_profiles');
@@ -16,6 +16,7 @@ SELECT has_view('public', 'vw_projects', 'Debe existir la vista public.vw_projec
 SELECT has_view('public', 'vw_projects_with_users', 'Debe existir la vista public.vw_projects_with_users');
 SELECT has_view('public', 'vw_profile_preferences', 'Debe existir la vista public.vw_profile_preferences');
 SELECT has_view('public', 'vw_profile_activity', 'Debe existir la vista public.vw_profile_activity');
+SELECT has_view('public', 'vw_dashboard_activity', 'Debe existir la vista public.vw_dashboard_activity');
 
 SELECT columns_are(
   'public',
@@ -57,6 +58,13 @@ SELECT columns_are(
   'vw_profile_activity',
   ARRAY['id', 'user_id', 'activity_type', 'title', 'description', 'created_at'],
   'public.vw_profile_activity debe exponer las columnas esperadas'
+);
+
+SELECT columns_are(
+  'public',
+  'vw_dashboard_activity',
+  ARRAY['id', 'user_id', 'activity_type', 'title', 'description', 'project_owner_username', 'project_name', 'analysis_type', 'design_id', 'created_at'],
+  'public.vw_dashboard_activity debe exponer las columnas esperadas'
 );
 
 SELECT ok(
@@ -135,6 +143,19 @@ SELECT ok(
       AND COALESCE(array_to_string(c.reloptions, ','), '') LIKE '%security_invoker=true%'
   ),
   'public.vw_profile_activity debe usar security_invoker'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public'
+      AND c.relname = 'vw_dashboard_activity'
+      AND c.relkind = 'v'
+      AND COALESCE(array_to_string(c.reloptions, ','), '') LIKE '%security_invoker=true%'
+  ),
+  'public.vw_dashboard_activity debe usar security_invoker'
 );
 
 SELECT finish();

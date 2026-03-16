@@ -1,0 +1,35 @@
+{
+  "quick_start_steps": [
+    {
+      "step": 1,
+      "title": "Cargar plantilla base",
+      "description": "Descarga template.xlsx y súbelo al proyecto respetando la estructura esperada por la plataforma."
+    },
+    {
+      "step": 2,
+      "title": "Añadir datos de entrada",
+      "description": "Sube counts.txt o sustitúyelo por tus datos propios respetando el diseño experimental indicado en la plantilla."
+    },
+    {
+      "step": 3,
+      "title": "Ejecutar y revisar",
+      "description": "Lanza el análisis desde el proyecto y consulta el informe HTML generado cuando el flujo finalice correctamente."
+    }
+  ],
+  "resources": [
+    {
+      "relative_path": "template.xlsx",
+      "name": "template.xlsx",
+      "kind": "template",
+      "title": "template",
+      "description": "Excel base con metadata y diseño experimental para iniciar un análisis nuevo."
+    },
+    {
+      "relative_path": "counts.txt",
+      "name": "counts.txt",
+      "kind": "counts",
+      "title": "counts",
+      "description": "TXT de ejemplo con conteos listos para validar carga y ejecución."
+    }
+  ]
+}

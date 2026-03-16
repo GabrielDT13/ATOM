@@ -12,6 +12,7 @@ import type {
   UserRecord,
 } from "@/types/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { buttonStyles } from "@/components/ui/button";
 import { UserFormDialog, type UserFormValues } from "@/components/users/user-form-dialog";
 import { PlusIcon, UsersClusterIcon } from "@/components/users/user-management-icons";
 import { UserManagementFilters } from "@/components/users/user-management-filters";
@@ -240,23 +241,23 @@ export function UserManagement() {
   return (
     <>
       <div className="flex flex-col gap-6">
-        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_38%),linear-gradient(180deg,_#ffffff_0%,_#f7fbff_100%)] p-6 shadow-sm sm:p-8">
+        <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+              <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
                 <UsersClusterIcon />
                 Administración
               </div>
-              <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                 Gestión de usuarios
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
                 Vista centralizada para revisar accesos, crear nuevas cuentas y editar usuarios.
               </p>
             </div>
 
             <button
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+              className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
               onClick={openCreateDialog}
               type="button"
             >

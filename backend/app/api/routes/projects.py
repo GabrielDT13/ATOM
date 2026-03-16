@@ -85,6 +85,7 @@ async def post_project(
 ) -> ProjectMutationResponse:
     current_user = get_current_user(request)
     success, message = await create_project(
+        str(current_user["id"]),
         current_user["username"],
         project_name,
         template_file,
@@ -105,8 +106,10 @@ async def put_project(
     excel_file: UploadFile | None = File(default=None),
     additional_files: Annotated[list[UploadFile] | None, File()] = None,
 ) -> ProjectMutationResponse:
-    _require_project_edit_access(request, owner, project_name)
+    current_user = _require_project_edit_access(request, owner, project_name) or get_current_user(request)
     success, message, effective_name = await update_project(
+        str(current_user["id"]),
+        str(current_user["username"]),
         owner,
         project_name,
         new_name,
@@ -121,8 +124,13 @@ async def put_project(
 
 @router.delete("/{owner}/{project_name}", response_model=ProjectMutationResponse)
 async def remove_project(owner: str, project_name: str, request: Request) -> ProjectMutationResponse:
-    require_admin_or_owner(request, owner)
-    success, message = delete_project(owner, project_name)
+    current_user = require_admin_or_owner(request, owner)
+    success, message = delete_project(
+        str(current_user["id"]),
+        str(current_user["username"]),
+        owner,
+        project_name,
+    )
     return ProjectMutationResponse(success=success, message=message, project=None)
 
 

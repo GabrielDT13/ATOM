@@ -13,6 +13,8 @@ import {
   TemplateIcon,
   UploadStackIcon,
 } from "@/components/projects/project-management-icons";
+import { Button, buttonStyles } from "@/components/ui/button";
+import { ButtonLink } from "@/components/ui/button-link";
 
 export function ProjectCreator() {
   const router = useRouter();
@@ -74,27 +76,24 @@ export function ProjectCreator() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_36%),linear-gradient(180deg,_#ffffff_0%,_#f7fbff_100%)] p-6 shadow-sm sm:p-8">
+      <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+            <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
               <UploadStackIcon />
               Nuevo proyecto
             </div>
-            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+            <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               Crear proyecto
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
               Sube la plantilla principal y los archivos asociados del proyecto.
             </p>
           </div>
 
-          <Link
-            className="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            href="/dashboard/projects"
-          >
+          <ButtonLink href="/dashboard/projects" size="lg" tone="on-dark" variant="secondary">
             Volver al listado
-          </Link>
+          </ButtonLink>
         </div>
       </section>
 
@@ -163,19 +162,15 @@ export function ProjectCreator() {
 
           <div className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50 px-6 py-5 sm:flex-row sm:justify-end sm:px-8">
             <div className="flex flex-wrap gap-3">
-              <Link
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                href="/dashboard/projects"
-              >
+              <ButtonLink href="/dashboard/projects" variant="secondary">
                 Cancelar
-              </Link>
-              <button
-                className="inline-flex h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-300"
+              </ButtonLink>
+              <Button
                 disabled={submitting}
                 type="submit"
               >
                 {submitting ? "Creando proyecto..." : "Crear proyecto"}
-              </button>
+              </Button>
             </div>
           </div>
         </form>

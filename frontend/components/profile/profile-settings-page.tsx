@@ -39,6 +39,7 @@ import {
   SectionCard,
   SectionHeading,
 } from "@/components/profile/profile-primitives";
+import { Button, buttonStyles } from "@/components/ui/button";
 
 type ProfileSettingsPageProps = {
   profileData: ProfileRecord | null;
@@ -373,33 +374,31 @@ export function ProfileSettingsPage({
   return (
     <>
       <div className="relative isolate">
-        <div className="absolute inset-x-0 top-0 -z-10 h-72 rounded-[36px] bg-[radial-gradient(circle_at_top_left,_rgba(13,127,242,0.18),_transparent_46%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.14),_transparent_42%),linear-gradient(180deg,_rgba(255,255,255,0.9),_rgba(255,255,255,0))]" />
-
-        <section className="relative overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_32px_90px_-52px_rgba(15,23,42,0.45)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(13,127,242,0.16),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_34%)]" />
+        <section className="page-hero-surface relative overflow-hidden rounded-[32px] border border-white/10 shadow-[0_32px_90px_-52px_rgba(15,23,42,0.45)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(255,255,255,0.06),_transparent_36%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_34%)]" />
 
           <div className="relative grid gap-8 px-6 py-8 sm:px-8 xl:grid-cols-[auto_minmax(0,1fr)_auto] xl:items-center">
             <div className="flex items-center gap-5">
               <div className="flex h-28 w-28 items-center justify-center rounded-[30px] bg-gradient-to-br from-primary via-sky-500 to-cyan-400 p-[1px] shadow-[0_18px_40px_-24px_rgba(13,127,242,0.65)]">
-                <div className="flex h-full w-full items-center justify-center rounded-[28px] bg-slate-950 text-white">
+                <div className="flex h-full w-full items-center justify-center rounded-[28px] bg-[linear-gradient(135deg,#0f172a_0%,#163b63_100%)] text-white">
                   <UserIcon className="h-12 w-12" />
                 </div>
               </div>
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full border border-slate-200 bg-white/80 px-3 py-1 text-xs font-medium text-slate-600">
+                  <span className="page-hero-badge rounded-full px-3 py-1 font-medium">
                     {profile.roleDisplay}
                   </span>
                 </div>
 
-                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                <h1 className="mt-4 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                   {profile.displayName}
                 </h1>
-                <p className="mt-2 text-base font-medium text-slate-600">
+                <p className="mt-2 text-base font-medium text-slate-200">
                   {profile.department}
                 </p>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-500">
+                <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300">
                   {profile.bio}
                 </p>
               </div>
@@ -408,7 +407,7 @@ export function ProfileSettingsPage({
             <div className="xl:justify-self-end">
               <div className="flex flex-wrap gap-3">
                 <button
-                  className="rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                  className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
                   onClick={scrollToInformationSection}
                   type="button"
                 >
@@ -416,7 +415,7 @@ export function ProfileSettingsPage({
                 </button>
 
                 <button
-                  className="rounded-full bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  className={buttonStyles({ size: "lg", tone: "on-dark", variant: "ghost" })}
                   onClick={() => setPasswordDialogOpen(true)}
                   type="button"
                 >
@@ -512,7 +511,7 @@ export function ProfileSettingsPage({
               </div>
             </SectionCard>
 
-            <SectionCard className="bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)]">
+            <SectionCard>
               <SectionHeading
                 description="Gestiona las acciones sensibles relacionadas con la seguridad y el acceso a tu cuenta."
                 title="Acceso y contraseña"
@@ -521,7 +520,7 @@ export function ProfileSettingsPage({
               <div className="space-y-4">
                 <div className="rounded-[28px] border border-slate-200 bg-white p-5">
                   <div className="flex items-start gap-4">
-                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-950 text-white">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-primary">
                       <KeyIcon className="h-5 w-5" />
                     </span>
                     <div className="min-w-0">
@@ -532,13 +531,13 @@ export function ProfileSettingsPage({
                     </div>
                   </div>
 
-                  <button
-                    className="mt-5 inline-flex rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary-dark"
+                  <Button
+                    className="mt-5"
                     onClick={() => setPasswordDialogOpen(true)}
                     type="button"
                   >
                     Actualizar contraseña
-                  </button>
+                  </Button>
                 </div>
 
                 {!isAdmin ? (
@@ -550,13 +549,14 @@ export function ProfileSettingsPage({
                       </p>
                     </div>
 
-                    <button
-                      className="mt-5 inline-flex rounded-full border border-rose-300 px-4 py-2.5 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    <Button
+                      className="mt-5"
                       onClick={() => setDeleteConfirmOpen(true)}
                       type="button"
+                      variant="danger"
                     >
                       Eliminar cuenta
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </div>
@@ -625,21 +625,20 @@ export function ProfileSettingsPage({
                 </div>
 
                 <div className="mt-6 flex flex-wrap justify-end gap-3">
-                  <button
-                    className="rounded-full border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-950"
+                  <Button
+                    variant="secondary"
                     onClick={resetForm}
                     type="button"
                   >
                     Cancelar
-                  </button>
-                  <button
-                    className="rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white shadow-[0_16px_32px_-20px_rgba(13,127,242,0.85)] transition hover:bg-primary-dark disabled:bg-sky-300"
+                  </Button>
+                  <Button
                     disabled={savingProfile}
                     onClick={() => void handleSaveProfile()}
                     type="button"
                   >
                     {savingProfile ? "Guardando..." : "Guardar cambios"}
-                  </button>
+                  </Button>
                 </div>
               </section>
             </SectionCard>

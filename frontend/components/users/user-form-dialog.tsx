@@ -1,21 +1,20 @@
 "use client";
 
-import { FormEvent, forwardRef, type ButtonHTMLAttributes, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import type { DepartmentRecord, UserRecord } from "@/types/api";
 import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 import {
   CreatableSelectField,
   type CreatableSelectOption,
 } from "@/components/ui/creatable-select-field";
+import { Button } from "@/components/ui/button";
+import { DialogHero } from "@/components/ui/dialog-hero";
 
 export type UserFormValues = {
   department: string;
@@ -34,36 +33,6 @@ type UserFormDialogProps = {
   submitting?: boolean;
   user?: UserRecord | null;
 };
-
-const SecondaryButton = forwardRef<
-  HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement>
->(({ children, className = "", type = "button", ...props }, ref) => (
-  <button
-    className={`inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 ${className}`}
-    ref={ref}
-    type={type}
-    {...props}
-  >
-    {children}
-  </button>
-));
-SecondaryButton.displayName = "SecondaryButton";
-
-const PrimaryButton = forwardRef<
-  HTMLButtonElement,
-  ButtonHTMLAttributes<HTMLButtonElement>
->(({ children, className = "", type = "button", ...props }, ref) => (
-  <button
-    className={`inline-flex h-11 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-sky-300 ${className}`}
-    ref={ref}
-    type={type}
-    {...props}
-  >
-    {children}
-  </button>
-));
-PrimaryButton.displayName = "PrimaryButton";
 
 function InputField({
   autoFocus = false,
@@ -148,16 +117,14 @@ export function UserFormDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="overflow-hidden">
-        <div className="border-b border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.16),_transparent_38%),linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] px-6 pb-6 pt-7 sm:px-8">
-          <DialogHeader className="pr-10">
-            <DialogTitle>{isCreateMode ? "Crear nuevo usuario" : "Editar usuario"}</DialogTitle>
-            <DialogDescription>
-              {isCreateMode
-                ? "Alta rápida para nuevos accesos del panel de administración."
-                : "Actualiza los datos visibles del usuario sin salir de la tabla."}
-            </DialogDescription>
-          </DialogHeader>
-        </div>
+        <DialogHero
+          description={
+            isCreateMode
+              ? "Alta rápida para nuevos accesos del panel de administración."
+              : "Actualiza los datos visibles del usuario sin salir de la tabla."
+          }
+          title={isCreateMode ? "Crear nuevo usuario" : "Editar usuario"}
+        />
 
         <form className="px-6 pb-6 sm:px-8" onSubmit={(event) => void handleSubmit(event)}>
           <div className="grid gap-5">
@@ -216,9 +183,9 @@ export function UserFormDialog({
 
           <DialogFooter className="mt-8">
             <DialogClose asChild>
-              <SecondaryButton>Cancelar</SecondaryButton>
+              <Button variant="secondary">Cancelar</Button>
             </DialogClose>
-            <PrimaryButton disabled={submitting} type="submit">
+            <Button disabled={submitting} type="submit">
               {submitting
                 ? isCreateMode
                   ? "Creando..."
@@ -226,7 +193,7 @@ export function UserFormDialog({
                 : isCreateMode
                   ? "Crear usuario"
                   : "Guardar cambios"}
-            </PrimaryButton>
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

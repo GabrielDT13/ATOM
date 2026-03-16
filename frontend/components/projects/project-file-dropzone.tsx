@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 
 import { CheckIcon, CloseIcon } from "@/components/dashboard/dashboard-icons";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type ProjectFileDropzoneProps = {
@@ -127,14 +128,14 @@ export function ProjectFileDropzone({
             </div>
           </div>
 
-          <button
-            className="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+          <Button
             disabled={disabled}
             onClick={() => inputRef.current?.click()}
             type="button"
+            variant="secondary"
           >
             Seleccionar archivo{multiple ? "s" : ""}
-          </button>
+          </Button>
         </div>
 
         <div className="rounded-2xl border border-white/80 bg-white/90 px-4 py-3 text-sm text-slate-500">

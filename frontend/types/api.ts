@@ -200,3 +200,113 @@ export type FileContentResponse = {
   content: string;
   truncated: boolean;
 };
+
+export type DashboardSummary = {
+  total_projects: number;
+  results_ready: number;
+  pending_analysis: number;
+  empty_projects: number;
+  total_files: number;
+  example_files: number;
+  workflow_count: number;
+  distinct_owners: number;
+  completion_rate: number;
+};
+
+export type DashboardTimelinePoint = {
+  bucket_start: string;
+  label: string;
+  completed_analyses: number;
+  total_events: number;
+};
+
+export type DashboardActivitySummary = {
+  total_events: number;
+  analyses_started: number;
+  analyses_completed: number;
+  analyses_failed: number;
+  project_events: number;
+  last_event_at: string | null;
+};
+
+export type DashboardStatusBreakdown = {
+  status: ProjectStatus;
+  label: string;
+  value: number;
+};
+
+export type DashboardProjectHighlight = {
+  access_role?: ProjectMemberRole | null;
+  file_count: number;
+  highlight_files: string[];
+  name: string;
+  owner: string;
+  result_count: number;
+  status: ProjectStatus;
+  template_file: string | null;
+  updated_at: string;
+};
+
+export type DashboardActivityItem = {
+  kind: "analysis" | "project" | "result";
+  status: "info" | "running" | "success" | "warning";
+  title: string;
+  description: string;
+  created_at: string;
+  project_name?: string | null;
+  owner?: string | null;
+  analysis_type?: string | null;
+  design_id?: string | null;
+};
+
+export type DashboardWorkflow = {
+  key: string;
+  title: string;
+  description: string;
+  image_path: string;
+  script_name: string;
+  project_matches: number;
+};
+
+export type DashboardExampleFile = {
+  title: string;
+  description: string;
+  kind: "template" | "counts" | "other";
+  name: string;
+  relative_path: string;
+  size_bytes: number;
+  updated_at: string;
+  public_url: string;
+};
+
+export type DashboardFileBreakdown = {
+  additional: number;
+  results: number;
+  templates: number;
+};
+
+export type DashboardAccessSummary = {
+  editable_projects: number;
+  owned_projects: number;
+  shared_projects: number;
+};
+
+export type DashboardQuickStartStep = {
+  description: string;
+  step: number;
+  title: string;
+};
+
+export type DashboardOverview = {
+  access_summary: DashboardAccessSummary;
+  activity_summary: DashboardActivitySummary;
+  summary: DashboardSummary;
+  activity_timeline: DashboardTimelinePoint[];
+  file_breakdown: DashboardFileBreakdown;
+  status_breakdown: DashboardStatusBreakdown[];
+  featured_projects: DashboardProjectHighlight[];
+  recent_activity: DashboardActivityItem[];
+  quick_start_steps: DashboardQuickStartStep[];
+  workflows: DashboardWorkflow[];
+  example_library: DashboardExampleFile[];
+};

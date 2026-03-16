@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 export type CreatableSelectOption = {
   label: string;
   value: string;
@@ -138,14 +140,16 @@ export function CreatableSelectField({
           ))}
         </select>
 
-        <button
+        <Button
           aria-label={addButtonLabel}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+          className="w-12 px-0"
           onClick={() => setIsCreating((current) => !current)}
+          size="lg"
           type="button"
+          variant="secondary"
         >
           {isCreating ? <ChevronUpIcon /> : <PlusIcon />}
-        </button>
+        </Button>
       </div>
 
       {isCreating ? (
@@ -156,13 +160,13 @@ export function CreatableSelectField({
             placeholder={createPlaceholder}
             value={draftValue}
           />
-          <button
-            className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-sky-700"
+          <Button
             onClick={handleCreateOption}
+            size="lg"
             type="button"
           >
             Añadir
-          </button>
+          </Button>
         </div>
       ) : null}
     </label>

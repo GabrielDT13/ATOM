@@ -27,6 +27,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -269,13 +270,10 @@ export function ProjectAccessManager({
 
         <Popover onOpenChange={setPopoverOpen} open={popoverOpen}>
           <PopoverTrigger asChild>
-            <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-              type="button"
-            >
+            <Button variant="secondary">
               <UserIcon className="h-4 w-4" />
               Compartir
-            </button>
+            </Button>
           </PopoverTrigger>
           <PopoverContent
             align="end"
@@ -337,14 +335,15 @@ export function ProjectAccessManager({
                             {formatAccessIdentity(candidate)}
                           </p>
                         </div>
-                        <button
-                          className="inline-flex h-9 items-center justify-center rounded-xl bg-sky-100 px-3 text-xs font-semibold text-sky-700 transition hover:bg-sky-200 disabled:cursor-not-allowed disabled:opacity-60"
+                        <Button
                           disabled={submittingUsername === candidate.username}
                           onClick={() => void handleShare(candidate.username, shareRole)}
+                          size="sm"
                           type="button"
+                          variant="primary"
                         >
                           Añadir como {getProjectMemberRoleLabel(shareRole)}
-                        </button>
+                        </Button>
                       </div>
                     ))}
                   </div>
