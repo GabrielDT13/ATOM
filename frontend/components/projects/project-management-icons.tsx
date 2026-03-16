@@ -299,3 +299,191 @@ export function DataFilesIcon({ className = "h-5 w-5" }: IconProps) {
     </svg>
   );
 }
+
+export function DownloadIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M12 4.75V14.25M12 14.25L8.5 10.75M12 14.25L15.5 10.75"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M5.5 16.75V18C5.5 18.83 6.17 19.5 7 19.5H17C17.83 19.5 18.5 18.83 18.5 18V16.75"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+export function ExpandIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M14.5 4.75H19.25V9.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M19 5L13.75 10.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M9.5 19.25H4.75V14.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M5 19L10.25 13.75"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+export function RefreshIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M19 6.5V11H14.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M5 17.5V13H9.5"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M18.2 11C17.69 8.58 15.55 6.75 13 6.75C11.15 6.75 9.5 7.73 8.58 9.2L5 13M19 11L15.42 14.8C14.5 16.27 12.85 17.25 11 17.25C8.45 17.25 6.31 15.42 5.8 13"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+export function GalleryIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect
+        height="12"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="15"
+        x="4.5"
+        y="6.5"
+      />
+      <path
+        d="M8 14L10.5 11.5L13 14L15.5 11L18 14"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <circle cx="9" cy="10" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function BrainSparkIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M9.5 6.25C9.5 4.73 10.73 3.5 12.25 3.5C13.77 3.5 15 4.73 15 6.25C16.52 6.25 17.75 7.48 17.75 9C19.13 9.3 20.17 10.53 20.17 12C20.17 13.47 19.13 14.7 17.75 15C17.75 16.52 16.52 17.75 15 17.75C15 19.13 13.88 20.25 12.5 20.25C11.12 20.25 10 19.13 10 17.75C8.48 17.75 7.25 16.52 7.25 15C5.87 14.7 4.83 13.47 4.83 12C4.83 10.53 5.87 9.3 7.25 9C7.25 7.48 8.48 6.25 10 6.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.6"
+      />
+      <path
+        d="M12.5 9V15M10 11.25H15"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.6"
+      />
+    </svg>
+  );
+}
+
+export function FileCodeIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M7 5.5H14L18 9.5V18C18 18.83 17.33 19.5 16.5 19.5H7.5C6.67 19.5 6 18.83 6 18V7C6 6.17 6.67 5.5 7.5 5.5H7Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M14 5.5V9.5H18"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M10 13L8.5 14.5L10 16M14 13L15.5 14.5L14 16"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
