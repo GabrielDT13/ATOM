@@ -45,7 +45,12 @@ def test_get_dashboard_overview_route_returns_structured_payload(
                 "workflow_count": 4,
             },
             "activity_timeline": [
-                {"completed_analyses": 1, "label": "Oct", "total_events": 2},
+                {
+                    "bucket_start": "2026-03-15",
+                    "completed_analyses": 1,
+                    "label": "15 Mar",
+                    "total_events": 2,
+                },
             ],
             "file_breakdown": {
                 "additional": 4,
@@ -285,11 +290,28 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
         "status": "results",
         "value": 1,
     }
-    march_point = next(point for point in overview["activity_timeline"] if point["label"] == "Mar")
+    assert len(overview["activity_timeline"]) == 180
+    march_point = next(
+        point
+        for point in overview["activity_timeline"]
+        if point["bucket_start"] == "2026-03-10"
+    )
     assert march_point == {
+        "bucket_start": "2026-03-10",
         "completed_analyses": 1,
-        "label": "Mar",
-        "total_events": 2,
+        "label": "10 Mar",
+        "total_events": 1,
+    }
+    march_previous_point = next(
+        point
+        for point in overview["activity_timeline"]
+        if point["bucket_start"] == "2026-03-09"
+    )
+    assert march_previous_point == {
+        "bucket_start": "2026-03-09",
+        "completed_analyses": 0,
+        "label": "9 Mar",
+        "total_events": 1,
     }
     assert overview["quick_start_steps"][0] == {
         "description": "Descarga template.xlsx.",

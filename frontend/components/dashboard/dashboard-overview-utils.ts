@@ -3,8 +3,31 @@ import type {
   DashboardOverview,
   DashboardExampleFile,
   DashboardProjectHighlight,
+  DashboardTimelinePoint,
   ProjectStatus,
 } from "@/types/api";
+
+function createEmptyActivityTimeline(days = 180) {
+  const points: DashboardTimelinePoint[] = [];
+  const today = new Date();
+
+  for (let offset = days - 1; offset >= 0; offset -= 1) {
+    const bucketDate = new Date(today);
+    bucketDate.setDate(today.getDate() - offset);
+
+    points.push({
+      bucket_start: bucketDate.toISOString().slice(0, 10),
+      completed_analyses: 0,
+      label: new Intl.DateTimeFormat("es-ES", {
+        day: "numeric",
+        month: "short",
+      }).format(bucketDate),
+      total_events: 0,
+    });
+  }
+
+  return points;
+}
 
 export function createEmptyDashboardOverview(): DashboardOverview {
   return {
@@ -21,14 +44,7 @@ export function createEmptyDashboardOverview(): DashboardOverview {
       project_events: 0,
       last_event_at: null,
     },
-    activity_timeline: [
-      { completed_analyses: 0, label: "Ene", total_events: 0 },
-      { completed_analyses: 0, label: "Feb", total_events: 0 },
-      { completed_analyses: 0, label: "Mar", total_events: 0 },
-      { completed_analyses: 0, label: "Abr", total_events: 0 },
-      { completed_analyses: 0, label: "May", total_events: 0 },
-      { completed_analyses: 0, label: "Jun", total_events: 0 },
-    ],
+    activity_timeline: createEmptyActivityTimeline(),
     featured_projects: [],
     file_breakdown: {
       additional: 0,

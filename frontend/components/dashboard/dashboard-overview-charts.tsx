@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import type {
   DashboardStatusBreakdown,
   DashboardTimelinePoint,
@@ -14,24 +18,157 @@ type StatusChartProps = {
   items: DashboardStatusBreakdown[];
 };
 
+type ActivityRangeDays = 7 | 30 | 90 | 180;
+
+type ActivityRangeOption = {
+  days: ActivityRangeDays;
+  helper: string;
+  label: string;
+};
+
+type AggregatedActivityPoint = {
+  completed_analyses: number;
+  label: string;
+  total_events: number;
+};
+
 const STATUS_COLORS: Record<string, string> = {
   configured: "#0ea5e9",
   empty: "#94a3b8",
   results: "#10b981",
 };
 
+const ACTIVITY_RANGE_OPTIONS: ActivityRangeOption[] = [
+  { days: 7, helper: "Última semana", label: "7 días" },
+  { days: 30, helper: "Último mes", label: "30 días" },
+  { days: 90, helper: "Últimos 3 meses", label: "90 días" },
+  { days: 180, helper: "Últimos 6 meses", label: "180 días" },
+];
+
+function parseBucketDate(point: DashboardTimelinePoint) {
+  const parsed = new Date(point.bucket_start);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  return parsed;
+}
+
+function getBucketCount(days: ActivityRangeDays) {
+  switch (days) {
+    case 7:
+      return 7;
+    case 30:
+      return 5;
+    case 90:
+      return 3;
+    default:
+      return 6;
+  }
+}
+
+function formatRangeBucketLabel(
+  startDate: Date,
+  endDate: Date,
+  days: ActivityRangeDays,
+) {
+  if (days === 7) {
+    return new Intl.DateTimeFormat("es-ES", {
+      weekday: "short",
+    })
+      .format(endDate)
+      .replace(".", "");
+  }
+
+  if (days === 30) {
+    const startDay = startDate.getDate();
+    const endDay = endDate.getDate();
+    const monthLabel = new Intl.DateTimeFormat("es-ES", {
+      month: "short",
+    })
+      .format(endDate)
+      .replace(".", "");
+
+    return startDay === endDay
+      ? `${endDay} ${monthLabel}`
+      : `${startDay}-${endDay} ${monthLabel}`;
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    month: "short",
+  })
+    .format(endDate)
+    .replace(".", "");
+}
+
+function aggregateTimelinePoints(
+  points: DashboardTimelinePoint[],
+  days: ActivityRangeDays,
+): AggregatedActivityPoint[] {
+  const datedPoints = points
+    .map((point) => {
+      const bucketDate = parseBucketDate(point);
+      if (!bucketDate) {
+        return null;
+      }
+
+      return {
+        ...point,
+        bucketDate,
+      };
+    })
+    .filter((point): point is DashboardTimelinePoint & { bucketDate: Date } => Boolean(point))
+    .sort((left, right) => left.bucketDate.getTime() - right.bucketDate.getTime());
+
+  const sliced = datedPoints.slice(-days);
+  if (!sliced.length) {
+    return [];
+  }
+
+  const bucketCount = getBucketCount(days);
+  const groupSize = Math.max(1, Math.ceil(sliced.length / bucketCount));
+  const groups: AggregatedActivityPoint[] = [];
+
+  for (let index = 0; index < sliced.length; index += groupSize) {
+    const group = sliced.slice(index, index + groupSize);
+    if (!group.length) {
+      continue;
+    }
+
+    const startDate = group[0].bucketDate;
+    const endDate = group[group.length - 1].bucketDate;
+    groups.push({
+      completed_analyses: group.reduce(
+        (sum, point) => sum + point.completed_analyses,
+        0,
+      ),
+      label: formatRangeBucketLabel(startDate, endDate, days),
+      total_events: group.reduce((sum, point) => sum + point.total_events, 0),
+    });
+  }
+
+  return groups;
+}
+
 export function DashboardActivityChart({ points }: ActivityChartProps) {
-  const hasActivity = points.some(
+  const [selectedRange, setSelectedRange] = useState<ActivityRangeDays>(30);
+  const aggregatedPoints = aggregateTimelinePoints(points, selectedRange);
+  const hasActivity = aggregatedPoints.some(
     (point) => point.total_events > 0 || point.completed_analyses > 0,
   );
   const maxValue = Math.max(
     1,
-    ...points.map((point) => Math.max(point.total_events, point.completed_analyses)),
+    ...aggregatedPoints.map((point) =>
+      Math.max(point.total_events, point.completed_analyses),
+    ),
   );
+  const selectedRangeMeta =
+    ACTIVITY_RANGE_OPTIONS.find((option) => option.days === selectedRange) ??
+    ACTIVITY_RANGE_OPTIONS[1];
 
   return (
     <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
             Actividad
@@ -40,30 +177,58 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
             Evolución reciente de actividad
           </h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Seguimiento real de eventos registrados en proyectos y análisis
-            durante los últimos seis meses.
+            Seguimiento real de eventos registrados en proyectos y análisis para
+            la ventana temporal seleccionada.
           </p>
         </div>
-        <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-          6 meses
+
+        <div className="flex flex-col items-start gap-3 xl:items-end">
+          <div className="flex flex-wrap gap-2 rounded-full bg-slate-100/90 p-1">
+            {ACTIVITY_RANGE_OPTIONS.map((option) => (
+              <button
+                aria-pressed={option.days === selectedRange}
+                className={`rounded-full px-3 py-2 text-xs font-semibold transition ${
+                  option.days === selectedRange
+                    ? "bg-slate-950 text-white shadow-sm"
+                    : "text-slate-500 hover:bg-white hover:text-slate-900"
+                }`}
+                key={option.days}
+                onClick={() => setSelectedRange(option.days)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            {selectedRangeMeta.helper}
+          </div>
         </div>
       </div>
 
-      <div className="grid h-72 grid-cols-6 gap-3">
-        {points.map((point) => {
+      <div
+        className="grid h-72 gap-3"
+        style={{
+          gridTemplateColumns: `repeat(${Math.max(aggregatedPoints.length, 1)}, minmax(0, 1fr))`,
+        }}
+      >
+        {aggregatedPoints.map((point) => {
           const totalHeight =
             point.total_events > 0
               ? Math.max(12, Math.round((point.total_events / maxValue) * 100))
               : 0;
           const readyHeight =
             point.completed_analyses > 0
-              ? Math.max(10, Math.round((point.completed_analyses / maxValue) * 100))
+              ? Math.max(
+                  10,
+                  Math.round((point.completed_analyses / maxValue) * 100),
+                )
               : 0;
 
           return (
             <div
               className="flex min-w-0 flex-col items-center justify-end gap-3"
-              key={point.label}
+              key={`${selectedRange}-${point.label}`}
             >
               <div className="flex h-full w-full items-end gap-2 rounded-[24px] border border-slate-100 bg-slate-50/80 px-3 py-4">
                 <div className="flex h-full flex-1 items-end">
@@ -95,7 +260,8 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
 
       {!hasActivity ? (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
-          Aún no hay suficientes eventos registrados para dibujar una tendencia con datos reales.
+          Aún no hay suficientes eventos registrados para dibujar una tendencia
+          con datos reales en la ventana seleccionada.
         </div>
       ) : null}
 

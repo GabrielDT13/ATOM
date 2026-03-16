@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -11,33 +11,72 @@ describe("DashboardActivityChart", () => {
     render(
       <DashboardActivityChart
         points={[
-          { completed_analyses: 0, label: "Ene", total_events: 0 },
-          { completed_analyses: 0, label: "Feb", total_events: 0 },
+          {
+            bucket_start: "2026-03-09",
+            completed_analyses: 0,
+            label: "9 mar",
+            total_events: 0,
+          },
+          {
+            bucket_start: "2026-03-10",
+            completed_analyses: 0,
+            label: "10 mar",
+            total_events: 0,
+          },
         ]}
       />,
     );
 
     expect(
       screen.getByText(
-        "Aún no hay suficientes eventos registrados para dibujar una tendencia con datos reales.",
+        "Aún no hay suficientes eventos registrados para dibujar una tendencia con datos reales en la ventana seleccionada.",
       ),
     ).toBeInTheDocument();
   });
 
-  it("renderiza los contadores de actividad mensual", () => {
+  it("renderiza la actividad y permite cambiar la ventana temporal", () => {
     render(
       <DashboardActivityChart
         points={[
-          { completed_analyses: 1, label: "Mar", total_events: 5 },
-          { completed_analyses: 2, label: "Abr", total_events: 3 },
+          {
+            bucket_start: "2026-03-07",
+            completed_analyses: 0,
+            label: "7 mar",
+            total_events: 1,
+          },
+          {
+            bucket_start: "2026-03-08",
+            completed_analyses: 0,
+            label: "8 mar",
+            total_events: 2,
+          },
+          {
+            bucket_start: "2026-03-09",
+            completed_analyses: 1,
+            label: "9 mar",
+            total_events: 5,
+          },
+          {
+            bucket_start: "2026-03-10",
+            completed_analyses: 2,
+            label: "10 mar",
+            total_events: 3,
+          },
         ]}
       />,
     );
 
     expect(screen.getByText("Evolución reciente de actividad")).toBeInTheDocument();
+    expect(screen.getByText("Último mes")).toBeInTheDocument();
     expect(screen.getByText("5 mov.")).toBeInTheDocument();
     expect(screen.getByText("3 mov.")).toBeInTheDocument();
     expect(screen.getByText("Análisis completados")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "7 días" }));
+
+    expect(screen.getByText("Última semana")).toBeInTheDocument();
+    expect(screen.getByText("5 mov.")).toBeInTheDocument();
+    expect(screen.getByText("3 mov.")).toBeInTheDocument();
   });
 });
 

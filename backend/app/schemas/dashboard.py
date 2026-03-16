@@ -23,6 +23,7 @@ class DashboardSummaryResponse(BaseModel):
 
 
 class DashboardTimelinePointResponse(BaseModel):
+    bucket_start: str
     label: str
     completed_analyses: int
     total_events: int

@@ -41,8 +41,9 @@ function buildOverview(totalProjects: number): DashboardOverview {
     },
     activity_timeline: [
       {
+        bucket_start: "2026-03-10",
         completed_analyses: 1,
-        label: "Mar",
+        label: "10 mar",
         total_events: 2,
       },
     ],

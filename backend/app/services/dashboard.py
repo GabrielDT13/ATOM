@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from backend.app.core.config import get_settings
@@ -69,6 +69,8 @@ MONTH_LABELS = (
     "Dic",
 )
 
+ACTIVITY_TIMELINE_DAYS = 180
+
 
 def _parse_timestamp(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
@@ -127,18 +129,13 @@ def _list_dashboard_projects(
         return _list_local_projects(session_username, role)
 
 
-def _month_window(window_size: int) -> list[tuple[int, int, str]]:
-    now = datetime.now(timezone.utc)
-    current_index = now.year * 12 + (now.month - 1)
-    window: list[tuple[int, int, str]] = []
+def _day_window(window_size: int) -> list[date]:
+    today = datetime.now(timezone.utc).date()
+    return [today - timedelta(days=offset) for offset in range(window_size - 1, -1, -1)]
 
-    for offset in range(window_size - 1, -1, -1):
-        absolute_index = current_index - offset
-        year = absolute_index // 12
-        month = (absolute_index % 12) + 1
-        window.append((year, month, MONTH_LABELS[month]))
 
-    return window
+def _format_day_label(day: date) -> str:
+    return f"{day.day} {MONTH_LABELS[day.month]}"
 
 
 def _build_activity_timeline(
@@ -146,14 +143,16 @@ def _build_activity_timeline(
     visible_project_keys: set[tuple[str, str]],
     projects: list[dict[str, object]],
 ) -> list[dict[str, object]]:
+    timeline_days = _day_window(ACTIVITY_TIMELINE_DAYS)
     if events:
         buckets = {
-            (year, month): {
+            day.isoformat(): {
+                "bucket_start": day.isoformat(),
                 "completed_analyses": 0,
-                "label": label,
+                "label": _format_day_label(day),
                 "total_events": 0,
             }
-            for year, month, label in _month_window(6)
+            for day in timeline_days
         }
 
         for event in events:
@@ -166,7 +165,7 @@ def _build_activity_timeline(
             if not created_at:
                 continue
 
-            bucket = buckets.get((created_at.year, created_at.month))
+            bucket = buckets.get(created_at.date().isoformat())
             if bucket is None:
                 continue
 
@@ -177,12 +176,13 @@ def _build_activity_timeline(
         return list(buckets.values())
 
     buckets = {
-        (year, month): {
+        day.isoformat(): {
+            "bucket_start": day.isoformat(),
             "completed_analyses": 0,
-            "label": label,
+            "label": _format_day_label(day),
             "total_events": 0,
         }
-        for year, month, label in _month_window(6)
+        for day in timeline_days
     }
 
     for project in projects:
@@ -190,7 +190,7 @@ def _build_activity_timeline(
         if not updated_at:
             continue
 
-        bucket = buckets.get((updated_at.year, updated_at.month))
+        bucket = buckets.get(updated_at.date().isoformat())
         if bucket is None:
             continue
 

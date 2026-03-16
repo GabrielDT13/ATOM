@@ -214,6 +214,7 @@ export type DashboardSummary = {
 };
 
 export type DashboardTimelinePoint = {
+  bucket_start: string;
   label: string;
   completed_analyses: number;
   total_events: number;
