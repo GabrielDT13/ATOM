@@ -28,7 +28,7 @@ def _fetch_profiles(
     order: str | None = "username.asc",
 ) -> list[dict[str, Any]]:
     query_params: dict[str, str | int | None] = {
-        "select": "id,email,username,full_name,department,is_active,roles",
+        "select": "id,email,username,full_name,avatar_url,department,bio,is_active,roles",
         "order": order,
         "limit": limit,
     }

@@ -51,6 +51,8 @@ class ProjectMutationResponse(BaseModel):
 
 
 class ProjectMemberResponse(BaseModel):
+    avatar_url: str | None = None
+    bio: str | None = None
     department: str | None = None
     display_name: str
     email: str | None = None
@@ -65,6 +67,8 @@ class ProjectMembersResponse(BaseModel):
 
 
 class ProjectShareCandidateResponse(BaseModel):
+    avatar_url: str | None = None
+    bio: str | None = None
     department: str | None = None
     display_name: str
     email: str | None = None

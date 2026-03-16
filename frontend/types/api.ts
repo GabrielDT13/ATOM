@@ -165,6 +165,8 @@ export type ProjectMutationResponse = {
 export type ProjectMemberRole = "editor" | "owner" | "viewer";
 
 export type ProjectMemberRecord = {
+  avatar_url?: string | null;
+  bio?: string | null;
   department?: string | null;
   display_name: string;
   email?: string | null;
@@ -179,6 +181,8 @@ export type ProjectMembersResponse = {
 };
 
 export type ProjectShareCandidate = {
+  avatar_url?: string | null;
+  bio?: string | null;
   department?: string | null;
   display_name: string;
   email?: string | null;

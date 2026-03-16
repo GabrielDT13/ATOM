@@ -334,6 +334,8 @@ def test_get_project_members_route_returns_members(client: TestClient, monkeypat
         "get_project_members",
         lambda owner, project_name: [
             {
+                "avatar_url": "https://example.com/owner.png",
+                "bio": "Dirige el proyecto RNA Atlas.",
                 "department": "Bioinformatica",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
@@ -351,6 +353,8 @@ def test_get_project_members_route_returns_members(client: TestClient, monkeypat
     assert response.json() == {
         "members": [
             {
+                "avatar_url": "https://example.com/owner.png",
+                "bio": "Dirige el proyecto RNA Atlas.",
                 "department": "Bioinformatica",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
@@ -377,6 +381,8 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
         "get_project_members",
         lambda owner, project_name: [
             {
+                "avatar_url": None,
+                "bio": "Visualiza resultados y valida informes.",
                 "department": None,
                 "display_name": "Shared Viewer",
                 "email": "viewer@example.com",
@@ -396,6 +402,8 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
     assert response.status_code == 200
     assert response.json() == {
         "member": {
+            "avatar_url": None,
+            "bio": "Visualiza resultados y valida informes.",
             "department": None,
             "display_name": "Shared Viewer",
             "email": "viewer@example.com",
