@@ -182,7 +182,6 @@ export function TeamMemberCard({ member }: { member: ProjectMemberRecord }) {
         </span>
       </div>
       {member.department ? <p className="mt-3 text-sm text-slate-600">{member.department}</p> : null}
-      {member.bio ? <p className="mt-2 text-sm leading-6 text-slate-500">{member.bio}</p> : null}
     </article>
   );
 }
