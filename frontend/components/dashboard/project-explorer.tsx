@@ -173,6 +173,8 @@ export function ProjectExplorer({
   runningProject,
   title,
 }: ProjectExplorerProps) {
+  const isDesktopCollapsed = isCollapsed && !isMobileOpen;
+
   return (
     <>
       <div
@@ -189,33 +191,44 @@ export function ProjectExplorer({
         } ${isCollapsed ? "xl:w-24" : "xl:w-[24rem]"}`}
       >
         <div className="relative flex h-full flex-col rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm xl:p-6">
-          <div className={`mb-5 flex items-center justify-between gap-3 ${isCollapsed ? "xl:flex-col" : ""}`}>
-            <div className={`min-w-0 ${isCollapsed ? "xl:text-center" : ""}`}>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Archivos
-              </p>
-              <h2
-                className={`text-lg font-bold text-slate-900 transition-all duration-300 ${
-                  isCollapsed ? "xl:hidden" : ""
-                }`}
-              >
-                {title}
-              </h2>
-            </div>
+          <div
+            className={`mb-5 flex items-center justify-between gap-3 ${
+              isDesktopCollapsed ? "xl:justify-center" : ""
+            }`}
+          >
+            {isDesktopCollapsed ? (
+              <div className="hidden xl:flex xl:justify-center">
+                <div className="relative flex h-14 w-14 items-center justify-center rounded-[22px] border border-slate-200 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.16),_rgba(15,23,42,0.02)_68%)] text-slate-700 shadow-sm">
+                  <FolderIcon className="h-5 w-5 text-primary" />
+                  <span className="absolute -right-1.5 -top-1.5 rounded-full bg-slate-950 px-2 py-0.5 text-[10px] font-semibold text-white">
+                    {items.length}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Archivos
+                  </p>
+                  <h2 className="text-lg font-bold text-slate-900">{title}</h2>
+                </div>
 
-            <div className="flex items-center gap-2">
-              <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-                {items.length}
-              </span>
-              <button
-                aria-label="Cerrar panel de proyectos"
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 xl:hidden"
-                onClick={onCloseMobile}
-                type="button"
-              >
-                <CloseIcon className="h-4 w-4" />
-              </button>
-            </div>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                    {items.length}
+                  </span>
+                  <button
+                    aria-label="Cerrar panel de proyectos"
+                    className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 xl:hidden"
+                    onClick={onCloseMobile}
+                    type="button"
+                  >
+                    <CloseIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           {!isCollapsed || isMobileOpen ? (
@@ -238,13 +251,19 @@ export function ProjectExplorer({
             )
           ) : (
             <div className="hidden flex-1 items-center justify-center xl:flex">
-              <div className="flex flex-col items-center gap-3 text-slate-400">
-                <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
-                  <FolderIcon className="h-5 w-5" />
-                </span>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.22em]">
-                  Proyectos
-                </span>
+              <div className="flex flex-col items-center gap-4 text-slate-400">
+                <div className="rounded-[28px] border border-slate-200/80 bg-slate-50/80 px-4 py-5 shadow-inner">
+                  <div className="flex flex-col items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm">
+                      <FileIcon className="h-4 w-4" />
+                    </span>
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-primary" />
+                      <span className="h-2 w-2 rounded-full bg-slate-300" />
+                      <span className="h-2 w-2 rounded-full bg-slate-300" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}
