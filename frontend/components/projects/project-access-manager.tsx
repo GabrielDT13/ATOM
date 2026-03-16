@@ -14,19 +14,11 @@ import type { ProjectMemberRecord, ProjectShareCandidate } from "@/types/api";
 import { UserIcon } from "@/components/dashboard/dashboard-icons";
 import {
   EditableProjectMemberRole,
-  getProjectMemberRoleBadgeClassName,
-  getProjectMemberRoleLabel,
   PROJECT_SHARE_ROLE_OPTIONS,
 } from "@/components/projects/project-access-utils";
-import {
-  PencilIcon,
-  SearchIcon,
-  TransferIcon,
-  TrashIcon,
-} from "@/components/projects/project-management-icons";
+import { ProjectMemberRow } from "@/components/projects/project-member-row";
+import { ProjectSharePopover } from "@/components/projects/project-share-popover";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -41,65 +33,6 @@ type ProjectAccessManagerProps = {
   owner: string;
   projectName: string;
 };
-
-function formatAccessIdentity(record: {
-  email?: string | null;
-  username: string;
-}) {
-  return `@${record.username}${record.email ? ` · ${record.email}` : ""}`;
-}
-
-function MemberPill({
-  member,
-  onEdit,
-  onRemove,
-  onTransfer,
-}: {
-  member: ProjectMemberRecord;
-  onEdit: (member: ProjectMemberRecord) => void;
-  onRemove: (member: ProjectMemberRecord) => void;
-  onTransfer: (member: ProjectMemberRecord) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-      <div className="min-w-0">
-        <p className="truncate text-sm font-semibold text-slate-900">{member.display_name}</p>
-        <p className="truncate text-xs text-slate-500">{formatAccessIdentity(member)}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${getProjectMemberRoleBadgeClassName(member.member_role)}`}
-        >
-          {getProjectMemberRoleLabel(member.member_role)}
-        </span>
-        {!member.is_owner ? (
-          <RowActionsMenu
-            actions={[
-              {
-                icon: <PencilIcon className="h-4 w-4" />,
-                label: "Editar rol",
-                onSelect: () => onEdit(member),
-              },
-              {
-                icon: <TransferIcon className="h-4 w-4" />,
-                label: "Transferir proyecto",
-                onSelect: () => onTransfer(member),
-              },
-              {
-                destructive: true,
-                icon: <TrashIcon className="h-4 w-4" />,
-                label: "Quitar acceso",
-                onSelect: () => onRemove(member),
-                separatorBefore: true,
-              },
-            ]}
-            ariaLabel={`Abrir acciones de acceso para ${member.display_name}`}
-          />
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
 export function ProjectAccessManager({
   onOwnershipTransferred,
@@ -258,6 +191,15 @@ export function ProjectAccessManager({
     }
   }
 
+  function openRoleEditor(member: ProjectMemberRecord) {
+    if (member.member_role === "owner") {
+      return;
+    }
+
+    setEditedRole(member.member_role);
+    setMemberPendingRoleEdit(member);
+  }
+
   return (
     <section className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -268,94 +210,26 @@ export function ProjectAccessManager({
           </p>
         </div>
 
-        <Popover onOpenChange={setPopoverOpen} open={popoverOpen}>
-          <PopoverTrigger asChild>
+        <ProjectSharePopover
+          candidates={candidates}
+          loading={loadingCandidates}
+          onOpenChange={setPopoverOpen}
+          onSearchChange={(value) => setSearch(value)}
+          onShare={(username, role) => {
+            void handleShare(username, role);
+          }}
+          onShareRoleChange={(role) => setShareRole(role)}
+          open={popoverOpen}
+          search={search}
+          shareRole={shareRole}
+          submittingUsername={submittingUsername}
+          trigger={
             <Button variant="secondary">
               <UserIcon className="h-4 w-4" />
               Compartir
             </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="end"
-            className="w-[min(34rem,calc(100vw-3rem))] p-5"
-            onMouseDown={(event) => event.stopPropagation()}
-            side="top"
-          >
-            <div className="flex flex-col gap-4">
-              <div>
-                <p className="text-sm font-semibold text-slate-900">Compartir proyecto</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Busca usuarios y asígnales un rol antes de compartir el proyecto.
-                </p>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem]">
-                <label className="relative">
-                  <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                    <SearchIcon className="h-4 w-4" />
-                  </span>
-                  <input
-                    className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Buscar por usuario, nombre o email..."
-                    type="search"
-                    value={search}
-                  />
-                </label>
-
-                <Select onValueChange={(value) => setShareRole(value as EditableProjectMemberRole)} value={shareRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Rol" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PROJECT_SHARE_ROLE_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="max-h-72 overflow-y-auto">
-                {loadingCandidates ? (
-                  <p className="py-6 text-center text-sm text-slate-500">Buscando usuarios...</p>
-                ) : candidates.length > 0 ? (
-                  <div className="flex flex-col gap-2">
-                    {candidates.map((candidate) => (
-                      <div
-                        className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                        key={candidate.id}
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-semibold text-slate-900">
-                            {candidate.display_name}
-                          </p>
-                          <p className="truncate text-xs text-slate-500">
-                            {formatAccessIdentity(candidate)}
-                          </p>
-                        </div>
-                        <Button
-                          disabled={submittingUsername === candidate.username}
-                          onClick={() => void handleShare(candidate.username, shareRole)}
-                          size="sm"
-                          type="button"
-                          variant="primary"
-                        >
-                          Añadir como {getProjectMemberRoleLabel(shareRole)}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="py-6 text-center text-sm text-slate-500">
-                    No hay usuarios disponibles para compartir con ese criterio.
-                  </p>
-                )}
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+          }
+        />
       </div>
 
       <div className="mt-4 flex flex-col gap-3">
@@ -363,16 +237,10 @@ export function ProjectAccessManager({
           <p className="text-sm text-slate-500">Cargando usuarios con acceso...</p>
         ) : members.length > 0 ? (
           members.map((member) => (
-            <MemberPill
+            <ProjectMemberRow
               key={member.id}
               member={member}
-              onEdit={(nextMember) => {
-                if (nextMember.member_role === "owner") {
-                  return;
-                }
-                setEditedRole(nextMember.member_role);
-                setMemberPendingRoleEdit(nextMember);
-              }}
+              onEdit={openRoleEditor}
               onRemove={setMemberPendingRemoval}
               onTransfer={setMemberPendingTransfer}
             />
