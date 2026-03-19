@@ -22,6 +22,20 @@ function normalizeOptionValue(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function dedupeOptions(options: readonly CreatableSelectOption[]) {
+  const seen = new Set<string>();
+
+  return options.filter((option) => {
+    const normalizedValue = normalizeOptionValue(option.value);
+    if (!normalizedValue || seen.has(normalizedValue)) {
+      return false;
+    }
+
+    seen.add(normalizedValue);
+    return true;
+  });
+}
+
 function PlusIcon() {
   return (
     <svg
@@ -92,16 +106,7 @@ export function CreatableSelectField({
   }, [customOptions, options, value]);
 
   const mergedOptions = useMemo(
-    () => [
-      ...options,
-      ...customOptions.filter(
-        (option) =>
-          !options.some(
-            (baseOption) =>
-              normalizeOptionValue(baseOption.value) === normalizeOptionValue(option.value),
-          ),
-      ),
-    ],
+    () => dedupeOptions([...options, ...customOptions]),
     [customOptions, options],
   );
 
@@ -134,7 +139,7 @@ export function CreatableSelectField({
         >
           <option value="">Selecciona una opción</option>
           {mergedOptions.map((option) => (
-            <option key={option.value} value={option.value}>
+            <option key={normalizeOptionValue(option.value)} value={option.value}>
               {option.label}
             </option>
           ))}

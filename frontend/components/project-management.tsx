@@ -1,10 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { fetchSession } from "@/lib/api";
-import { deleteProject, listProjects, updateProject } from "@/lib/projects";
+import {
+  buildProjectDetailHref,
+  deleteProject,
+  listProjects,
+  updateProject,
+} from "@/lib/projects";
 import { useAppToast } from "@/hooks/use-app-toast";
 import type { SessionResponse } from "@/types/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -25,9 +31,9 @@ import {
   type ProjectStatusFilter,
   buildProjectRecords,
 } from "@/components/projects/project-management-utils";
-import { ProjectViewDialog } from "@/components/projects/project-view-dialog";
 
 export function ProjectManagement() {
+  const router = useRouter();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [session, setSession] = useState<SessionResponse | null>();
   const [loading, setLoading] = useState(true);
@@ -35,7 +41,6 @@ export function ProjectManagement() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all");
   const [ownerFilter, setOwnerFilter] = useState<ProjectOwnerFilter>("all");
-  const [viewProject, setViewProject] = useState<ProjectRecord | null>(null);
   const [editingProject, setEditingProject] = useState<ProjectRecord | null>(null);
   const [pendingDeleteProject, setPendingDeleteProject] = useState<ProjectRecord | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -102,7 +107,6 @@ export function ProjectManagement() {
         setUploadProgress(100);
         setUploadState("complete");
         setEditingProject(null);
-        setViewProject(null);
         await loadProjects();
         appToast.success(response.message);
       } else {
@@ -133,7 +137,6 @@ export function ProjectManagement() {
 
       if (response.success) {
         setPendingDeleteProject(null);
-        setViewProject(null);
         setEditingProject(null);
         await loadProjects();
         appToast.success(response.message);
@@ -215,25 +218,12 @@ export function ProjectManagement() {
           loading={loading}
           onDelete={setPendingDeleteProject}
           onEdit={setEditingProject}
-          onView={setViewProject}
+          onView={(project) =>
+            router.push(buildProjectDetailHref(project.routeRef))
+          }
           projects={filteredProjects}
         />
       </div>
-
-      <ProjectViewDialog
-        canManage={viewProject ? canEditProject(viewProject) : false}
-        onEdit={(project) => {
-          setViewProject(null);
-          setEditingProject(project);
-        }}
-        onOpenChange={(open) => {
-          if (!open) {
-            setViewProject(null);
-          }
-        }}
-        open={Boolean(viewProject)}
-        project={viewProject}
-      />
 
       <ProjectEditDialog
         canShare={editingProject ? canShareProject(editingProject) : false}
@@ -246,7 +236,6 @@ export function ProjectManagement() {
         }}
         onOwnershipTransferred={async () => {
           setEditingProject(null);
-          setViewProject(null);
           await loadProjects();
         }}
         onSubmit={handleEdit}

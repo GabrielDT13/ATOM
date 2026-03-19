@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(10);
+SELECT plan(13);
 
 SELECT ok(
   EXISTS (
@@ -52,6 +52,28 @@ SELECT ok(
       AND p.proname = 'ensure_department_name'
   ),
   'Debe existir la funcion internal.ensure_department_name'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'normalize_project_slug_part'
+  ),
+  'Debe existir la funcion internal.normalize_project_slug_part'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'ensure_project_slug'
+  ),
+  'Debe existir la funcion internal.ensure_project_slug'
 );
 
 SELECT ok(
@@ -110,6 +132,30 @@ SELECT ok(
       AND COALESCE(array_to_string(p.proconfig, ','), '') LIKE '%search_path=pg_catalog%'
   ),
   'internal.normalize_department_slug debe fijar search_path'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'normalize_project_slug_part'
+      AND COALESCE(array_to_string(p.proconfig, ','), '') LIKE '%search_path=pg_catalog, public%'
+  ),
+  'internal.normalize_project_slug_part debe fijar search_path'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'ensure_project_slug'
+      AND COALESCE(array_to_string(p.proconfig, ','), '') LIKE '%search_path=pg_catalog, internal, public%'
+  ),
+  'internal.ensure_project_slug debe fijar search_path'
 );
 
 SELECT ok(

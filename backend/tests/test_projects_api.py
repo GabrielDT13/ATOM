@@ -27,8 +27,10 @@ def test_get_projects_route_returns_project_map_and_items(
                     "file_count": 3,
                     "files": ["notes.csv", "report/index.html", "template.xlsx"],
                     "html_files": ["report/index.html"],
+                    "id": "project-1",
                     "name": "RNA Atlas",
                     "owner": "researcher",
+                    "slug": "researcher-rna-atlas",
                     "status": "results",
                     "template_file": "template.xlsx",
                     "updated_at": "2026-03-09T17:30:00+00:00",
@@ -49,8 +51,10 @@ def test_get_projects_route_returns_project_map_and_items(
                 "file_count": 3,
                 "files": ["notes.csv", "report/index.html", "template.xlsx"],
                 "html_files": ["report/index.html"],
+                "id": "project-1",
                 "name": "RNA Atlas",
                 "owner": "researcher",
+                "slug": "researcher-rna-atlas",
                 "status": "results",
                 "template_file": "template.xlsx",
                 "updated_at": "2026-03-09T17:30:00+00:00",
@@ -86,8 +90,10 @@ def test_get_project_route_returns_structured_project_details(
             ],
             "files": ["notes.csv", "report/index.html", "template.xlsx"],
             "html_files": ["report/index.html"],
+            "id": "project-1",
             "name": project_name,
             "owner": owner,
+            "slug": "researcher-rna-atlas",
             "status": "results",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
@@ -98,6 +104,8 @@ def test_get_project_route_returns_structured_project_details(
 
     assert response.status_code == 200
     assert response.json()["name"] == "RNA Atlas"
+    assert response.json()["id"] == "project-1"
+    assert response.json()["slug"] == "researcher-rna-atlas"
     assert response.json()["file_entries"] == [
         {
             "extension": ".xlsx",
@@ -151,8 +159,10 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
             ],
             "files": ["notes.csv", "template.xlsx"],
             "html_files": [],
+            "id": "project-1",
             "name": project_name,
             "owner": owner,
+            "slug": "researcher-rna-atlas",
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
@@ -194,8 +204,10 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
             ],
             "files": ["notes.csv", "template.xlsx"],
             "html_files": [],
+            "id": "project-1",
             "name": "RNA Atlas",
             "owner": "researcher",
+            "slug": "researcher-rna-atlas",
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
@@ -261,8 +273,10 @@ def test_put_project_route_forwards_name_and_uploaded_files(
             ],
             "files": ["fresh.csv", "template.xlsx"],
             "html_files": [],
+            "id": "project-1",
             "name": project_name,
             "owner": owner,
+            "slug": "researcher-rna-atlas-2026",
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T18:00:00+00:00",
@@ -304,8 +318,10 @@ def test_put_project_route_forwards_name_and_uploaded_files(
             ],
             "files": ["fresh.csv", "template.xlsx"],
             "html_files": [],
+            "id": "project-1",
             "name": "RNA Atlas 2026",
             "owner": "researcher",
+            "slug": "researcher-rna-atlas-2026",
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T18:00:00+00:00",
@@ -365,6 +381,94 @@ def test_get_project_members_route_returns_members(client: TestClient, monkeypat
             }
         ]
     }
+
+
+def test_get_project_by_ref_route_resolves_slug_and_returns_project(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "resolve_project_reference",
+        lambda project_ref: {
+            "id": "project-1",
+            "name": "RNA Atlas",
+            "owner_username": "researcher",
+            "slug": project_ref,
+        },
+    )
+    monkeypatch.setattr(project_routes, "_require_project_view_access", lambda request, owner, project_name: None)
+    monkeypatch.setattr(
+        project_routes,
+        "get_project_details_by_ref",
+        lambda project_ref: {
+            "access_role": "owner",
+            "additional_files": ["notes.csv"],
+            "created_at": "2026-03-09T17:00:00+00:00",
+            "file_count": 3,
+            "file_entries": [],
+            "files": ["notes.csv", "report/index.html", "template.xlsx"],
+            "html_files": ["report/index.html"],
+            "id": "project-1",
+            "name": "RNA Atlas",
+            "owner": "researcher",
+            "slug": project_ref,
+            "status": "results",
+            "template_file": "template.xlsx",
+            "updated_at": "2026-03-09T17:30:00+00:00",
+        },
+    )
+
+    response = client.get("/api/projects/by-ref/researcher-rna-atlas")
+
+    assert response.status_code == 200
+    assert response.json()["id"] == "project-1"
+    assert response.json()["slug"] == "researcher-rna-atlas"
+    assert response.json()["name"] == "RNA Atlas"
+
+
+def test_get_project_members_by_ref_route_returns_members(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "resolve_project_reference",
+        lambda project_ref: {
+            "id": "project-1",
+            "name": "RNA Atlas",
+            "owner_username": "researcher",
+            "slug": project_ref,
+        },
+    )
+    monkeypatch.setattr(project_routes, "_require_project_view_access", lambda request, owner, project_name: None)
+    monkeypatch.setattr(
+        project_routes,
+        "get_project_members_by_ref",
+        lambda project_ref: [
+            {
+                "avatar_url": None,
+                "bio": None,
+                "department": "Bioinformatica",
+                "display_name": "Research Owner",
+                "email": "owner@example.com",
+                "id": "user-1",
+                "is_owner": True,
+                "member_role": "owner",
+                "username": "researcher",
+            }
+        ],
+    )
+
+    response = client.get("/api/projects/by-ref/researcher-rna-atlas/members")
+
+    assert response.status_code == 200
+    assert response.json()["members"][0]["id"] == "user-1"
+    assert response.json()["members"][0]["username"] == "researcher"
 
 
 def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -> None:
@@ -452,8 +556,10 @@ def test_post_transfer_project_ownership_route_returns_updated_project(
             ],
             "files": ["notes.csv", "template.xlsx"],
             "html_files": [],
+            "id": "project-1",
             "name": project_name,
             "owner": owner,
+            "slug": "manager-rna-atlas",
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
@@ -481,8 +587,10 @@ def test_post_transfer_project_ownership_route_returns_updated_project(
             ],
             "files": ["notes.csv", "template.xlsx"],
             "html_files": [],
+            "id": "project-1",
             "name": "RNA Atlas",
             "owner": "manager",
+            "slug": "manager-rna-atlas",
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",

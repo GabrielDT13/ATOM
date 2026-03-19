@@ -1,175 +1,47 @@
 "use client";
 
-import { buildApiUrl, encodePathSegments } from "@/lib/api";
-import type { SidebarTreeItem } from "@/types/api";
+import Link from "next/link";
 
+import { buildProjectDetailHref } from "@/lib/projects";
+import type { SidebarProjectItem } from "@/types/api";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
   CheckIcon,
   CloseIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  FileIcon,
   FolderIcon,
   PlayIcon,
 } from "@/components/dashboard/dashboard-icons";
 
 type ProjectExplorerProps = {
-  items: SidebarTreeItem[];
   isCollapsed: boolean;
   isMobileOpen: boolean;
+  items: SidebarProjectItem[];
   onCloseMobile: () => void;
-  onPreviewFile: (item: SidebarTreeItem) => void;
   onRunProject: (projectName: string) => void;
   onToggleCollapse: () => void;
-  onToggleFolder: (path: string) => void;
-  openFolders: Record<string, boolean>;
   runningProject: string | null;
   title: string;
 };
 
-type TreeBranchProps = {
-  isProjectLevel: boolean;
-  items: SidebarTreeItem[];
-  onPreviewFile: (item: SidebarTreeItem) => void;
-  onRunProject: (projectName: string) => void;
-  onToggleFolder: (path: string) => void;
-  openFolders: Record<string, boolean>;
-  runningProject: string | null;
-};
-
-function downloadFile(item: SidebarTreeItem) {
-  if (!item.username) {
-    return;
+function getStatusLabel(item: SidebarProjectItem) {
+  switch (item.status) {
+    case "results":
+      return "Con resultados";
+    case "configured":
+      return "Pendiente";
+    default:
+      return "Sin archivos";
   }
-
-  const encodedOwner = encodeURIComponent(item.username);
-  const encodedPath = encodePathSegments(item.path);
-  window.open(
-    buildApiUrl(`/api/projects/${encodedOwner}/download/${encodedPath}`),
-    "_blank",
-  );
-}
-
-function TreeBranch({
-  isProjectLevel,
-  items,
-  onPreviewFile,
-  onRunProject,
-  onToggleFolder,
-  openFolders,
-  runningProject,
-}: TreeBranchProps) {
-  const sortedItems = [...items].sort((left, right) => {
-    if (left.type === right.type) {
-      return left.name.localeCompare(right.name);
-    }
-
-    return left.type === "folder" ? -1 : 1;
-  });
-
-  return (
-    <ul className="space-y-2">
-      {sortedItems.map((item) => {
-        const isFolder = item.type === "folder";
-        const isOpen = Boolean(openFolders[item.path]);
-        const children = item.children ?? [];
-
-        if (isFolder) {
-          return (
-            <li key={`${item.type}-${item.path}`}>
-              <div className="rounded-2xl border border-slate-200/80 bg-white/80">
-                <div className="flex items-center gap-2 px-2 py-2">
-                  <button
-                    className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 hover:text-slate-900"
-                    onClick={() => onToggleFolder(item.path)}
-                    type="button"
-                  >
-                    {isOpen ? (
-                      <ChevronDownIcon className="h-4 w-4 shrink-0 text-slate-400" />
-                    ) : (
-                      <ChevronRightIcon className="h-4 w-4 shrink-0 text-slate-400" />
-                    )}
-                    <FolderIcon className="h-4 w-4 shrink-0 text-primary" />
-                    <span className="truncate font-medium">{item.name}</span>
-                  </button>
-
-                  {isProjectLevel ? (
-                    item.html_exists ? (
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                        <CheckIcon className="h-5 w-5" />
-                      </span>
-                    ) : (
-                      <button
-                        aria-label={`Ejecutar proyecto ${item.name}`}
-                        className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary hover:text-white"
-                        onClick={() => onRunProject(item.name)}
-                        type="button"
-                      >
-                        {runningProject === item.name ? (
-                          <span className="h-4 w-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
-                        ) : (
-                          <PlayIcon className="h-4 w-4" />
-                        )}
-                      </button>
-                    )
-                  ) : null}
-                </div>
-
-                {isOpen && children.length ? (
-                  <div className="border-t border-slate-200/70 px-3 py-3">
-                    <div className="border-l border-slate-200 pl-3">
-                      <TreeBranch
-                        isProjectLevel={false}
-                        items={children}
-                        onPreviewFile={onPreviewFile}
-                        onRunProject={onRunProject}
-                        onToggleFolder={onToggleFolder}
-                        openFolders={openFolders}
-                        runningProject={runningProject}
-                      />
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </li>
-          );
-        }
-
-        return (
-          <li key={`${item.type}-${item.path}`}>
-            <button
-              className="flex w-full items-center gap-3 rounded-2xl border border-slate-200/80 bg-white/80 px-3 py-3 text-left text-sm text-slate-600 transition hover:border-primary/25 hover:text-slate-900"
-              onClick={() => onPreviewFile(item)}
-              onContextMenu={(event) => {
-                event.preventDefault();
-                downloadFile(item);
-              }}
-              type="button"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500">
-                <FileIcon className="h-4 w-4" />
-              </span>
-              <span className="truncate font-medium">{item.name}</span>
-            </button>
-          </li>
-        );
-      })}
-    </ul>
-  );
 }
 
 export function ProjectExplorer({
-  items,
   isCollapsed,
   isMobileOpen,
+  items,
   onCloseMobile,
-  onPreviewFile,
   onRunProject,
   onToggleCollapse,
-  onToggleFolder,
-  openFolders,
   runningProject,
   title,
 }: ProjectExplorerProps) {
@@ -209,7 +81,7 @@ export function ProjectExplorer({
               <>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Archivos
+                    Acceso rápido
                   </p>
                   <h2 className="text-lg font-bold text-slate-900">{title}</h2>
                 </div>
@@ -233,16 +105,56 @@ export function ProjectExplorer({
 
           {!isCollapsed || isMobileOpen ? (
             items.length ? (
-              <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                <TreeBranch
-                  isProjectLevel
-                  items={items}
-                  onPreviewFile={onPreviewFile}
-                  onRunProject={onRunProject}
-                  onToggleFolder={onToggleFolder}
-                  openFolders={openFolders}
-                  runningProject={runningProject}
-                />
+              <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+                {items.map((item) => (
+                  <article
+                    className="rounded-2xl border border-slate-200/80 bg-white/80 p-4"
+                    key={item.route_ref}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link
+                          className="block truncate text-sm font-semibold text-slate-900 transition hover:text-primary"
+                          href={buildProjectDetailHref(item.route_ref)}
+                        >
+                          {item.name}
+                        </Link>
+                        <p className="mt-1 text-xs text-slate-500">@{item.owner}</p>
+                      </div>
+
+                      {item.can_run ? (
+                        item.html_count > 0 ? (
+                          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                            <CheckIcon className="h-5 w-5" />
+                          </span>
+                        ) : (
+                          <button
+                            aria-label={`Ejecutar proyecto ${item.name}`}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary hover:text-white"
+                            onClick={() => onRunProject(item.name)}
+                            type="button"
+                          >
+                            {runningProject === item.name ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            ) : (
+                              <PlayIcon className="h-4 w-4" />
+                            )}
+                          </button>
+                        )
+                      ) : null}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">{getStatusLabel(item)}</span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                        {item.file_count} archivo{item.file_count === 1 ? "" : "s"}
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                        {item.html_count} informe{item.html_count === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </article>
+                ))}
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
@@ -255,30 +167,32 @@ export function ProjectExplorer({
                 <div className="rounded-[28px] border border-slate-200/80 bg-slate-50/80 px-4 py-5 shadow-inner">
                   <div className="flex flex-col items-center gap-3">
                     <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm">
-                      <FileIcon className="h-4 w-4" />
+                      <FolderIcon className="h-4 w-4" />
                     </span>
                     <div className="flex flex-col items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-primary" />
-                      <span className="h-2 w-2 rounded-full bg-slate-300" />
-                      <span className="h-2 w-2 rounded-full bg-slate-300" />
+                      {items.slice(0, 3).map((item) => (
+                        <span
+                          className="h-2 w-10 rounded-full bg-slate-200"
+                          key={item.route_ref}
+                        />
+                      ))}
                     </div>
                   </div>
                 </div>
+                <p className="max-w-[8rem] text-center text-xs leading-5">
+                  Abre el panel para acceder rápido a tus proyectos.
+                </p>
               </div>
             </div>
           )}
 
           <button
             aria-label={isCollapsed ? "Expandir panel de proyectos" : "Contraer panel de proyectos"}
-            className="absolute left-0 top-1/2 hidden h-9 w-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:text-primary xl:flex"
+            className="absolute -left-4 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 xl:flex"
             onClick={onToggleCollapse}
             type="button"
           >
-            {isCollapsed ? (
-              <ArrowLeftIcon className="h-5 w-5" />
-            ) : (
-              <ArrowRightIcon className="h-5 w-5" />
-            )}
+            {isCollapsed ? <ArrowLeftIcon className="h-4 w-4" /> : <ArrowRightIcon className="h-4 w-4" />}
           </button>
         </div>
       </aside>

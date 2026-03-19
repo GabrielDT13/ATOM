@@ -67,6 +67,29 @@ BEGIN
 END;
 $$;
 
+CREATE OR REPLACE FUNCTION app_private.set_project_slug()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, internal, app_private
+AS $$
+DECLARE
+  owner_username text;
+BEGIN
+  SELECT p.username
+  INTO owner_username
+  FROM internal.profiles p
+  WHERE p.id = NEW.owner_id;
+
+  NEW.slug := internal.ensure_project_slug(
+    owner_username,
+    NEW.name,
+    COALESCE(NEW.id, OLD.id)
+  );
+
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP TRIGGER IF EXISTS on_auth_user_saved ON auth.users;
 CREATE TRIGGER on_auth_user_saved
@@ -91,3 +114,9 @@ CREATE TRIGGER set_internal_projects_updated_at
 BEFORE UPDATE ON internal.projects
 FOR EACH ROW
 EXECUTE FUNCTION app_private.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_internal_projects_slug ON internal.projects;
+CREATE TRIGGER set_internal_projects_slug
+BEFORE INSERT OR UPDATE OF owner_id, name ON internal.projects
+FOR EACH ROW
+EXECUTE FUNCTION app_private.set_project_slug();

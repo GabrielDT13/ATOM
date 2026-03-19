@@ -57,7 +57,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION public.create_project(
   p_name text,
-  p_slug text,
+  p_slug text DEFAULT NULL,
   p_description text DEFAULT NULL,
   p_status text DEFAULT 'draft'
 )
@@ -146,7 +146,7 @@ $$;
 CREATE OR REPLACE FUNCTION public.admin_create_project(
   p_owner_user_id uuid,
   p_name text,
-  p_slug text,
+  p_slug text DEFAULT NULL,
   p_description text DEFAULT NULL,
   p_status text DEFAULT 'active'
 )

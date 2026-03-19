@@ -23,8 +23,10 @@ class ProjectSummaryResponse(BaseModel):
     file_count: int
     files: list[str]
     html_files: list[str]
+    id: str | None = None
     owner: str
     name: str
+    slug: str | None = None
     status: str
     template_file: str | None
     updated_at: str

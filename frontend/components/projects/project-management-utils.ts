@@ -1,3 +1,4 @@
+import { resolveProjectRouteRef } from "@/lib/projects";
 import type { ProjectMemberRole, ProjectStatus, ProjectSummary } from "@/types/api";
 
 export type ProjectStatusFilter = "all" | ProjectStatus;
@@ -8,6 +9,8 @@ export type ProjectRecord = ProjectSummary & {
   accessRole: ProjectMemberRole;
   htmlFiles: string[];
   id: string;
+  routeRef: string;
+  slug: string | null;
   templateFile: string | null;
 };
 
@@ -18,7 +21,9 @@ export function buildProjectRecords(projects: ProjectSummary[]) {
       additionalFiles: project.additional_files,
       accessRole: project.access_role ?? "owner",
       htmlFiles: project.html_files,
-      id: `${project.owner}::${project.name}`,
+      id: project.id?.trim() || `${project.owner}::${project.name}`,
+      routeRef: resolveProjectRouteRef(project) ?? `${project.owner}::${project.name}`,
+      slug: project.slug?.trim() || null,
       templateFile: project.template_file,
     }))
     .sort(

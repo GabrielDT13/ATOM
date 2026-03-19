@@ -1,6 +1,7 @@
 import { apiFetch, apiUpload } from "@/lib/api";
 import type {
   ProjectDetails,
+  ProjectSummary,
   ProjectMemberRole,
   ProjectMemberMutationResponse,
   ProjectMembersResponse,
@@ -38,6 +39,28 @@ function buildProjectFormData({
   return formData;
 }
 
+export function resolveProjectRouteRef(project: Pick<ProjectSummary, "id" | "slug">) {
+  const normalizedSlug = project.slug?.trim();
+  if (normalizedSlug) {
+    return normalizedSlug;
+  }
+
+  const normalizedId = project.id?.trim();
+  if (normalizedId) {
+    return normalizedId;
+  }
+
+  return null;
+}
+
+export function buildProjectDetailHref(projectRef: string) {
+  return `/dashboard/projects/${encodeURIComponent(projectRef)}`;
+}
+
+export function buildProjectReportHref(projectRef: string, reportPath: string) {
+  return `/dashboard/project-report/${encodeURIComponent(projectRef)}?path=${encodeURIComponent(reportPath)}`;
+}
+
 export function listProjects() {
   return apiFetch<ProjectMapResponse>("/api/projects");
 }
@@ -46,6 +69,10 @@ export function getProject(owner: string, projectName: string) {
   return apiFetch<ProjectDetails>(
     `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`,
   );
+}
+
+export function getProjectByRef(projectRef: string) {
+  return apiFetch<ProjectDetails>(`/api/projects/by-ref/${encodeURIComponent(projectRef)}`);
 }
 
 export function createProject({
@@ -110,6 +137,12 @@ export function deleteProject(owner: string, projectName: string) {
 export function listProjectMembers(owner: string, projectName: string) {
   return apiFetch<ProjectMembersResponse>(
     `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/members`,
+  );
+}
+
+export function listProjectMembersByRef(projectRef: string) {
+  return apiFetch<ProjectMembersResponse>(
+    `/api/projects/by-ref/${encodeURIComponent(projectRef)}/members`,
   );
 }
 

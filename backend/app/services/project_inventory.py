@@ -128,6 +128,8 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
     resolved_access_role = (
         str(metadata.get("access_role") or "").strip().lower() if metadata else ""
     )
+    resolved_id = str(metadata.get("id") or "").strip() if metadata else ""
+    resolved_slug = str(metadata.get("slug") or "").strip() if metadata else ""
 
     return {
         "access_role": resolved_access_role or None,
@@ -146,8 +148,10 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
         ],
         "files": files,
         "html_files": html_files,
+        "id": resolved_id or None,
         "name": resolved_name,
         "owner": resolved_owner,
+        "slug": resolved_slug or None,
         "status": _project_status(files, html_files),
         "template_file": template_file,
         "updated_at": updated_at,

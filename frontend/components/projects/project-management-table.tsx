@@ -1,4 +1,7 @@
+import Link from "next/link";
+
 import { buildApiUrl, encodePathSegments } from "@/lib/api";
+import { buildProjectDetailHref } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 import type { DataTableColumn } from "@/components/ui/data-table";
 import { DataTable } from "@/components/ui/data-table";
@@ -86,7 +89,12 @@ export function ProjectManagementTable({
               <ProjectStackIcon className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">{project.name}</p>
+              <Link
+                className="truncate text-sm font-semibold text-slate-900 transition hover:text-primary"
+                href={buildProjectDetailHref(project.routeRef)}
+              >
+                {project.name}
+              </Link>
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
                   @{project.owner}

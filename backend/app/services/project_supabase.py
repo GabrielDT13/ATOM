@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 from typing import Any, Literal
+from uuid import UUID
 
 from backend.app.core.config import get_settings
 from backend.app.services.project_inventory import normalize_project_name
@@ -13,12 +13,6 @@ from backend.app.services.supabase import (
 )
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
-
-
-def _slugify_project_name(owner: str, project_name: str) -> str:
-    normalized = f"{owner}-{project_name}".strip().lower()
-    slug = re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")
-    return slug or "project"
 
 
 def _fetch_profiles(
@@ -81,6 +75,28 @@ def _get_project_record(owner: str, project_name: str) -> dict[str, Any] | None:
         limit=1,
         order=None,
     )
+    return projects[0] if projects else None
+
+
+def _is_uuid_like(value: str) -> bool:
+    try:
+        UUID(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _get_project_record_by_ref(project_ref: str) -> dict[str, Any] | None:
+    normalized_ref = str(project_ref or "").strip()
+    if not normalized_ref:
+        return None
+
+    filters = (
+        {"id": f"eq.{normalized_ref}"}
+        if _is_uuid_like(normalized_ref)
+        else {"slug": f"eq.{normalized_ref}"}
+    )
+    projects = _fetch_project_records(filters=filters, limit=1, order=None)
     return projects[0] if projects else None
 
 
@@ -148,7 +164,6 @@ def _upsert_project_record(owner: str, project_name: str) -> dict[str, Any]:
             "p_description": None,
             "p_name": normalized_name,
             "p_owner_user_id": owner_id,
-            "p_slug": _slugify_project_name(owner, normalized_name),
             "p_status": "active",
         },
     )
@@ -171,7 +186,6 @@ def _rename_project_record(owner: str, current_name: str, new_name: str) -> None
         json_body={
             "p_name": new_name,
             "p_project_id": record["id"],
-            "p_slug": _slugify_project_name(owner, new_name),
         },
     )
 
