@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from uuid import UUID
 from typing import Any, Literal
+from uuid import UUID
 
 from backend.app.core.config import get_settings
 from backend.app.services.project_inventory import normalize_project_name
