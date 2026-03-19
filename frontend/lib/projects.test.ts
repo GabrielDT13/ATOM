@@ -30,7 +30,7 @@ describe("projects route helpers", () => {
       "/dashboard/projects/researcher-rna-atlas",
     );
     expect(buildProjectReportHref("researcher-rna-atlas", "results/report final.html")).toBe(
-      "/dashboard/projects/researcher-rna-atlas/report?path=results%2Freport%20final.html",
+      "/dashboard/project-report/researcher-rna-atlas?path=results%2Freport%20final.html",
     );
   });
 });

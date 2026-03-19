@@ -92,7 +92,7 @@ export function getArtifactActionLabel(extension: string) {
     case ".zip":
       return "Descargar paquete";
     default:
-      return "Abrir archivo";
+      return "Descargar archivo";
   }
 }
 
@@ -138,6 +138,10 @@ export function getExecutionDeliverables(group: ProjectExecutionGroup) {
       file.extension.toLowerCase(),
     ),
   );
+}
+
+export function getExecutionPreviewableFiles(group: ProjectExecutionGroup) {
+  return getExecutionDeliverables(group).filter((file) => file.extension.toLowerCase() !== ".zip");
 }
 
 export function getProjectDeliverablesLayout(files: ProjectFileEntry[]) {

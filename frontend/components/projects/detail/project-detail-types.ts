@@ -5,10 +5,11 @@ export type PreviewState =
       mode: "text";
     }
   | {
-      hint: string;
+      actionHref: string;
+      actionLabel: string;
+      description: string;
       label: string;
-      mode: "embed";
-      src: string;
+      mode: "notice";
     }
   | {
       content: string;

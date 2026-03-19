@@ -58,7 +58,7 @@ export function buildProjectDetailHref(projectRef: string) {
 }
 
 export function buildProjectReportHref(projectRef: string, reportPath: string) {
-  return `${buildProjectDetailHref(projectRef)}/report?path=${encodeURIComponent(reportPath)}`;
+  return `/dashboard/project-report/${encodeURIComponent(projectRef)}?path=${encodeURIComponent(reportPath)}`;
 }
 
 export function listProjects() {

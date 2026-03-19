@@ -102,9 +102,9 @@ export function ReportCarousel({
 
       <Dialog onOpenChange={setExpanded} open={expanded}>
         <DialogContent className="flex h-[calc(100vh-2rem)] max-w-[min(96vw,90rem)] flex-col overflow-hidden border-slate-200 bg-white p-0 sm:h-[calc(100vh-3rem)]">
-          <DialogHeader className="shrink-0 border-b border-slate-200 px-6 py-5 sm:px-8">
-            <DialogTitle>{activeImage.alt}</DialogTitle>
-            <DialogDescription>
+          <DialogHeader className="dialog-hero-surface shrink-0 border-b border-white/10 px-6 py-5 text-white sm:px-8">
+            <DialogTitle className="text-white">{activeImage.alt}</DialogTitle>
+            <DialogDescription className="text-slate-200">
               Visualiza el gráfico ampliado para revisar mejor sus detalles.
             </DialogDescription>
           </DialogHeader>
