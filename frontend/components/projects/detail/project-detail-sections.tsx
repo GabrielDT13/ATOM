@@ -122,7 +122,6 @@ export function ProjectDetailHero({
 
 export function ProjectQuickActions({
   activeDeliverablesCount,
-  analysisRunning,
   canRegenerate,
   downloadZipFile,
   executionCount,
@@ -132,7 +131,6 @@ export function ProjectQuickActions({
   supportFileCount,
 }: {
   activeDeliverablesCount: number;
-  analysisRunning: boolean;
   canRegenerate: boolean;
   downloadZipFile: ProjectFileEntry | null;
   executionCount: number;
@@ -148,12 +146,11 @@ export function ProjectQuickActions({
           {canRegenerate ? (
             <button
               className={buttonStyles({ size: "md", variant: "secondary" })}
-              disabled={analysisRunning}
               onClick={onRegenerate}
               type="button"
             >
               <RefreshIcon className="h-4 w-4" />
-              {analysisRunning ? "Actualizando resultados..." : "Volver a ejecutar"}
+              Volver a ejecutar
             </button>
           ) : null}
           {downloadZipFile ? (
@@ -375,7 +372,6 @@ export function ProjectPrimaryReport({
 
 export function ProjectResultsSections({
   activeReport,
-  analysisLog,
   featuredDeliverable,
   filePreview,
   filePreviewLoading,
@@ -388,7 +384,6 @@ export function ProjectResultsSections({
   templateFile,
 }: {
   activeReport: ParsedProjectReport | null;
-  analysisLog: string;
   featuredDeliverable: ProjectFileEntry | null;
   filePreview: PreviewState | null;
   filePreviewLoading: boolean;
@@ -463,17 +458,6 @@ export function ProjectResultsSections({
           </div>
         )}
       </SectionCard>
-
-      {analysisLog ? (
-        <SectionCard
-          description="Sigue el progreso de la nueva ejecución en tiempo real."
-          title="Estado de la ejecución"
-        >
-          <pre className="max-h-[18rem] overflow-auto rounded-[24px] bg-slate-950 px-5 py-5 text-sm leading-6 text-slate-200">
-            {analysisLog}
-          </pre>
-        </SectionCard>
-      ) : null}
 
       <SectionCard
         description="Consulta la plantilla y los archivos de apoyo del proyecto sin salir de esta página."

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import {
   buildProjectFilePreviewPath,
@@ -33,8 +34,9 @@ import {
 } from "@/components/projects/project-report-utils";
 import { getProjectStatusMeta } from "@/components/projects/project-management-utils";
 import { useAppToast } from "@/hooks/use-app-toast";
-import { apiFetch, buildStreamUrl, fetchSession } from "@/lib/api";
+import { apiFetch, fetchSession } from "@/lib/api";
 import {
+  buildProjectExecutionHref,
   buildProjectReportHref,
   getProject,
   getProjectByRef,
@@ -66,6 +68,7 @@ export function ProjectDetailPage({
   projectName,
   projectRef,
 }: ProjectDetailPageProps) {
+  const router = useRouter();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
@@ -78,8 +81,6 @@ export function ProjectDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [reportPreviewLoading, setReportPreviewLoading] = useState(false);
   const [filePreviewLoading, setFilePreviewLoading] = useState(false);
-  const [analysisRunning, setAnalysisRunning] = useState(false);
-  const [analysisLog, setAnalysisLog] = useState("");
   const appToast = useAppToast();
 
   async function loadProjectState(isCancelled: () => boolean = () => false) {
@@ -130,6 +131,7 @@ export function ProjectDetailPage({
     () => (project ? buildProjectDetailModel(project) : null),
     [project],
   );
+  const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
 
   const activeExecutionGroup =
     detailModel?.executionGroups.find((group) => group.directory === activeExecutionDirectory) ??
@@ -271,40 +273,10 @@ export function ProjectDetailPage({
     if (!project) {
       return;
     }
-
-    const source = new EventSource(
-      buildStreamUrl(`/api/analysis/run?project_name=${encodeURIComponent(project.name)}`),
-      { withCredentials: true },
-    );
-
-    setAnalysisRunning(true);
-    setAnalysisLog("");
-
-    source.onmessage = (event) => {
-      if (event.data === "---FIN---") {
-        setAnalysisRunning(false);
-        source.close();
-        setAnalysisLog((current) =>
-          current
-            ? `${current}\nAnálisis finalizado. Se refrescará el proyecto.`
-            : "Análisis finalizado. Se refrescará el proyecto.",
-        );
-        void loadProjectState();
-        return;
-      }
-
-      setAnalysisLog((current) => (current ? `${current}\n${event.data}` : event.data));
-    };
-
-    source.onerror = () => {
-      setAnalysisRunning(false);
-      source.close();
-      setAnalysisLog((current) =>
-        current
-          ? `${current}\nError en el stream del análisis.`
-          : "Error en el stream del análisis.",
-      );
-    };
+    const executionHref = resolvedProjectRef
+      ? buildProjectExecutionHref(resolvedProjectRef)
+      : `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
+    router.push(executionHref);
   }
 
   if (loading) {
@@ -316,7 +288,6 @@ export function ProjectDetailPage({
   }
 
   const statusMeta = getProjectStatusMeta(project.status);
-  const resolvedProjectRef = resolveProjectRouteRef(project);
   const projectReportHref =
     resolvedProjectRef && activeExecutionGroup?.htmlFile
       ? buildProjectReportHref(resolvedProjectRef, activeExecutionGroup.htmlFile.path)
@@ -349,7 +320,6 @@ export function ProjectDetailPage({
 
       <ProjectQuickActions
         activeDeliverablesCount={activeDeliverables.length}
-        analysisRunning={analysisRunning}
         canRegenerate={canRegenerate}
         downloadZipFile={downloadZipFile}
         executionCount={detailModel.executionGroups.length}
@@ -383,7 +353,6 @@ export function ProjectDetailPage({
 
       <ProjectResultsSections
         activeReport={activeReport}
-        analysisLog={analysisLog}
         featuredDeliverable={featuredDeliverable}
         filePreview={filePreview}
         filePreviewLoading={filePreviewLoading}

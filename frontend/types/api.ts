@@ -221,6 +221,76 @@ export type FileContentResponse = {
   truncated: boolean;
 };
 
+export type AnalysisStreamEvent =
+  | {
+      type: "run_started";
+      project_name: string;
+      timestamp: string;
+      total_designs: number;
+    }
+  | {
+      type: "run_completed";
+      project_name: string;
+      timestamp: string;
+      total_designs: number;
+      processed_designs: number;
+    }
+  | {
+      type: "run_failed";
+      message: string;
+      project_name?: string;
+      timestamp: string;
+    }
+  | {
+      type: "design_started";
+      analysis_type: string;
+      current_index: number;
+      design_id: string;
+      message: string;
+      timestamp: string;
+      total_designs: number;
+    }
+  | {
+      type: "design_completed";
+      analysis_type: string;
+      current_index: number;
+      design_id: string;
+      duration_seconds: number;
+      message: string;
+      timestamp: string;
+      total_designs: number;
+    }
+  | {
+      type: "design_failed";
+      analysis_type: string;
+      current_index: number;
+      design_id: string;
+      message: string;
+      timestamp: string;
+      total_designs: number;
+      duration_seconds?: number;
+      exit_code?: number;
+    }
+  | {
+      type: "cleanup_completed" | "cleanup_failed";
+      analysis_type: string;
+      current_index: number;
+      design_id: string;
+      message: string;
+      timestamp: string;
+      total_designs: number;
+    }
+  | {
+      type: "log";
+      message: string;
+      level: "error" | "info" | "warning";
+      timestamp: string;
+      analysis_type?: string;
+      current_index?: number;
+      design_id?: string;
+      total_designs?: number;
+    };
+
 export type DashboardSummary = {
   total_projects: number;
   results_ready: number;
