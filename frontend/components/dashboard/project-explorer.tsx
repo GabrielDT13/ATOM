@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { buildProjectDetailHref } from "@/lib/projects";
+import { buildProjectDetailHref, buildProjectExecutionHref } from "@/lib/projects";
 import type { SidebarProjectItem } from "@/types/api";
 import {
   ArrowLeftIcon,
@@ -18,9 +18,7 @@ type ProjectExplorerProps = {
   isMobileOpen: boolean;
   items: SidebarProjectItem[];
   onCloseMobile: () => void;
-  onRunProject: (projectName: string) => void;
   onToggleCollapse: () => void;
-  runningProject: string | null;
   title: string;
 };
 
@@ -40,9 +38,7 @@ export function ProjectExplorer({
   isMobileOpen,
   items,
   onCloseMobile,
-  onRunProject,
   onToggleCollapse,
-  runningProject,
   title,
 }: ProjectExplorerProps) {
   const isDesktopCollapsed = isCollapsed && !isMobileOpen;
@@ -128,18 +124,13 @@ export function ProjectExplorer({
                             <CheckIcon className="h-5 w-5" />
                           </span>
                         ) : (
-                          <button
+                          <Link
                             aria-label={`Ejecutar proyecto ${item.name}`}
                             className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary hover:text-white"
-                            onClick={() => onRunProject(item.name)}
-                            type="button"
+                            href={buildProjectExecutionHref(item.route_ref)}
                           >
-                            {runningProject === item.name ? (
-                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                            ) : (
-                              <PlayIcon className="h-4 w-4" />
-                            )}
-                          </button>
+                            <PlayIcon className="h-4 w-4" />
+                          </Link>
                         )
                       ) : null}
                     </div>

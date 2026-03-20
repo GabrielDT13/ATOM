@@ -61,6 +61,10 @@ export function buildProjectReportHref(projectRef: string, reportPath: string) {
   return `/dashboard/project-report/${encodeURIComponent(projectRef)}?path=${encodeURIComponent(reportPath)}`;
 }
 
+export function buildProjectExecutionHref(projectRef: string) {
+  return `/dashboard/project-execution/${encodeURIComponent(projectRef)}`;
+}
+
 export function listProjects() {
   return apiFetch<ProjectMapResponse>("/api/projects");
 }
