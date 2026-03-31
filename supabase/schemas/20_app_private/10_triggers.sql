@@ -37,14 +37,15 @@ BEGIN
     'user_' || substr(replace(NEW.id::text, '-', ''), 1, 8)
   );
 
-  INSERT INTO internal.profiles (id, email, username, full_name, avatar_url, department)
+  INSERT INTO internal.profiles (id, email, username, full_name, avatar_url, department, bio)
   VALUES (
     NEW.id,
     NEW.email,
     derived_username,
     NULLIF(NEW.raw_user_meta_data ->> 'full_name', ''),
     NULLIF(NEW.raw_user_meta_data ->> 'avatar_url', ''),
-    internal.ensure_department_name(NEW.raw_user_meta_data ->> 'department')
+    internal.ensure_department_name(NEW.raw_user_meta_data ->> 'department'),
+    internal.normalize_profile_bio(NEW.raw_user_meta_data ->> 'bio')
   )
   ON CONFLICT (id) DO UPDATE
   SET
@@ -52,12 +53,38 @@ BEGIN
     username = EXCLUDED.username,
     full_name = COALESCE(EXCLUDED.full_name, internal.profiles.full_name),
     avatar_url = COALESCE(EXCLUDED.avatar_url, internal.profiles.avatar_url),
-    department = EXCLUDED.department,
+    department = COALESCE(EXCLUDED.department, internal.profiles.department),
+    bio = COALESCE(EXCLUDED.bio, internal.profiles.bio),
     updated_at = now();
 
   INSERT INTO internal.user_roles (user_id, role_id)
   VALUES (NEW.id, 'user')
   ON CONFLICT (user_id, role_id) DO NOTHING;
+
+  PERFORM internal.ensure_profile_preferences(NEW.id);
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION app_private.set_project_slug()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = pg_catalog, internal, app_private
+AS $$
+DECLARE
+  owner_username text;
+BEGIN
+  SELECT p.username
+  INTO owner_username
+  FROM internal.profiles p
+  WHERE p.id = NEW.owner_id;
+
+  NEW.slug := internal.ensure_project_slug(
+    owner_username,
+    NEW.name,
+    COALESCE(NEW.id, OLD.id)
+  );
 
   RETURN NEW;
 END;
@@ -76,8 +103,20 @@ BEFORE UPDATE ON internal.profiles
 FOR EACH ROW
 EXECUTE FUNCTION app_private.set_updated_at();
 
+DROP TRIGGER IF EXISTS set_internal_profile_preferences_updated_at ON internal.profile_preferences;
+CREATE TRIGGER set_internal_profile_preferences_updated_at
+BEFORE UPDATE ON internal.profile_preferences
+FOR EACH ROW
+EXECUTE FUNCTION app_private.set_updated_at();
+
 DROP TRIGGER IF EXISTS set_internal_projects_updated_at ON internal.projects;
 CREATE TRIGGER set_internal_projects_updated_at
 BEFORE UPDATE ON internal.projects
 FOR EACH ROW
 EXECUTE FUNCTION app_private.set_updated_at();
+
+DROP TRIGGER IF EXISTS set_internal_projects_slug ON internal.projects;
+CREATE TRIGGER set_internal_projects_slug
+BEFORE INSERT OR UPDATE OF owner_id, name ON internal.projects
+FOR EACH ROW
+EXECUTE FUNCTION app_private.set_project_slug();

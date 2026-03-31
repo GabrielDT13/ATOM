@@ -1,6 +1,10 @@
 import { cookies } from "next/headers";
 
-import type { SessionResponse } from "@/types/api";
+import type {
+  DashboardOverview,
+  ProfileRecord,
+  SessionResponse,
+} from "@/types/api";
 
 function getServerBackendOrigin() {
   if (process.env.BACKEND_INTERNAL_URL) {
@@ -15,29 +19,38 @@ function getServerBackendOrigin() {
   return `http://127.0.0.1:${backendPort}`;
 }
 
-export async function fetchServerSession(): Promise<SessionResponse | null> {
+async function fetchServerBackend<T>(path: string): Promise<T | null> {
   const cookieStore = await cookies();
   const serializedCookies = cookieStore.toString();
 
   try {
-    const response = await fetch(
-      `${getServerBackendOrigin()}/api/auth/session`,
-      {
-        headers: serializedCookies
-          ? {
-              cookie: serializedCookies,
-            }
-          : {},
-        cache: "no-store",
-      },
-    );
+    const response = await fetch(`${getServerBackendOrigin()}${path}`, {
+      headers: serializedCookies
+        ? {
+            cookie: serializedCookies,
+          }
+        : {},
+      cache: "no-store",
+    });
 
     if (!response.ok) {
       return null;
     }
 
-    return (await response.json()) as SessionResponse;
+    return (await response.json()) as T;
   } catch {
     return null;
   }
+}
+
+export async function fetchServerSession(): Promise<SessionResponse | null> {
+  return fetchServerBackend<SessionResponse>("/api/auth/session");
+}
+
+export async function fetchServerProfile(): Promise<ProfileRecord | null> {
+  return fetchServerBackend<ProfileRecord>("/api/profile/me");
+}
+
+export async function fetchServerDashboardOverview(): Promise<DashboardOverview | null> {
+  return fetchServerBackend<DashboardOverview>("/api/dashboard/overview");
 }

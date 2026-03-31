@@ -1,0 +1,369 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+
+import {
+  buildProjectFilePreviewPath,
+  getExecutionDeliverables,
+  getExecutionPreviewableFiles,
+  getProjectDeliverablesLayout,
+  isPreviewableTextFile,
+} from "@/components/projects/detail/project-detail-helpers";
+import {
+  buildProjectPreviewState,
+  getPreferredExecutionGroup,
+  getPreferredPrimaryPreviewFile,
+} from "@/components/projects/detail/project-detail-preview";
+import {
+  ProjectDetailErrorState,
+  ProjectDetailHero,
+  ProjectDetailLoadingState,
+  ProjectPrimaryReport,
+  ProjectQuickActions,
+  ProjectResultsSections,
+  ProjectSidebar,
+} from "@/components/projects/detail/project-detail-sections";
+import type { PreviewState } from "@/components/projects/detail/project-detail-types";
+import {
+  buildProjectDetailModel,
+} from "@/components/projects/project-detail-utils";
+import {
+  parseProjectReportHtml,
+  type ParsedProjectReport,
+} from "@/components/projects/project-report-utils";
+import { getProjectStatusMeta } from "@/components/projects/project-management-utils";
+import { useAppToast } from "@/hooks/use-app-toast";
+import { apiFetch, fetchSession } from "@/lib/api";
+import {
+  buildProjectExecutionHref,
+  buildProjectReportHref,
+  getProject,
+  getProjectByRef,
+  listProjectMembers,
+  listProjectMembersByRef,
+  resolveProjectRouteRef,
+} from "@/lib/projects";
+import type {
+  FileContentResponse,
+  ProjectDetails,
+  ProjectMemberRecord,
+  SessionResponse,
+} from "@/types/api";
+
+type ProjectDetailPageProps =
+  | {
+      owner: string;
+      projectName: string;
+      projectRef?: never;
+    }
+  | {
+      owner?: never;
+      projectName?: never;
+      projectRef: string;
+    };
+
+export function ProjectDetailPage({
+  owner,
+  projectName,
+  projectRef,
+}: ProjectDetailPageProps) {
+  const router = useRouter();
+  const [session, setSession] = useState<SessionResponse | null>(null);
+  const [project, setProject] = useState<ProjectDetails | null>(null);
+  const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
+  const [reportPreview, setReportPreview] = useState<PreviewState | null>(null);
+  const [filePreview, setFilePreview] = useState<PreviewState | null>(null);
+  const [activeReport, setActiveReport] = useState<ParsedProjectReport | null>(null);
+  const [activeExecutionDirectory, setActiveExecutionDirectory] = useState<string | null>(null);
+  const [activePrimaryPreviewPath, setActivePrimaryPreviewPath] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [reportPreviewLoading, setReportPreviewLoading] = useState(false);
+  const [filePreviewLoading, setFilePreviewLoading] = useState(false);
+  const appToast = useAppToast();
+
+  async function loadProjectState(isCancelled: () => boolean = () => false) {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const projectRequest =
+        typeof projectRef === "string"
+          ? getProjectByRef(projectRef)
+          : getProject(owner, projectName);
+      const membersRequest =
+        typeof projectRef === "string"
+          ? listProjectMembersByRef(projectRef)
+          : listProjectMembers(owner, projectName);
+
+      const [sessionResponse, projectResponse, membersResponse] = await Promise.all([
+        fetchSession(),
+        projectRequest,
+        membersRequest,
+      ]);
+
+      if (isCancelled()) {
+        return;
+      }
+
+      setSession(sessionResponse);
+      setProject(projectResponse);
+      setMembers(membersResponse.members);
+    } catch (loadError) {
+      if (isCancelled()) {
+        return;
+      }
+
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "No se pudo cargar el detalle del proyecto.",
+      );
+    } finally {
+      if (!isCancelled()) {
+        setLoading(false);
+      }
+    }
+  }
+
+  const detailModel = useMemo(
+    () => (project ? buildProjectDetailModel(project) : null),
+    [project],
+  );
+  const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
+
+  const activeExecutionGroup =
+    detailModel?.executionGroups.find((group) => group.directory === activeExecutionDirectory) ??
+    detailModel?.executionGroups[0] ??
+    null;
+
+  async function loadPreview(
+    file: NonNullable<typeof activeExecutionGroup>["files"][number],
+    kind: "file" | "report",
+    currentProjectName = project?.name,
+    currentProjectOwner = project?.owner,
+  ) {
+    if (!currentProjectName || !currentProjectOwner) {
+      return;
+    }
+
+    const setLoadingState = kind === "report" ? setReportPreviewLoading : setFilePreviewLoading;
+    const setPreviewState = kind === "report" ? setReportPreview : setFilePreview;
+    const errorTitle =
+      kind === "report"
+        ? "No se pudo cargar la vista previa principal"
+        : "No se pudo cargar la vista previa";
+
+    setLoadingState(true);
+
+    try {
+      const nextPreview = await buildProjectPreviewState({
+        file,
+        owner: currentProjectOwner,
+        projectName: currentProjectName,
+      });
+
+      setPreviewState(nextPreview);
+    } catch (previewError) {
+      appToast.error(
+        errorTitle,
+        previewError instanceof Error ? previewError.message : undefined,
+      );
+    } finally {
+      setLoadingState(false);
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void loadProjectState(() => cancelled);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [owner, projectName, projectRef]);
+
+  useEffect(() => {
+    if (!detailModel?.executionGroups.length) {
+      setActiveExecutionDirectory(null);
+      return;
+    }
+
+    const stillExists = detailModel.executionGroups.some(
+      (group) => group.directory === activeExecutionDirectory,
+    );
+
+    if (!stillExists) {
+      setActiveExecutionDirectory(getPreferredExecutionGroup(detailModel.executionGroups)?.directory ?? null);
+    }
+  }, [activeExecutionDirectory, detailModel]);
+
+  useEffect(() => {
+    if (!activeExecutionGroup) {
+      setActivePrimaryPreviewPath(null);
+      return;
+    }
+
+    const previewFiles = getExecutionPreviewableFiles(activeExecutionGroup);
+    const stillExists = previewFiles.some((file) => file.path === activePrimaryPreviewPath);
+
+    if (!stillExists) {
+      setActivePrimaryPreviewPath(getPreferredPrimaryPreviewFile(activeExecutionGroup)?.path ?? null);
+    }
+  }, [activeExecutionGroup, activePrimaryPreviewPath]);
+
+  useEffect(() => {
+    if (!project || !activeExecutionGroup) {
+      return;
+    }
+
+    const previewFile = getExecutionPreviewableFiles(activeExecutionGroup).find(
+      (file) => file.path === activePrimaryPreviewPath,
+    );
+
+    if (previewFile) {
+      void loadPreview(previewFile, "report", project.name, project.owner);
+    }
+  }, [activeExecutionGroup, activePrimaryPreviewPath, project]);
+
+  useEffect(() => {
+    if (!project || !activeExecutionGroup?.htmlFile) {
+      setActiveReport(null);
+      return;
+    }
+
+    const htmlFile = activeExecutionGroup.htmlFile;
+
+    void (async () => {
+      try {
+        const fileContent = await apiFetch<FileContentResponse>(
+          buildProjectFilePreviewPath(project.owner, project.name, htmlFile.path),
+        );
+        setActiveReport(parseProjectReportHtml(fileContent.content));
+      } catch {
+        setActiveReport(null);
+      }
+    })();
+  }, [activeExecutionGroup, project]);
+
+  useEffect(() => {
+    if (filePreview) {
+      return;
+    }
+
+    if (!project || !detailModel) {
+      setFilePreview(null);
+      return;
+    }
+
+    const firstPreviewableSupportFile =
+      detailModel.supportFiles.find((file) => isPreviewableTextFile(file)) ?? null;
+
+    if (!firstPreviewableSupportFile) {
+      setFilePreview(null);
+      return;
+    }
+
+    void loadPreview(firstPreviewableSupportFile, "file", project.name, project.owner);
+  }, [detailModel, filePreview, project]);
+
+  function handleRegenerate() {
+    if (!project) {
+      return;
+    }
+    const executionHref = resolvedProjectRef
+      ? buildProjectExecutionHref(resolvedProjectRef)
+      : `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
+    router.push(executionHref);
+  }
+
+  if (loading) {
+    return <ProjectDetailLoadingState />;
+  }
+
+  if (error || !project || !detailModel) {
+    return <ProjectDetailErrorState message={error ?? "El proyecto solicitado no existe."} />;
+  }
+
+  const statusMeta = getProjectStatusMeta(project.status);
+  const projectReportHref =
+    resolvedProjectRef && activeExecutionGroup?.htmlFile
+      ? buildProjectReportHref(resolvedProjectRef, activeExecutionGroup.htmlFile.path)
+      : activeExecutionGroup?.htmlFile
+        ? `/dashboard/project-report/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}?path=${encodeURIComponent(activeExecutionGroup.htmlFile.path)}`
+        : null;
+  const accessRole =
+    session?.user?.role === "admin"
+      ? project.access_role === "owner"
+        ? "owner"
+        : "editor"
+      : project.access_role ?? (session?.user?.username === project.owner ? "owner" : "viewer");
+  const canEdit =
+    session?.user?.role === "admin" || accessRole === "owner" || accessRole === "editor";
+  const canRegenerate = session?.user?.username === project.owner;
+  const activeDeliverables = activeExecutionGroup ? getExecutionDeliverables(activeExecutionGroup) : [];
+  const { featuredDeliverable, secondaryDeliverables } =
+    getProjectDeliverablesLayout(activeDeliverables);
+  const downloadZipFile =
+    activeDeliverables.find((file) => file.extension.toLowerCase() === ".zip") ??
+    detailModel.executionGroups
+      .flatMap((group) => getExecutionDeliverables(group))
+      .find((file) => file.extension.toLowerCase() === ".zip") ??
+    null;
+  const htmlCount = detailModel.executionGroups.filter((group) => group.htmlFile).length;
+
+  return (
+    <div className="flex flex-col gap-6">
+      <ProjectDetailHero accessRole={accessRole} canEdit={canEdit} project={project} />
+
+      <ProjectQuickActions
+        activeDeliverablesCount={activeDeliverables.length}
+        canRegenerate={canRegenerate}
+        downloadZipFile={downloadZipFile}
+        executionCount={detailModel.executionGroups.length}
+        htmlCount={htmlCount}
+        onRegenerate={handleRegenerate}
+        project={project}
+        supportFileCount={detailModel.supportFiles.length + (detailModel.templateFile ? 1 : 0)}
+      />
+
+      <div className="grid items-stretch gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <ProjectSidebar
+          activeExecutionGroup={activeExecutionGroup}
+          executionGroups={detailModel.executionGroups}
+          members={members}
+          onSelectExecution={setActiveExecutionDirectory}
+          project={project}
+          statusBadgeClassName={statusMeta.badgeClassName}
+          statusLabel={statusMeta.label}
+        />
+
+        <ProjectPrimaryReport
+          activeDeliverables={activeDeliverables}
+          activeExecutionGroup={activeExecutionGroup}
+          activePreviewPath={activePrimaryPreviewPath}
+          onSelectPreviewFile={(file) => setActivePrimaryPreviewPath(file.path)}
+          preview={reportPreview}
+          previewLoading={reportPreviewLoading}
+          projectReportHref={projectReportHref}
+        />
+      </div>
+
+      <ProjectResultsSections
+        activeReport={activeReport}
+        featuredDeliverable={featuredDeliverable}
+        filePreview={filePreview}
+        filePreviewLoading={filePreviewLoading}
+        onPreviewFile={(file) => void loadPreview(file, "file")}
+        owner={project.owner}
+        project={project}
+        projectRef={resolvedProjectRef}
+        secondaryDeliverables={secondaryDeliverables}
+        supportFiles={detailModel.supportFiles}
+        templateFile={detailModel.templateFile}
+      />
+    </div>
+  );
+}

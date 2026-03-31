@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 export type CreatableSelectOption = {
   label: string;
   value: string;
@@ -20,6 +22,20 @@ function normalizeOptionValue(value: string) {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function dedupeOptions(options: readonly CreatableSelectOption[]) {
+  const seen = new Set<string>();
+
+  return options.filter((option) => {
+    const normalizedValue = normalizeOptionValue(option.value);
+    if (!normalizedValue || seen.has(normalizedValue)) {
+      return false;
+    }
+
+    seen.add(normalizedValue);
+    return true;
+  });
+}
+
 function PlusIcon() {
   return (
     <svg
@@ -33,6 +49,26 @@ function PlusIcon() {
         d="M12 5V19M5 12H19"
         stroke="currentColor"
         strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function ChevronUpIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M6 14L12 8L18 14"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
         strokeWidth="1.8"
       />
     </svg>
@@ -70,16 +106,7 @@ export function CreatableSelectField({
   }, [customOptions, options, value]);
 
   const mergedOptions = useMemo(
-    () => [
-      ...options,
-      ...customOptions.filter(
-        (option) =>
-          !options.some(
-            (baseOption) =>
-              normalizeOptionValue(baseOption.value) === normalizeOptionValue(option.value),
-          ),
-      ),
-    ],
+    () => dedupeOptions([...options, ...customOptions]),
     [customOptions, options],
   );
 
@@ -112,20 +139,22 @@ export function CreatableSelectField({
         >
           <option value="">Selecciona una opción</option>
           {mergedOptions.map((option) => (
-            <option key={option.value} value={option.value}>
+            <option key={normalizeOptionValue(option.value)} value={option.value}>
               {option.label}
             </option>
           ))}
         </select>
 
-        <button
+        <Button
           aria-label={addButtonLabel}
-          className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900"
+          className="w-12 px-0"
           onClick={() => setIsCreating((current) => !current)}
+          size="lg"
           type="button"
+          variant="secondary"
         >
-          <PlusIcon />
-        </button>
+          {isCreating ? <ChevronUpIcon /> : <PlusIcon />}
+        </Button>
       </div>
 
       {isCreating ? (
@@ -136,13 +165,13 @@ export function CreatableSelectField({
             placeholder={createPlaceholder}
             value={draftValue}
           />
-          <button
-            className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-4 text-sm font-semibold text-white transition hover:bg-sky-700"
+          <Button
             onClick={handleCreateOption}
+            size="lg"
             type="button"
           >
             Añadir
-          </button>
+          </Button>
         </div>
       ) : null}
     </label>

@@ -8,7 +8,7 @@ $$;
 
 BEGIN;
 
-SELECT plan(15);
+SELECT plan(19);
 
 SELECT has_table('internal', 'projects', 'Debe existir internal.projects');
 SELECT has_table('internal', 'project_members', 'Debe existir internal.project_members');
@@ -29,10 +29,51 @@ SELECT columns_are(
 
 SELECT col_type_is('internal', 'projects', 'id', 'uuid', 'internal.projects.id debe ser uuid');
 SELECT col_type_is('internal', 'projects', 'status', 'text', 'internal.projects.status debe ser text');
-SELECT col_type_is('internal', 'project_members', 'member_role', 'text', 'internal.project_members.member_role debe ser text');
+SELECT col_type_is(
+  'internal',
+  'project_members',
+  'member_role',
+  'internal.project_member_role',
+  'internal.project_members.member_role debe usar el enum interno'
+);
+
+SELECT has_type('internal', 'project_member_role', 'Debe existir el enum internal.project_member_role');
 
 SELECT has_pk('internal', 'projects', 'internal.projects debe tener primary key');
 SELECT has_pk('internal', 'project_members', 'internal.project_members debe tener primary key');
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'normalize_project_slug_part'
+  ),
+  'Debe existir la funcion internal.normalize_project_slug_part'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'internal'
+      AND p.proname = 'ensure_project_slug'
+  ),
+  'Debe existir la funcion internal.ensure_project_slug'
+);
+
+SELECT ok(
+  EXISTS (
+    SELECT 1
+    FROM information_schema.triggers
+    WHERE event_object_schema = 'internal'
+      AND event_object_table = 'projects'
+      AND trigger_name = 'set_internal_projects_slug'
+  ),
+  'Debe existir el trigger set_internal_projects_slug sobre internal.projects'
+);
 
 SELECT ok(
   EXISTS (

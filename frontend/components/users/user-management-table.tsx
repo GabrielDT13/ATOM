@@ -2,6 +2,8 @@ import { cn } from "@/lib/utils";
 import type { SessionUser, UserRecord } from "@/types/api";
 import type { DataTableColumn } from "@/components/ui/data-table";
 import { DataTable } from "@/components/ui/data-table";
+import { PencilIcon, TrashIcon } from "@/components/projects/project-management-icons";
+import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import {
   getDisplayName,
   getRoleLabel,
@@ -117,23 +119,27 @@ export function UserManagementTable({
     },
     {
       cell: (user) => (
-        <div className="flex justify-end gap-2">
-          <button
-            className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            onClick={() => onEdit(user)}
-            type="button"
-          >
-            Editar
-          </button>
-          {currentUserRole === "admin" && user.username !== "admin" ? (
-            <button
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-100"
-              onClick={() => onDelete(user)}
-              type="button"
-            >
-              Eliminar
-            </button>
-          ) : null}
+        <div className="flex justify-end">
+          <RowActionsMenu
+            actions={[
+              {
+                icon: <PencilIcon className="h-4 w-4" />,
+                label: "Editar usuario",
+                onSelect: () => onEdit(user),
+              },
+              ...(currentUserRole === "admin" && user.username !== "admin"
+                ? [
+                    {
+                      destructive: true,
+                      icon: <TrashIcon className="h-4 w-4" />,
+                      label: "Eliminar usuario",
+                      onSelect: () => onDelete(user),
+                    },
+                  ]
+                : []),
+            ]}
+            ariaLabel={`Abrir acciones para ${user.username}`}
+          />
         </div>
       ),
       cellClassName: "w-[1%] whitespace-nowrap text-right",
@@ -152,13 +158,6 @@ export function UserManagementTable({
           <p className="text-base font-semibold text-slate-900">No hay usuarios que coincidan.</p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
             Ajusta el texto de búsqueda o el filtro de roles para volver a ver resultados.
-          </p>
-        </div>
-      }
-      footer={
-        <div className="text-sm text-slate-500">
-          <p>
-            Mostrando <span className="font-semibold text-slate-700">{users.length}</span> usuarios
           </p>
         </div>
       }

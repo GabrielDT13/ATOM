@@ -73,12 +73,17 @@ def _request_json(
     api_key: str,
     bearer_token: str | None = None,
     json_body: Any = None,
+    schema: str | None = None,
 ) -> Any:
     credentials = get_supabase_credentials()
     headers = {
         "Accept": "application/json",
         "apikey": api_key,
     }
+    if schema:
+        headers["Accept-Profile"] = schema
+        if method.upper() in {"PATCH", "POST", "PUT"}:
+            headers["Content-Profile"] = schema
     if bearer_token:
         headers["Authorization"] = f"Bearer {bearer_token}"
 
@@ -128,6 +133,7 @@ def request_with_anon_key(
     *,
     json_body: Any = None,
     bearer_token: str | None = None,
+    schema: str | None = None,
 ) -> Any:
     credentials = get_supabase_credentials()
     return _request_json(
@@ -136,6 +142,7 @@ def request_with_anon_key(
         api_key=credentials.anon_key,
         bearer_token=bearer_token,
         json_body=json_body,
+        schema=schema,
     )
 
 
@@ -144,6 +151,7 @@ def request_with_service_role(
     path: str,
     *,
     json_body: Any = None,
+    schema: str | None = None,
 ) -> Any:
     credentials = get_supabase_credentials()
     return _request_json(
@@ -152,12 +160,19 @@ def request_with_service_role(
         api_key=credentials.service_role_key,
         bearer_token=credentials.service_role_key,
         json_body=json_body,
+        schema=schema,
     )
 
 
-def call_rpc_with_service_role(function_name: str, *, json_body: Any = None) -> Any:
+def call_rpc_with_service_role(
+    function_name: str,
+    *,
+    json_body: Any = None,
+    schema: str | None = None,
+) -> Any:
     return request_with_service_role(
         "POST",
         f"/rest/v1/rpc/{function_name}",
         json_body=json_body,
+        schema=schema,
     )

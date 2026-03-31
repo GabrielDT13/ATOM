@@ -134,16 +134,86 @@ SET
   updated_at = now();
 
 UPDATE internal.profiles
-SET full_name = 'Admin Local', username = 'admin'
+SET
+  full_name = 'Admin Local',
+  username = 'admin',
+  department = 'Administración del sistema',
+  bio = 'Responsable de la configuración global, los accesos y la supervisión operativa del entorno ATOM.'
 WHERE id = '11111111-1111-1111-1111-111111111111';
 
 UPDATE internal.profiles
-SET full_name = 'Manager Local', username = 'manager'
+SET
+  full_name = 'Manager Local',
+  username = 'manager',
+  department = 'Bioinformática',
+  bio = 'Coordina análisis, revisiones de resultados y seguimiento técnico de proyectos compartidos.'
 WHERE id = '22222222-2222-2222-2222-222222222222';
 
 UPDATE internal.profiles
-SET full_name = 'User Demo', username = 'userdemo'
+SET
+  full_name = 'User Demo',
+  username = 'userdemo',
+  department = 'Genómica clínica',
+  bio = 'Usuario de demostración para validar flujos de perfil, colaboración y actividad reciente.'
 WHERE id = '33333333-3333-3333-3333-333333333333';
+
+INSERT INTO internal.profile_preferences (
+  user_id,
+  email_notifications,
+  security_alerts,
+  dark_mode,
+  interface_language
+)
+VALUES
+  (
+    '11111111-1111-1111-1111-111111111111',
+    true,
+    true,
+    false,
+    'es'
+  ),
+  (
+    '22222222-2222-2222-2222-222222222222',
+    true,
+    true,
+    true,
+    'es'
+  ),
+  (
+    '33333333-3333-3333-3333-333333333333',
+    false,
+    true,
+    false,
+    'es'
+  )
+ON CONFLICT (user_id) DO UPDATE
+SET
+  email_notifications = EXCLUDED.email_notifications,
+  security_alerts = EXCLUDED.security_alerts,
+  dark_mode = EXCLUDED.dark_mode,
+  interface_language = EXCLUDED.interface_language,
+  updated_at = now();
+
+INSERT INTO internal.profile_activity (user_id, activity_type, title, description)
+VALUES
+  (
+    '11111111-1111-1111-1111-111111111111',
+    'profile_updated',
+    'Perfil preparado',
+    'Se completó la configuración inicial del perfil de administrador.'
+  ),
+  (
+    '22222222-2222-2222-2222-222222222222',
+    'collaboration',
+    'Nueva colaboración',
+    'Se asignó una colaboración activa para revisar resultados del equipo.'
+  ),
+  (
+    '33333333-3333-3333-3333-333333333333',
+    'profile_updated',
+    'Perfil actualizado',
+    'Se guardaron las preferencias iniciales del usuario de demostración.'
+  );
 
 INSERT INTO internal.user_roles (user_id, role_id)
 VALUES ('11111111-1111-1111-1111-111111111111', 'admin')

@@ -4,8 +4,15 @@ import { useEffect, useState } from "react";
 
 import { apiFetch, fetchSession } from "@/lib/api";
 import { useAppToast } from "@/hooks/use-app-toast";
-import type { DepartmentRecord, MutationResponse, SessionResponse, UserRecord } from "@/types/api";
+import type {
+  DepartmentRecord,
+  MutationResponse,
+  ProjectMapResponse,
+  SessionResponse,
+  UserRecord,
+} from "@/types/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { buttonStyles } from "@/components/ui/button";
 import { UserFormDialog, type UserFormValues } from "@/components/users/user-form-dialog";
 import { PlusIcon, UsersClusterIcon } from "@/components/users/user-management-icons";
 import { UserManagementFilters } from "@/components/users/user-management-filters";
@@ -23,6 +30,7 @@ type DialogState =
 
 export function UserManagement() {
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
+  const [projectsByOwner, setProjectsByOwner] = useState<Record<string, string[]>>({});
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [session, setSession] = useState<SessionResponse | null>();
   const [loading, setLoading] = useState(true);
@@ -61,14 +69,29 @@ export function UserManagement() {
     }
   }
 
+  async function loadProjectOwnership() {
+    try {
+      const payload = await apiFetch<ProjectMapResponse>("/api/projects");
+      setProjectsByOwner(payload.projects);
+    } catch (loadError) {
+      appToast.error(
+        "No se pudo comprobar la relación de proyectos por usuario",
+        loadError instanceof Error ? loadError.message : undefined,
+      );
+      setProjectsByOwner({});
+    }
+  }
+
   useEffect(() => {
     void fetchSession()
       .then((nextSession) => {
         setSession(nextSession);
         if (nextSession.user?.role === "admin") {
           void loadDepartments();
+          void loadProjectOwnership();
         } else {
           setDepartments([]);
+          setProjectsByOwner({});
         }
       })
       .catch(() => setSession(null));
@@ -106,7 +129,7 @@ export function UserManagement() {
       });
 
       if (response.success) {
-        await Promise.all([loadUsers(), loadDepartments()]);
+        await Promise.all([loadUsers(), loadDepartments(), loadProjectOwnership()]);
         closeDialog();
         appToast.success(response.message);
       } else {
@@ -149,7 +172,7 @@ export function UserManagement() {
       );
 
       if (response.success) {
-        await Promise.all([loadUsers(), loadDepartments()]);
+        await Promise.all([loadUsers(), loadDepartments(), loadProjectOwnership()]);
         closeDialog();
         appToast.success(response.message);
       } else {
@@ -176,7 +199,7 @@ export function UserManagement() {
         { method: "DELETE" },
       );
       if (response.success) {
-        await loadUsers();
+        await Promise.all([loadUsers(), loadProjectOwnership()]);
         setPendingDeleteUser(null);
         appToast.success(response.message);
       } else {
@@ -191,6 +214,9 @@ export function UserManagement() {
   }
 
   const filteredUsers = filterUsers(users, search, roleFilter, departmentFilter);
+  const pendingDeleteProjects =
+    pendingDeleteUser ? projectsByOwner[pendingDeleteUser.username] ?? [] : [];
+  const deleteBlockedByProjects = pendingDeleteProjects.length > 0;
 
   if (session === undefined) {
     return <div className="screen-center">Cargando usuarios...</div>;
@@ -215,23 +241,23 @@ export function UserManagement() {
   return (
     <>
       <div className="flex flex-col gap-6">
-        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_38%),linear-gradient(180deg,_#ffffff_0%,_#f7fbff_100%)] p-6 shadow-sm sm:p-8">
+        <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
           <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
             <div className="max-w-3xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
+              <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
                 <UsersClusterIcon />
                 Administración
               </div>
-              <h1 className="mt-5 text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+              <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
                 Gestión de usuarios
               </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
                 Vista centralizada para revisar accesos, crear nuevas cuentas y editar usuarios.
               </p>
             </div>
 
             <button
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+              className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
               onClick={openCreateDialog}
               type="button"
             >
@@ -284,15 +310,29 @@ export function UserManagement() {
       />
 
       <ConfirmDialog
-        actionLabel="Eliminar usuario"
+        actionLabel={deleteBlockedByProjects ? "Bloqueado por proyectos" : "Eliminar usuario"}
         body={
           pendingDeleteUser ? (
-            <p>
-              Vas a eliminar a <strong>{pendingDeleteUser.username}</strong>. Esta acción quitará
-              todo su acceso.
-            </p>
+            <div className="space-y-3">
+              <p>
+                Vas a eliminar a <strong>{pendingDeleteUser.username}</strong>. Esta acción quitará
+                todo su acceso.
+              </p>
+              {deleteBlockedByProjects ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  <p className="font-semibold">Este usuario todavía tiene proyectos asociados.</p>
+                  <p className="mt-1">
+                    Reasigna o elimina primero estos proyectos:
+                  </p>
+                  <p className="mt-2 break-words">
+                    {pendingDeleteProjects.join(", ")}
+                  </p>
+                </div>
+              ) : null}
+            </div>
           ) : null
         }
+        confirmDisabled={deleteBlockedByProjects}
         confirmVariant="danger"
         onConfirm={confirmDeleteUser}
         onOpenChange={(open) => {
