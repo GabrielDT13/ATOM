@@ -42,6 +42,19 @@ export function UserManagement() {
   const [pendingDeleteUser, setPendingDeleteUser] = useState<UserRecord | null>(null);
   const appToast = useAppToast();
 
+  async function copyTemporaryPassword(password: string) {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      return false;
+    }
+
+    try {
+      await navigator.clipboard.writeText(password);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function loadUsers() {
     setLoading(true);
     try {
@@ -118,7 +131,6 @@ export function UserManagement() {
         body: JSON.stringify({
           department: values.department || null,
           email: values.email,
-          password: values.password,
           role: values.role,
           username: values.username,
         }),
@@ -131,7 +143,17 @@ export function UserManagement() {
       if (response.success) {
         await Promise.all([loadUsers(), loadDepartments(), loadProjectOwnership()]);
         closeDialog();
-        appToast.success(response.message);
+        const copied =
+          response.temporary_password
+            ? await copyTemporaryPassword(response.temporary_password)
+            : false;
+        appToast.success(
+          response.message,
+          response.temporary_password
+            ? `Contraseña temporal generada: ${response.temporary_password}${copied ? " · Copiada al portapapeles." : ""}`
+            : undefined,
+          10000,
+        );
       } else {
         appToast.error(response.message);
       }

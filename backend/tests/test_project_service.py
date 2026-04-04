@@ -160,6 +160,42 @@ def test_list_projects_for_admin_includes_repository_records_without_local_folde
     assert seeded_project["created_at"] == "2026-03-01T10:00:00+00:00"
 
 
+def test_list_projects_for_admin_falls_back_to_filesystem_timestamps_when_metadata_is_null(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    seeded_dir = isolated_app_env["projects_dir"] / "admin" / "Admin Seed Project"
+    seeded_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(project_service, "_list_shared_project_records", lambda user_id: [])
+    monkeypatch.setattr(
+        project_service,
+        "_list_all_project_records",
+        lambda: [
+            {
+                "created_at": None,
+                "name": "Admin Seed Project",
+                "owner_username": "admin",
+                "updated_at": None,
+            }
+        ],
+    )
+
+    payload = project_service.list_projects_for_user(
+        "11111111-1111-1111-1111-111111111111",
+        "researcher",
+        "admin",
+    )
+
+    seeded_project = next(
+        item for item in payload["items"] if item["name"] == "Admin Seed Project"
+    )
+    assert isinstance(seeded_project["created_at"], str)
+    assert seeded_project["created_at"]
+    assert isinstance(seeded_project["updated_at"], str)
+    assert seeded_project["updated_at"]
+
+
 def test_list_projects_for_user_includes_owned_repository_records_without_local_folder(
     monkeypatch,
 ) -> None:

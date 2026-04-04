@@ -27,9 +27,8 @@ async def get_users(request: Request) -> list[UserResponse]:
 @router.post("", response_model=UserMutationResponse)
 async def post_user(payload: UserCreateRequest, request: Request) -> UserMutationResponse:
     current_user = require_admin(request)
-    success, message = create_user(
+    success, message, temporary_password = create_user(
         payload.username,
-        payload.password,
         payload.email,
         payload.role,
         payload.department,
@@ -38,7 +37,12 @@ async def post_user(payload: UserCreateRequest, request: Request) -> UserMutatio
     user = None
     if success:
         user = UserResponse(**get_user_by_username(payload.username))
-    return UserMutationResponse(success=success, message=message, user=user)
+    return UserMutationResponse(
+        success=success,
+        message=message,
+        user=user,
+        temporary_password=temporary_password if success else None,
+    )
 
 
 @router.put("/{username}", response_model=UserMutationResponse)

@@ -132,6 +132,7 @@ export type DepartmentRecord = {
 export type MutationResponse = {
   success: boolean;
   message: string;
+  temporary_password?: string | null;
   user?: UserRecord | null;
 };
 

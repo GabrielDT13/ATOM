@@ -1,11 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
 import { apiFetch, fetchSession } from "@/lib/api";
 import type { MutationResponse, SessionResponse } from "@/types/api";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
 
@@ -13,9 +12,21 @@ export function UserRegistration() {
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  async function copyTemporaryPassword(password: string) {
+    if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
+      return false;
+    }
+
+    try {
+      await navigator.clipboard.writeText(password);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   useEffect(() => {
     void fetchSession().then(setSession);
@@ -32,13 +43,20 @@ export function UserRegistration() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, email, password }),
+        body: JSON.stringify({ username, email }),
       });
-      setMessage(response.message);
+      const copied =
+        response.success && response.temporary_password
+          ? await copyTemporaryPassword(response.temporary_password)
+          : false;
+      setMessage(
+        response.temporary_password
+          ? `${response.message}. Contraseña temporal: ${response.temporary_password}${copied ? ". Copiada al portapapeles" : ""}`
+          : response.message,
+      );
       if (response.success) {
         setUsername("");
         setEmail("");
-        setPassword("");
       }
     } catch (submitError) {
       setMessage(
@@ -78,13 +96,13 @@ export function UserRegistration() {
           Volver a usuarios
         </ButtonLink>
       }
-      description="Alta manual de nuevos accesos para la plataforma."
+      description="Alta manual de nuevos accesos para la plataforma con contraseña temporal aleatoria."
       eyebrow="Usuarios"
       title="Registrar usuario"
     >
       <form onSubmit={handleSubmit}>
         <FormCard
-          description="Completa los datos básicos del usuario."
+          description="Completa los datos básicos del usuario. La contraseña temporal se generará automáticamente."
           footer={
             <>
               <ButtonLink href="/dashboard/users" variant="secondary">
@@ -119,16 +137,6 @@ export function UserRegistration() {
               />
             </FormField>
           </div>
-
-          <FormField label="Contraseña">
-            <FormInput
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Define una contraseña"
-              required
-              type="password"
-              value={password}
-            />
-          </FormField>
 
           {message ? (
             <FormMessage tone={message.includes("correctamente") ? "neutral" : "danger"}>

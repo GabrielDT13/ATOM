@@ -19,7 +19,6 @@ import { DialogHero } from "@/components/ui/dialog-hero";
 export type UserFormValues = {
   department: string;
   email: string;
-  password?: string;
   role: UserRecord["role"];
   username: string;
 };
@@ -78,7 +77,6 @@ export function UserFormDialog({
 }: UserFormDialogProps) {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRecord["role"]>("user");
   const [department, setDepartment] = useState("");
   const normalizedDepartmentOptions: CreatableSelectOption[] = departmentOptions.map(
@@ -97,7 +95,6 @@ export function UserFormDialog({
     setEmail(user?.email ?? "");
     setRole(user?.role ?? "user");
     setDepartment(user?.department ?? "");
-    setPassword("");
   }, [open, user]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -106,7 +103,6 @@ export function UserFormDialog({
     await onSubmit({
       department: department.trim(),
       email: email.trim(),
-      password: isCreateMode ? password : undefined,
       role,
       username: username.trim(),
     });
@@ -148,14 +144,10 @@ export function UserFormDialog({
             </div>
 
             {isCreateMode ? (
-              <InputField
-                label="Contraseña temporal"
-                onChange={setPassword}
-                placeholder="Define una contraseña inicial"
-                required
-                type="password"
-                value={password}
-              />
+              <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
+                La contraseña temporal se genera automáticamente al crear el usuario y se muestra
+                al administrador al finalizar el alta.
+              </div>
             ) : null}
 
             <div className="grid gap-5 sm:grid-cols-2">

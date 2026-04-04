@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from uuid import UUID
 
 from backend.app.services import users as user_service
 from backend.app.services.errors import ServiceError
@@ -15,6 +16,7 @@ def test_create_user_persists_user_role_department_and_project_dir(
 
     monkeypatch.setattr(user_service, "_get_profile_by_username", lambda username: None)
     monkeypatch.setattr(user_service, "_get_profile_by_email", lambda email: None)
+    monkeypatch.setattr(user_service, "_generate_temporary_password", lambda: "RandPass2345")
 
     def fake_create_auth_user(
         username: str,
@@ -37,9 +39,8 @@ def test_create_user_persists_user_role_department_and_project_dir(
     monkeypatch.setattr(user_service, "_create_auth_user", fake_create_auth_user)
     monkeypatch.setattr(user_service, "_apply_user_role", fake_apply_user_role)
 
-    success, _ = user_service.create_user(
+    success, message, temporary_password = user_service.create_user(
         "researcher",
-        "secret123",
         "researcher@example.com",
         "admin",
         "Bioinformatica",
@@ -47,9 +48,11 @@ def test_create_user_persists_user_role_department_and_project_dir(
     )
 
     assert success is True
+    assert message == "Usuario registrado correctamente"
+    assert temporary_password == "RandPass2345"
     assert created_payload == {
         "username": "researcher",
-        "password": "secret123",
+        "password": "RandPass2345",
         "email": "researcher@example.com",
         "department": "Bioinformatica",
     }
@@ -69,6 +72,7 @@ def test_create_user_rolls_back_auth_user_when_role_sync_fails(
 
     monkeypatch.setattr(user_service, "_get_profile_by_username", lambda username: None)
     monkeypatch.setattr(user_service, "_get_profile_by_email", lambda email: None)
+    monkeypatch.setattr(user_service, "_generate_temporary_password", lambda: "RandPass2345")
     monkeypatch.setattr(
         user_service,
         "_create_auth_user",
@@ -85,9 +89,8 @@ def test_create_user_rolls_back_auth_user_when_role_sync_fails(
         lambda user_id: deleted_user_ids.append(user_id),
     )
 
-    success, message = user_service.create_user(
+    success, message, temporary_password = user_service.create_user(
         "researcher",
-        "secret123",
         "researcher@example.com",
         "admin",
         "Bioinformatica",
@@ -96,8 +99,26 @@ def test_create_user_rolls_back_auth_user_when_role_sync_fails(
 
     assert success is False
     assert message == "No se pudo asignar el rol"
+    assert temporary_password is None
     assert deleted_user_ids == ["44444444-4444-4444-4444-444444444444"]
     assert not (isolated_app_env["projects_dir"] / "researcher").exists()
+
+
+def test_create_auth_user_accepts_uuid_returned_by_postgres(monkeypatch) -> None:
+    monkeypatch.setattr(
+        user_service,
+        "execute_returning",
+        lambda query, params: [{"id": UUID("44444444-4444-4444-4444-444444444444")}],
+    )
+
+    user_id = user_service._create_auth_user(
+        "researcher",
+        "RandPass2345",
+        "researcher@example.com",
+        None,
+    )
+
+    assert user_id == "44444444-4444-4444-4444-444444444444"
 
 
 def test_update_user_syncs_auth_role_department_and_project_dir(
