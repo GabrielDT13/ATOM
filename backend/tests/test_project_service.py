@@ -122,7 +122,7 @@ def test_list_projects_for_admin_returns_project_map_and_items(
     assert payload["items"][1]["template_file"] == "template.xlsx"
 
 
-def test_list_projects_for_admin_includes_supabase_records_without_local_folder(
+def test_list_projects_for_admin_includes_repository_records_without_local_folder(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
@@ -160,7 +160,7 @@ def test_list_projects_for_admin_includes_supabase_records_without_local_folder(
     assert seeded_project["created_at"] == "2026-03-01T10:00:00+00:00"
 
 
-def test_list_projects_for_user_includes_owned_supabase_records_without_local_folder(
+def test_list_projects_for_user_includes_owned_repository_records_without_local_folder(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(project_service, "_list_shared_project_records", lambda user_id: [])
@@ -263,7 +263,7 @@ def test_list_sidebar_projects_for_user_builds_project_links(
     }
 
 
-def test_get_project_details_by_ref_uses_supabase_metadata(
+def test_get_project_details_by_ref_uses_repository_metadata(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
@@ -353,7 +353,7 @@ def test_update_project_renames_and_replaces_inputs_without_deleting_results(
 
 
 def test_add_project_member_inserts_viewer_permission(monkeypatch) -> None:
-    captured: dict[str, object] = {}
+    executed: list[tuple[str, tuple[object, ...]]] = []
 
     monkeypatch.setattr(
         project_service,
@@ -367,27 +367,18 @@ def test_add_project_member_inserts_viewer_permission(monkeypatch) -> None:
     )
     monkeypatch.setattr(project_service, "_get_project_member", lambda project_id, user_id: None)
 
-    def fake_call_rpc_with_service_role(function_name, *, json_body=None, schema=None):
-        captured["function_name"] = function_name
-        captured["json_body"] = json_body
-        captured["schema"] = schema
-        return None
-
-    monkeypatch.setattr(project_service, "call_rpc_with_service_role", fake_call_rpc_with_service_role)
+    monkeypatch.setattr(
+        project_service,
+        "execute",
+        lambda query, params=(): executed.append((query, params)),
+    )
 
     success, message = project_service.add_project_member("researcher", "RNA Atlas", "viewer_user")
 
     assert success is True
     assert message == "Proyecto compartido correctamente"
-    assert captured == {
-        "function_name": "admin_set_project_member",
-        "json_body": {
-            "p_member_role": "viewer",
-            "p_project_id": "project-1",
-            "p_target_user_id": "user-2",
-        },
-        "schema": None,
-    }
+    assert len(executed) == 1
+    assert "INSERT INTO internal.project_members" in executed[0][0]
 
 
 def test_remove_project_member_blocks_owner(monkeypatch) -> None:
@@ -408,11 +399,11 @@ def test_remove_project_member_blocks_owner(monkeypatch) -> None:
     assert message == "No puedes quitar el acceso del propietario"
 
 
-def test_get_project_members_returns_owner_fallback_when_supabase_fails(monkeypatch) -> None:
+def test_get_project_members_returns_owner_fallback_when_repository_fails(monkeypatch) -> None:
     monkeypatch.setattr(
         project_service,
         "_upsert_project_record",
-        lambda owner, project_name: (_ for _ in ()).throw(project_service.SupabaseError("rpc missing")),
+        lambda owner, project_name: (_ for _ in ()).throw(project_service.ServiceError("db missing")),
     )
 
     members = project_service.get_project_members("researcher", "RNA Atlas")
@@ -432,32 +423,37 @@ def test_get_project_members_returns_owner_fallback_when_supabase_fails(monkeypa
     ]
 
 
-def test_add_project_member_returns_controlled_error_when_supabase_fails(monkeypatch) -> None:
+def test_add_project_member_returns_controlled_error_when_repository_fails(monkeypatch) -> None:
     monkeypatch.setattr(
         project_service,
         "_upsert_project_record",
-        lambda owner, project_name: (_ for _ in ()).throw(project_service.SupabaseError("rpc missing")),
+        lambda owner, project_name: (_ for _ in ()).throw(project_service.ServiceError("db missing")),
     )
 
     success, message = project_service.add_project_member("researcher", "RNA Atlas", "viewer_user")
 
     assert success is False
-    assert message == "rpc missing"
+    assert message == "db missing"
 
 
-def test_transfer_project_ownership_moves_directory_and_updates_supabase(
+def test_transfer_project_ownership_moves_directory_and_updates_repository(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
     project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
     project_dir.mkdir(parents=True)
     (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
-    captured: dict[str, object] = {}
+    executed: list[tuple[str, tuple[object, ...]]] = []
 
     monkeypatch.setattr(
         project_service,
         "_upsert_project_record",
-        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+        lambda owner, project_name: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+            "owner_id": "user-owner",
+        },
     )
     monkeypatch.setattr(
         project_service,
@@ -470,13 +466,11 @@ def test_transfer_project_ownership_moves_directory_and_updates_supabase(
         lambda project_id, user_id: {"member_role": "editor", "member_id": user_id},
     )
 
-    def fake_call_rpc_with_service_role(function_name, *, json_body=None, schema=None):
-        captured["function_name"] = function_name
-        captured["json_body"] = json_body
-        captured["schema"] = schema
-        return None
-
-    monkeypatch.setattr(project_service, "call_rpc_with_service_role", fake_call_rpc_with_service_role)
+    monkeypatch.setattr(
+        project_service,
+        "execute",
+        lambda query, params=(): executed.append((query, params)),
+    )
 
     success, message, next_owner = project_service.transfer_project_ownership(
         "researcher",
@@ -489,12 +483,7 @@ def test_transfer_project_ownership_moves_directory_and_updates_supabase(
     assert next_owner == "manager"
     assert not project_dir.exists()
     assert (isolated_app_env["projects_dir"] / "manager" / "RNA Atlas" / "template.xlsx").exists()
-    assert captured == {
-        "function_name": "admin_transfer_project_ownership",
-        "json_body": {
-            "p_new_owner_user_id": "user-2",
-            "p_previous_owner_role": "editor",
-            "p_project_id": "project-1",
-        },
-        "schema": None,
-    }
+    assert len(executed) == 3
+    assert "UPDATE internal.projects" in executed[0][0]
+    assert "INSERT INTO internal.project_members" in executed[1][0]
+    assert "INSERT INTO internal.project_members" in executed[2][0]

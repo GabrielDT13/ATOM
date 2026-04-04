@@ -6,12 +6,8 @@ from typing import Any
 
 from backend.app.core.config import get_settings
 from backend.app.services.auth import build_session_user_from_profile
-from backend.app.services.supabase import (
-    SupabaseError,
-    build_query_string,
-    call_rpc_with_service_role,
-    request_with_service_role,
-)
+from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
+from backend.app.services.errors import ServiceError
 
 
 def _normalize_username(username: str) -> str:
@@ -44,21 +40,38 @@ def _fetch_profiles(
     limit: int | None = None,
     order: str | None = "username.asc",
 ) -> list[dict[str, Any]]:
-    query_params: dict[str, str | int | None] = {
-        "select": "id,email,username,full_name,avatar_url,department,is_active,roles",
-        "order": order,
-        "limit": limit,
-    }
+    query = """
+    SELECT
+      id,
+      email,
+      username,
+      full_name,
+      avatar_url,
+      department,
+      is_active,
+      roles
+    FROM public.vw_profiles
+    """
+    clauses: list[str] = []
+    params: list[Any] = []
     if filters:
-        query_params.update(filters)
-
-    payload = request_with_service_role(
-        "GET",
-        f"/rest/v1/vw_profiles?{build_query_string(query_params)}",
-    )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de perfiles inválida")
-    return [profile for profile in payload if isinstance(profile, dict)]
+        if "username" in filters and filters["username"].startswith("eq."):
+            clauses.append("username = %s")
+            params.append(filters["username"][3:])
+        if "email" in filters and filters["email"].startswith("eq."):
+            clauses.append("email = %s")
+            params.append(filters["email"][3:])
+        if "id" in filters and filters["id"].startswith("eq."):
+            clauses.append("id = %s")
+            params.append(filters["id"][3:])
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    if order:
+        query += " ORDER BY username ASC"
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    return fetch_all(query, tuple(params))
 
 
 def _get_profile_by_username(username: str) -> dict[str, Any] | None:
@@ -82,20 +95,16 @@ def _get_profile_by_email(email: str) -> dict[str, Any] | None:
 
 
 def _list_owned_projects(user_id: str, *, limit: int = 3) -> list[dict[str, Any]]:
-    query = build_query_string(
-        {
-            "select": "id,name",
-            "owner_id": f"eq.{user_id}",
-            "limit": limit,
-            "order": "name.asc",
-        }
+    payload = fetch_all(
+        """
+        SELECT id, name
+        FROM public.vw_projects
+        WHERE owner_id = %s
+        ORDER BY name ASC
+        LIMIT %s
+        """,
+        (user_id, limit),
     )
-    payload = request_with_service_role(
-        "GET",
-        f"/rest/v1/vw_projects?{query}",
-    )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de proyectos inválida")
     return [project for project in payload if isinstance(project, dict)]
 
 
@@ -147,24 +156,31 @@ def _create_auth_user(
     email: str,
     department: str | None,
 ) -> str:
-    payload = request_with_service_role(
-        "POST",
-        "/auth/v1/admin/users",
-        json_body={
-            "email": email,
-            "password": password,
-            "email_confirm": True,
-            "user_metadata": _build_auth_user_metadata(
-                username=username,
-                full_name=username,
-                avatar_url=None,
-                department=department,
-            ),
-        },
+    rows = execute_returning(
+        """
+        INSERT INTO auth.users (
+          email,
+          encrypted_password,
+          raw_app_meta_data,
+          raw_user_meta_data
+        )
+        VALUES (
+          %s,
+          crypt(%s, gen_salt('bf')),
+          '{"provider":"email","providers":["email"]}'::jsonb,
+          jsonb_build_object(
+            'username', %s,
+            'full_name', %s,
+            'department', COALESCE(%s, '')
+          )
+        )
+        RETURNING id
+        """,
+        (email, password, username, username, department),
     )
-    if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
-        raise SupabaseError("Supabase no devolvió el usuario creado")
-    return payload["id"]
+    if not rows or not isinstance(rows[0].get("id"), str):
+        raise ServiceError("No se pudo crear el usuario")
+    return rows[0]["id"]
 
 
 def _update_auth_user(
@@ -177,23 +193,38 @@ def _update_auth_user(
     avatar_url: str | None,
     department: str | None,
 ) -> None:
-    payload: dict[str, Any] = {
-        "email": email,
-        "user_metadata": _build_auth_user_metadata(
-            username=username,
-            full_name=full_name,
-            avatar_url=avatar_url,
-            department=department,
+    rows = execute_returning(
+        """
+        UPDATE auth.users
+        SET
+          email = %s,
+          encrypted_password = CASE
+            WHEN %s IS NULL OR %s = '' THEN encrypted_password
+            ELSE crypt(%s, gen_salt('bf'))
+          END,
+          raw_user_meta_data = jsonb_build_object(
+            'username', %s,
+            'full_name', COALESCE(%s, ''),
+            'avatar_url', COALESCE(%s, ''),
+            'department', COALESCE(%s, '')
+          )
+        WHERE id = %s
+        RETURNING id
+        """,
+        (
+            email,
+            password,
+            password,
+            password,
+            username,
+            full_name,
+            avatar_url,
+            department,
+            user_id,
         ),
-    }
-    if password:
-        payload["password"] = password
-
-    request_with_service_role(
-        "PUT",
-        f"/auth/v1/admin/users/{user_id}",
-        json_body=payload,
     )
+    if not rows:
+        raise ServiceError("Usuario no encontrado")
 
 
 def _apply_user_role(
@@ -202,42 +233,68 @@ def _apply_user_role(
     target_user_id: str,
     role: str,
 ) -> dict[str, Any]:
-    payload = call_rpc_with_service_role(
-        "admin_set_user_role",
-        json_body={
-            "p_actor_user_id": actor_user_id,
-            "p_target_user_id": target_user_id,
-            "p_role": role,
-        },
+    actor_profile = fetch_one(
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM internal.user_roles
+          WHERE user_id = %s
+            AND role_id = 'admin'
+        ) AS is_admin
+        """,
+        (actor_user_id,),
     )
-    if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
-        raise SupabaseError("Supabase no devolvió el perfil actualizado")
-    return payload[0]
+    if not actor_profile or actor_profile.get("is_admin") is not True:
+        raise ServiceError("No autorizado")
+    if role not in {"admin", "user"}:
+        raise ServiceError("Rol no válido")
+    execute(
+        """
+        DELETE FROM internal.user_roles
+        WHERE user_id = %s
+          AND role_id IN ('admin', 'user')
+        """,
+        (target_user_id,),
+    )
+    execute(
+        """
+        INSERT INTO internal.user_roles (user_id, role_id)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id, role_id) DO NOTHING
+        """,
+        (target_user_id, role),
+    )
+    profile = fetch_one(
+        """
+        SELECT *
+        FROM public.vw_profiles
+        WHERE id = %s
+        LIMIT 1
+        """,
+        (target_user_id,),
+    )
+    if not profile:
+        raise ServiceError("No se pudo recuperar el perfil actualizado")
+    return profile
 
 
 def _delete_auth_user(user_id: str) -> None:
-    request_with_service_role("DELETE", f"/auth/v1/admin/users/{user_id}")
-
-
-def _build_auth_user_metadata(
-    *,
-    username: str,
-    full_name: str | None,
-    avatar_url: str | None,
-    department: str | None,
-) -> dict[str, str]:
-    metadata: dict[str, str] = {"username": username, "department": department or ""}
-    if full_name:
-        metadata["full_name"] = full_name
-    if avatar_url:
-        metadata["avatar_url"] = avatar_url
-    return metadata
+    deleted = execute_returning(
+        """
+        DELETE FROM auth.users
+        WHERE id = %s
+        RETURNING id
+        """,
+        (user_id,),
+    )
+    if not deleted:
+        raise ServiceError("Usuario no encontrado")
 
 
 def _safe_delete_auth_user(user_id: str) -> None:
     try:
         _delete_auth_user(user_id)
-    except SupabaseError:
+    except ServiceError:
         pass
 
 
@@ -333,7 +390,7 @@ def create_user(
             role=role,
         )
         user_dir = _create_user_projects_dir(normalized_username)
-    except SupabaseError as exc:
+    except ServiceError as exc:
         if user_dir and user_dir.exists():
             shutil.rmtree(user_dir, ignore_errors=True)
         if created_user_id:
@@ -392,7 +449,7 @@ def update_user(
             role=role,
         )
         _rename_user_projects_dir(normalized_current_username, normalized_new_username)
-    except SupabaseError as exc:
+    except ServiceError as exc:
         return False, str(exc), normalized_current_username
     except OSError:
         return False, "No se pudo actualizar la carpeta local del usuario", normalized_current_username
@@ -416,7 +473,7 @@ def delete_user(username: str) -> tuple[bool, str]:
 
     try:
         _delete_auth_user(str(current_profile["id"]))
-    except SupabaseError as exc:
+    except ServiceError as exc:
         if "projects_owner_id_fkey" in str(exc):
             return (
                 False,

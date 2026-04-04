@@ -14,11 +14,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-if ! command -v supabase >/dev/null 2>&1; then
-  echo "No se encontro Supabase CLI en PATH." >&2
-  exit 1
-fi
-
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
@@ -27,8 +22,7 @@ set +a
 PORT="${ATOM_PORT:-3000}"
 API_PORT="${ATOM_API_PORT:-8000}"
 FRONTEND_MODE="${ATOM_FRONTEND_MODE:-docker}"
-
-supabase start
+BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-base}"
 
 case "$FRONTEND_MODE" in
   docker)
@@ -46,7 +40,6 @@ case "$FRONTEND_MODE" in
 esac
 
 echo "Backend API en http://localhost:${API_PORT}"
-echo "Supabase CLI (Gateway esperado): http://localhost:${SUPABASE_PORT}"
-echo "Supabase CLI (Postgres esperado): postgresql://${SUPABASE_DB_USER}:${SUPABASE_DB_PASSWORD}@localhost:${SUPABASE_DB_PORT}/${SUPABASE_DB_NAME}"
-echo "Supabase Studio: http://localhost:54323"
+echo "PostgreSQL directo: postgresql://${POSTGRES_USER:-atom}:${POSTGRES_PASSWORD:-atom}@localhost:${POSTGRES_PORT_HOST:-5432}/${POSTGRES_DB:-atom}"
+echo "Imagen backend Docker: ${BACKEND_BUILD_TARGET}"
 echo "Logs: ./scripts/logs.sh"

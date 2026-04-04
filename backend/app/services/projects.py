@@ -7,6 +7,8 @@ from typing import Any, Literal
 from backend.app.constants.navigation import SIDEBAR_LEFT_LINKS, SIDEBAR_LEFT_TITLE
 from backend.app.core.config import get_settings
 from backend.app.services.dashboard_activity import log_project_dashboard_event
+from backend.app.services.database import execute
+from backend.app.services.errors import ServiceError
 from backend.app.services.project_inventory import (
     _build_project_payload,
     _classify_project_file,
@@ -25,7 +27,7 @@ from backend.app.services.project_inventory import (
 from backend.app.services.project_inventory import (
     read_project_file as _read_project_file,
 )
-from backend.app.services.project_supabase import (
+from backend.app.services.project_repository import (
     _delete_project_record,
     _fetch_profiles,
     _get_profile_by_username,
@@ -39,10 +41,6 @@ from backend.app.services.project_supabase import (
     _list_shared_project_records,
     _rename_project_record,
     _upsert_project_record,
-)
-from backend.app.services.supabase import (
-    SupabaseError,
-    call_rpc_with_service_role,
 )
 from fastapi import UploadFile
 
@@ -164,12 +162,12 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
             for project_dir in project_dirs:
                 try:
                     metadata: dict[str, Any] | None = _get_project_record(owner, project_dir.name)
-                except SupabaseError:
+                except Exception:
                     metadata = None
                 if metadata is None:
                     try:
                         metadata = _upsert_project_record(owner, project_dir.name)
-                    except SupabaseError:
+                    except Exception:
                         metadata = None
                 payload = _build_project_payload(owner, project_dir, metadata)
                 payload["access_role"] = "owner" if owner == session_username else "viewer"
@@ -178,15 +176,15 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
             projects[owner] = []
 
     try:
-        supabase_records = (
+        database_records = (
             _list_all_project_records()
             if role == "admin"
             else _list_owned_project_records(session_username)
         )
-    except SupabaseError:
-        supabase_records = []
+    except Exception:
+        database_records = []
 
-    for record in supabase_records:
+    for record in database_records:
         owner = str(record.get("owner_username") or "").strip()
         project_name = str(record.get("name") or "").strip()
         if not owner or not project_name:
@@ -202,7 +200,11 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
         indexed_items[f"{owner}::{project_name}"] = payload
 
     if role != "admin":
-        for record in _list_shared_project_records(session_user_id):
+        try:
+            shared_records = _list_shared_project_records(session_user_id)
+        except Exception:
+            shared_records = []
+        for record in shared_records:
             owner = str(record.get("owner_username") or "").strip()
             project_name = str(record.get("name") or "").strip()
             if not owner or not project_name or owner == session_username:
@@ -278,7 +280,7 @@ async def create_project(
         if project_dir.exists():
             shutil.rmtree(project_dir)
         return False, str(exc)
-    except SupabaseError as exc:
+    except ServiceError as exc:
         if project_dir.exists():
             shutil.rmtree(project_dir)
         return False, str(exc)
@@ -291,7 +293,7 @@ def get_project_details(owner: str, project_name: str) -> dict[str, object]:
     project_dir = get_project_dir(owner, project_name)
     try:
         metadata = _get_project_record(owner, normalize_project_name(project_name))
-    except SupabaseError:
+    except ServiceError:
         metadata = None
     if (not project_dir.exists() or not project_dir.is_dir()) and metadata is None:
         raise FileNotFoundError("Proyecto no encontrado")
@@ -343,7 +345,7 @@ def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
 
     try:
         record = _upsert_project_record(owner, project_name)
-    except SupabaseError:
+    except ServiceError:
         return fallback_owner_member
 
     try:
@@ -358,7 +360,7 @@ def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
             for profile in _fetch_profiles()
             if str(profile.get("id") or "").strip() in member_ids
         }
-    except SupabaseError:
+    except ServiceError:
         return fallback_owner_member
 
     payload: list[dict[str, Any]] = []
@@ -405,7 +407,7 @@ def get_project_members_by_ref(project_ref: str) -> list[dict[str, Any]]:
 def search_project_share_candidates(owner: str, project_name: str, query: str, limit: int = 8) -> list[dict[str, Any]]:
     try:
         _upsert_project_record(owner, project_name)
-    except SupabaseError:
+    except ServiceError:
         pass
     existing_members = get_project_members(owner, project_name)
     excluded_usernames = {member["username"] for member in existing_members}
@@ -414,7 +416,7 @@ def search_project_share_candidates(owner: str, project_name: str, query: str, l
     candidates: list[dict[str, Any]] = []
     try:
         profiles = _fetch_profiles()
-    except SupabaseError:
+    except ServiceError:
         return []
 
     for profile in profiles:
@@ -468,26 +470,28 @@ def add_project_member(
 
         current_member = _get_project_member(str(project["id"]), candidate_id)
         if current_member:
-            call_rpc_with_service_role(
-                "admin_set_project_member",
-                json_body={
-                    "p_member_role": member_role,
-                    "p_project_id": project["id"],
-                    "p_target_user_id": candidate_id,
-                },
+            execute(
+                """
+                INSERT INTO internal.project_members (project_id, user_id, member_role)
+                VALUES (%s, %s, %s::internal.project_member_role)
+                ON CONFLICT (project_id, user_id) DO UPDATE
+                SET member_role = EXCLUDED.member_role
+                """,
+                (project["id"], candidate_id, member_role),
             )
             return True, "Permisos del usuario actualizados correctamente"
 
-        call_rpc_with_service_role(
-            "admin_set_project_member",
-            json_body={
-                "p_member_role": member_role,
-                "p_project_id": project["id"],
-                "p_target_user_id": candidate_id,
-            },
+        execute(
+            """
+            INSERT INTO internal.project_members (project_id, user_id, member_role)
+            VALUES (%s, %s, %s::internal.project_member_role)
+            ON CONFLICT (project_id, user_id) DO UPDATE
+            SET member_role = EXCLUDED.member_role
+            """,
+            (project["id"], candidate_id, member_role),
         )
         return True, "Proyecto compartido correctamente"
-    except SupabaseError as exc:
+    except ServiceError as exc:
         return False, str(exc)
 
 
@@ -526,20 +530,41 @@ def transfer_project_ownership(
 
         project_dir.rename(next_project_dir)
         try:
-            call_rpc_with_service_role(
-                "admin_transfer_project_ownership",
-                json_body={
-                    "p_new_owner_user_id": candidate_id,
-                    "p_previous_owner_role": previous_owner_role,
-                    "p_project_id": project["id"],
-                },
+            previous_owner_id = str(project.get("owner_id") or "").strip()
+            if not previous_owner_id:
+                raise ServiceError("No se pudo resolver el propietario actual del proyecto")
+            execute(
+                """
+                UPDATE internal.projects
+                SET owner_id = %s
+                WHERE id = %s
+                """,
+                (candidate_id, project["id"]),
             )
-        except SupabaseError as exc:
+            execute(
+                """
+                INSERT INTO internal.project_members (project_id, user_id, member_role)
+                VALUES (%s, %s, %s::internal.project_member_role)
+                ON CONFLICT (project_id, user_id) DO UPDATE
+                SET member_role = EXCLUDED.member_role
+                """,
+                (project["id"], previous_owner_id, previous_owner_role),
+            )
+            execute(
+                """
+                INSERT INTO internal.project_members (project_id, user_id, member_role)
+                VALUES (%s, %s, 'owner')
+                ON CONFLICT (project_id, user_id) DO UPDATE
+                SET member_role = EXCLUDED.member_role
+                """,
+                (project["id"], candidate_id),
+            )
+        except ServiceError as exc:
             next_project_dir.rename(project_dir)
             return False, str(exc), owner
 
         return True, "Propiedad del proyecto transferida correctamente", candidate_username
-    except (SupabaseError, ValueError) as exc:
+    except (ServiceError, ValueError) as exc:
         return False, str(exc), owner
 
 
@@ -559,14 +584,16 @@ def remove_project_member(owner: str, project_name: str, username: str) -> tuple
         if not current_member:
             return False, "El usuario no tiene acceso a este proyecto"
 
-        call_rpc_with_service_role(
-            "admin_remove_project_member",
-            json_body={
-                "p_project_id": project["id"],
-                "p_target_user_id": candidate_id,
-            },
+        execute(
+            """
+            DELETE FROM internal.project_members
+            WHERE project_id = %s
+              AND user_id = %s
+              AND member_role <> 'owner'
+            """,
+            (project["id"], candidate_id),
         )
-    except SupabaseError as exc:
+    except ServiceError as exc:
         return False, str(exc)
     return True, "Acceso eliminado correctamente"
 
@@ -608,7 +635,7 @@ async def update_project(
             project_dir.rename(new_dir)
             try:
                 _rename_project_record(owner, current_name, normalized_new_name)
-            except SupabaseError as exc:
+            except ServiceError as exc:
                 new_dir.rename(project_dir)
                 return False, str(exc), current_name
             project_dir = new_dir
@@ -682,7 +709,7 @@ def delete_project(
     shutil.rmtree(project_dir)
     try:
         _delete_project_record(owner, normalized_name)
-    except SupabaseError as exc:
+    except ServiceError as exc:
         return False, str(exc)
     _log_project_event(
         "project_deleted",

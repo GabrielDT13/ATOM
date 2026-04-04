@@ -2,11 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from backend.app.services.supabase import (
-    SupabaseError,
-    build_query_string,
-    request_with_service_role,
-)
+from backend.app.services.database import execute, fetch_all, fetch_one
+from backend.app.services.errors import ServiceError
 
 DashboardEventKind = Literal[
     "analysis_completed",
@@ -31,22 +28,16 @@ AnalysisDashboardEventKind = Literal[
 
 
 def _get_profile_id_by_username(username: str) -> str | None:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_profiles?"
-        + build_query_string(
-            {
-                "select": "id,username",
-                "username": f"eq.{username}",
-                "limit": 1,
-            }
-        ),
+    profile = fetch_one(
+        """
+        SELECT id, username
+        FROM public.vw_profiles
+        WHERE username = %s
+        LIMIT 1
+        """,
+        (username,),
     )
-    if not isinstance(payload, list) or not payload:
-        return None
-
-    profile = payload[0]
-    if not isinstance(profile, dict):
+    if not profile:
         return None
 
     profile_id = str(profile.get("id") or "").strip()
@@ -86,33 +77,60 @@ def log_dashboard_event(
         if design_id:
             payload["design_id"] = design_id
 
-        request_with_service_role(
-            "POST",
-            "/rest/v1/vw_dashboard_activity",
-            json_body=payload,
+        execute(
+            """
+            INSERT INTO internal.dashboard_activity (
+              user_id,
+              activity_type,
+              title,
+              description,
+              project_owner_username,
+              project_name,
+              analysis_type,
+              design_id,
+              created_at
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, COALESCE(%s, now()))
+            """,
+            (
+                payload["user_id"],
+                payload["activity_type"],
+                payload["title"],
+                payload["description"],
+                payload["project_owner_username"],
+                payload["project_name"],
+                payload.get("analysis_type"),
+                payload.get("design_id"),
+                payload.get("created_at"),
+            ),
         )
-    except SupabaseError:
+    except ServiceError:
         # El dashboard conserva degradación sin bloquear el flujo principal.
         return
 
 
 def list_dashboard_events(limit: int = 100) -> list[dict[str, Any]]:
     try:
-        payload = request_with_service_role(
-            "GET",
-            "/rest/v1/vw_dashboard_activity?"
-            + build_query_string(
-                {
-                    "select": (
-                        "id,user_id,activity_type,title,description,project_owner_username,"
-                        "project_name,analysis_type,design_id,created_at"
-                    ),
-                    "order": "created_at.desc",
-                    "limit": limit,
-                }
-            ),
+        payload = fetch_all(
+            """
+            SELECT
+              id,
+              user_id,
+              activity_type,
+              title,
+              description,
+              project_owner_username,
+              project_name,
+              analysis_type,
+              design_id,
+              created_at
+            FROM public.vw_dashboard_activity
+            ORDER BY created_at DESC
+            LIMIT %s
+            """,
+            (limit,),
         )
-    except SupabaseError:
+    except ServiceError:
         return []
 
     if not isinstance(payload, list):
