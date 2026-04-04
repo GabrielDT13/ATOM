@@ -14,12 +14,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-if ! command -v supabase >/dev/null 2>&1; then
-  echo "No se encontro Supabase CLI en PATH." >&2
-  exit 1
-fi
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
 
 docker compose --env-file "$ENV_FILE" down --remove-orphans
-supabase stop
 
-echo "Servidor y Supabase detenidos."
+echo "Servidor y PostgreSQL detenidos."

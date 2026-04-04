@@ -6,11 +6,11 @@ from typing import Any
 from backend.app.core.config import get_settings
 from backend.app.services.dashboard_activity import list_dashboard_events
 from backend.app.services.dashboard_examples import load_public_examples_catalog
+from backend.app.services.errors import ServiceError
 from backend.app.services.projects import (
     _build_project_payload,
     list_projects_for_user,
 )
-from backend.app.services.supabase import SupabaseError
 
 WORKFLOW_CATALOG: tuple[dict[str, object], ...] = (
     {
@@ -125,7 +125,7 @@ def _list_dashboard_projects(
         payload = list_projects_for_user(session_user_id, session_username, role)
         items = payload.get("items", [])
         return [item for item in items if isinstance(item, dict)]
-    except SupabaseError:
+    except ServiceError:
         return _list_local_projects(session_username, role)
 
 

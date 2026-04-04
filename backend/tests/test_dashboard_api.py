@@ -420,12 +420,25 @@ def test_dashboard_activity_log_persists_and_orders_events(
 
     captured_events: list[dict[str, object]] = []
 
-    def fake_request_with_service_role(method: str, path: str, *, json_body=None, schema=None):
-        if method == "POST":
-            captured_events.append(dict(json_body))
-            return None
-
-        return sorted(
+    monkeypatch.setattr(
+        "backend.app.services.dashboard_activity.execute",
+        lambda query, params=(): captured_events.append(
+            {
+                "activity_type": params[1],
+                "analysis_type": params[6],
+                "created_at": params[8],
+                "description": params[3],
+                "design_id": params[7],
+                "project_name": params[5],
+                "project_owner_username": params[4],
+                "title": params[2],
+                "user_id": params[0],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "backend.app.services.dashboard_activity.fetch_all",
+        lambda query, params=(): sorted(
             [
                 {
                     "activity_type": item["activity_type"],
@@ -443,11 +456,7 @@ def test_dashboard_activity_log_persists_and_orders_events(
             ],
             key=lambda item: item["created_at"],
             reverse=True,
-        )
-
-    monkeypatch.setattr(
-        "backend.app.services.dashboard_activity.request_with_service_role",
-        fake_request_with_service_role,
+        ),
     )
     monkeypatch.setattr(
         "backend.app.services.dashboard_activity._get_profile_id_by_username",

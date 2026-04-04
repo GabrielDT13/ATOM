@@ -1,16 +1,14 @@
 from __future__ import annotations
 
+import secrets
+import time
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from backend.app.core.config import get_settings
-from backend.app.core.jwt import JwtValidationError, decode_and_validate_hs256_jwt
-from backend.app.services.supabase import (
-    SupabaseError,
-    build_query_string,
-    request_with_anon_key,
-    request_with_service_role,
-)
+from backend.app.core.jwt import JwtValidationError, decode_and_validate_hs256_jwt, encode_hs256_jwt
+from backend.app.services.database import execute, fetch_one, hash_token
 
 
 class AuthenticationError(RuntimeError):
@@ -24,27 +22,6 @@ class AuthenticatedSession:
     access_token: str
     refresh_token: str | None
     user: dict[str, str | None]
-
-
-def _build_authenticated_session(payload: Any) -> AuthenticatedSession:
-    if not isinstance(payload, dict):
-        raise AuthenticationError("Respuesta inválida del proveedor de autenticación", status_code=502)
-
-    access_token = payload.get("access_token")
-    refresh_token = payload.get("refresh_token")
-    user_payload = payload.get("user")
-    if not isinstance(access_token, str) or not isinstance(user_payload, dict):
-        raise AuthenticationError("La sesión devuelta por Supabase es inválida", status_code=502)
-
-    user_id = user_payload.get("id")
-    if not isinstance(user_id, str) or not user_id.strip():
-        raise AuthenticationError("No se pudo resolver el usuario autenticado", status_code=502)
-
-    return AuthenticatedSession(
-        access_token=access_token,
-        refresh_token=refresh_token if isinstance(refresh_token, str) else None,
-        user=get_session_user_by_id(user_id),
-    )
 
 
 def _normalize_email(email: str) -> str:
@@ -68,7 +45,7 @@ def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | 
 
     if not username or not email or not profile_id:
         raise AuthenticationError(
-            "El perfil de Supabase no está completo",
+            "El perfil del usuario no está completo",
             status_code=500,
         )
 
@@ -88,22 +65,27 @@ def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | 
 
 
 def _get_profile_by_user_id(user_id: str) -> dict[str, Any]:
-    query = build_query_string(
-        {
-            "select": "id,email,username,full_name,department,is_active,roles",
-            "id": f"eq.{user_id}",
-            "limit": 1,
-        }
+    profile = fetch_one(
+        """
+        SELECT
+          id,
+          email,
+          username,
+          full_name,
+          department,
+          is_active,
+          roles
+        FROM public.vw_profiles
+        WHERE id = %s
+        LIMIT 1
+        """,
+        (user_id,),
     )
-    payload = request_with_service_role("GET", f"/rest/v1/vw_profiles?{query}")
-    if not isinstance(payload, list) or not payload:
+    if not profile:
         raise AuthenticationError(
             "No se encontró el perfil del usuario autenticado",
             status_code=500,
         )
-    profile = payload[0]
-    if not isinstance(profile, dict):
-        raise AuthenticationError("Supabase devolvió un perfil inválido", status_code=500)
     return profile
 
 
@@ -111,26 +93,74 @@ def get_session_user_by_id(user_id: str) -> dict[str, str | None]:
     return build_session_user_from_profile(_get_profile_by_user_id(user_id))
 
 
+def _build_access_token(*, user_id: str) -> str:
+    settings = get_settings()
+    if not settings.jwt_secret:
+        raise AuthenticationError("Falta configurar JWT_SECRET", status_code=500)
+    now = int(time.time())
+    payload = {
+        "sub": user_id,
+        "aud": settings.jwt_audience,
+        "role": "authenticated",
+        "exp": now + settings.access_token_ttl_seconds,
+        "iat": now,
+    }
+    return encode_hs256_jwt(payload, secret=settings.jwt_secret)
+
+
+def _store_refresh_token(*, user_id: str) -> str:
+    raw_token = secrets.token_urlsafe(48)
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=get_settings().refresh_token_ttl_seconds)
+    execute(
+        """
+        INSERT INTO auth.refresh_tokens (user_id, token_hash, expires_at)
+        VALUES (%s, %s, %s)
+        """,
+        (user_id, hash_token(raw_token), expires_at),
+    )
+    return raw_token
+
+
+def _build_local_authenticated_session(user_id: str) -> AuthenticatedSession:
+    session_user = get_session_user_by_id(user_id)
+    return AuthenticatedSession(
+        access_token=_build_access_token(user_id=user_id),
+        refresh_token=_store_refresh_token(user_id=user_id),
+        user=session_user,
+    )
+
+
 def authenticate_email_password(email: str, password: str) -> AuthenticatedSession:
     normalized_email = _normalize_email(email)
-    try:
-        payload = request_with_anon_key(
-            "POST",
-            "/auth/v1/token?grant_type=password",
-            json_body={"email": normalized_email, "password": password},
-        )
-    except SupabaseError as exc:
-        if exc.status_code in {400, 401}:
-            raise AuthenticationError(
-                "Email o contraseña incorrectos",
-                status_code=401,
-            ) from exc
+    user_record = fetch_one(
+        """
+        SELECT
+          u.id,
+          u.is_active,
+          COALESCE(p.is_active, true) AS profile_is_active,
+          (u.encrypted_password = crypt(%s, u.encrypted_password)) AS password_valid
+        FROM auth.users u
+        LEFT JOIN internal.profiles p
+          ON p.id = u.id
+        WHERE lower(u.email) = lower(%s)
+        LIMIT 1
+        """,
+        (password, normalized_email),
+    )
+    if not user_record or not bool(user_record.get("password_valid")):
         raise AuthenticationError(
-            "No se pudo autenticar contra Supabase",
-            status_code=502,
-        ) from exc
+            "Email o contraseña incorrectos",
+            status_code=401,
+        )
 
-    return _build_authenticated_session(payload)
+    if user_record.get("is_active") is False or user_record.get("profile_is_active") is False:
+        raise AuthenticationError("Tu cuenta está desactivada", status_code=403)
+
+    user_id = str(user_record.get("id") or "").strip()
+    if not user_id:
+        raise AuthenticationError("No se pudo resolver el usuario autenticado", status_code=502)
+
+    return _build_local_authenticated_session(user_id)
 
 
 def refresh_authenticated_session(refresh_token: str) -> AuthenticatedSession:
@@ -138,21 +168,47 @@ def refresh_authenticated_session(refresh_token: str) -> AuthenticatedSession:
     if not normalized_refresh_token:
         raise AuthenticationError("La sesión no tiene refresh token", status_code=401)
 
-    try:
-        payload = request_with_anon_key(
-            "POST",
-            "/auth/v1/token?grant_type=refresh_token",
-            json_body={"refresh_token": normalized_refresh_token},
-        )
-    except SupabaseError as exc:
-        if exc.status_code in {400, 401}:
-            raise AuthenticationError("No se pudo renovar la sesión", status_code=401) from exc
-        raise AuthenticationError(
-            "No se pudo renovar la sesión contra Supabase",
-            status_code=502,
-        ) from exc
+    token_hash = hash_token(normalized_refresh_token)
+    token_record = fetch_one(
+        """
+        SELECT user_id, expires_at, revoked_at
+        FROM auth.refresh_tokens
+        WHERE token_hash = %s
+        LIMIT 1
+        """,
+        (token_hash,),
+    )
+    if not token_record:
+        raise AuthenticationError("No se pudo renovar la sesión", status_code=401)
 
-    return _build_authenticated_session(payload)
+    if token_record.get("revoked_at") is not None:
+        raise AuthenticationError("No se pudo renovar la sesión", status_code=401)
+
+    expires_at = token_record.get("expires_at")
+    if not isinstance(expires_at, datetime) or expires_at <= datetime.now(timezone.utc):
+        execute(
+            """
+            UPDATE auth.refresh_tokens
+            SET revoked_at = COALESCE(revoked_at, now())
+            WHERE token_hash = %s
+            """,
+            (token_hash,),
+        )
+        raise AuthenticationError("No se pudo renovar la sesión", status_code=401)
+
+    execute(
+        """
+        UPDATE auth.refresh_tokens
+        SET revoked_at = now()
+        WHERE token_hash = %s
+        """,
+        (token_hash,),
+    )
+
+    user_id = str(token_record.get("user_id") or "").strip()
+    if not user_id:
+        raise AuthenticationError("No se pudo renovar la sesión", status_code=401)
+    return _build_local_authenticated_session(user_id)
 
 
 def logout_session(access_token: str, *, scope: str = "local") -> None:
@@ -160,16 +216,23 @@ def logout_session(access_token: str, *, scope: str = "local") -> None:
         return
 
     try:
-        request_with_anon_key(
-            "POST",
-            "/auth/v1/logout",
-            bearer_token=access_token,
-            json_body={"scope": scope},
-        )
-    except SupabaseError:
-        # El frontend debe poder cerrar la sesión local aunque Supabase no
-        # responda; el siguiente paso será validar JWT en cada request.
+        claims = validate_access_token(access_token)
+    except AuthenticationError:
         return
+
+    user_id = str(claims.get("sub") or "").strip()
+    if not user_id:
+        return
+
+    execute(
+        """
+        UPDATE auth.refresh_tokens
+        SET revoked_at = now()
+        WHERE user_id = %s
+          AND revoked_at IS NULL
+        """,
+        (user_id,),
+    )
 
 
 def validate_access_token(access_token: str) -> dict[str, Any]:
@@ -177,7 +240,7 @@ def validate_access_token(access_token: str) -> dict[str, Any]:
         claims = decode_and_validate_hs256_jwt(
             access_token,
             secret=get_settings().jwt_secret,
-            audience=get_settings().supabase_jwt_aud,
+            audience=get_settings().jwt_audience,
         )
     except JwtValidationError as exc:
         raise AuthenticationError(str(exc), status_code=401) from exc

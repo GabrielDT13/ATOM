@@ -12,6 +12,10 @@ class JwtValidationError(RuntimeError):
     pass
 
 
+def _encode_base64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode("utf-8")
+
+
 def _decode_base64url(value: str) -> bytes:
     padding = "=" * (-len(value) % 4)
     try:
@@ -83,3 +87,17 @@ def decode_and_validate_hs256_jwt(
         raise JwtValidationError("La audiencia del token no es válida")
 
     return payload
+
+
+def encode_hs256_jwt(payload: dict[str, Any], *, secret: str) -> str:
+    header = {"alg": "HS256", "typ": "JWT"}
+    encoded_header = _encode_base64url(
+        json.dumps(header, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    encoded_payload = _encode_base64url(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    signing_input = f"{encoded_header}.{encoded_payload}".encode("utf-8")
+    signature = hmac.new(secret.encode("utf-8"), signing_input, hashlib.sha256).digest()
+    encoded_signature = _encode_base64url(signature)
+    return f"{encoded_header}.{encoded_payload}.{encoded_signature}"

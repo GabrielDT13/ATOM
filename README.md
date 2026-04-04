@@ -1,6 +1,6 @@
-# ATOM - Next.js + FastAPI con Docker + Supabase
+# ATOM - Next.js + FastAPI con Docker + PostgreSQL
 
-El proyecto se ejecuta con `FastAPI` en backend y `Next.js` en frontend. La base mínima de CI valida solo backend y frontend para mantener el pipeline rápido: lint/checks, smoke de imports y tests básicos. Supabase queda fuera del primer workflow y se puede añadir después como etapa separada.
+El proyecto se ejecuta con `FastAPI` en backend y `Next.js` en frontend. La base mínima de CI valida solo backend y frontend para mantener el pipeline rápido: lint/checks, smoke de imports y tests básicos.
 
 ## Requisitos
 
@@ -14,12 +14,14 @@ El proyecto se ejecuta con `FastAPI` en backend y `Next.js` en frontend. La base
 - `docker/Dockerfile`: imagen backend
 - `docker/frontend.Dockerfile`: imagen frontend
 - `docker-compose.yml`: stack local
+- `docker/postgres/initdb/`: bootstrap SQL de PostgreSQL directo
 - `.env.example`: contrato base de variables de entorno
-- `scripts/up.sh`: levanta Supabase CLI y los contenedores de app
+- `scripts/up.sh`: levanta el stack Docker principal
 - `scripts/down.sh`: detiene stack local
 - `scripts/rebuild.sh`: reconstruye imágenes
 - `scripts/test.sh`: comando central para lanzar todos los checks
 - `scripts/checks/`: checks internos agrupados por dominio
+- `docs/postgres-migration.md`: resumen técnico de la migración completada
 
 ## Variables de entorno
 
@@ -35,6 +37,7 @@ Los scripts usan `.env.local` por defecto. Si no existe, usan `.env`.
 
 Variables base:
 
+- `ATOM_BACKEND_BUILD_TARGET`: `backend-base` para el backend web normal o `backend-analysis` para incluir R y análisis dentro de la imagen
 - `ATOM_PORT`: puerto publicado del frontend
 - `ATOM_API_PORT`: puerto publicado del backend
 - `BACKEND_HOST` y `BACKEND_PORT`: host/puerto internos del proceso `uvicorn`
@@ -44,6 +47,18 @@ Variables base:
 - `NEXT_PUBLIC_API_BASE_URL`: base pública que usa el frontend
 - `BACKEND_INTERNAL_URL`: URL interna para el rewrite de Next.js hacia FastAPI
 
+Variables nuevas para PostgreSQL directo:
+
+- `DATABASE_URL`
+- `POSTGRES_HOST`
+- `POSTGRES_PORT`
+- `POSTGRES_PORT_HOST`
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+- `JWT_AUDIENCE`
+- `JWT_SECRET`
+
 Overrides opcionales para tests o ejecuciones aisladas:
 
 - `ATOM_PROJECT_ROOT`
@@ -52,6 +67,12 @@ Overrides opcionales para tests o ejecuciones aisladas:
 - `ATOM_R_SCRIPTS_DIR`
 
 ## Levantar el proyecto en local
+
+```bash
+./scripts/up.sh
+```
+
+Para levantar el stack principal:
 
 ```bash
 ./scripts/up.sh
@@ -67,9 +88,16 @@ ATOM_FRONTEND_MODE=local ./scripts/up.sh
 
 Servicios por defecto:
 
-- `http://localhost:3000` frontend
+- `http://localhost:3000` frontend con `.env.example`
+- `http://localhost:8080` frontend con el `.env.local` actual del repo
 - `http://localhost:8000` backend
-- `http://localhost:54323` Supabase Studio
+- `postgresql://atom:atom@localhost:5432/atom` PostgreSQL directo
+
+Por defecto `docker compose` usa `ATOM_BACKEND_BUILD_TARGET=backend-base`, que arranca rápido y cubre auth, perfil, proyectos, dashboard y demás API web. Si necesitas también el runtime analítico con R dentro de Docker, cambia a:
+
+```bash
+ATOM_BACKEND_BUILD_TARGET=backend-analysis ./scripts/up.sh
+```
 
 Comandos útiles:
 
@@ -98,13 +126,7 @@ Si quieres ejecutar solo una parte:
 ```bash
 ./scripts/test.sh backend
 ./scripts/test.sh frontend
-./scripts/test.sh supabase
-```
-
-Si además quieres incluir los tests SQL de Supabase en la misma ejecución:
-
-```bash
-./scripts/test.sh --with-supabase
+./scripts/test.sh postgres
 ```
 
 `./scripts/test.sh` es el punto de entrada recomendado para trabajo diario y para CI. Por debajo llama a checks internos agrupados en `scripts/checks/`, pero la interfaz pública es una sola.
@@ -117,9 +139,14 @@ Checks actuales:
 - `pytest` sobre `backend/tests`
 - `npm run lint`
 - `npm run build`
-- `supabase db test`
+- smoke de esquema y runtime dockerizado de PostgreSQL (`./scripts/test.sh postgres`)
 
 `docker/backend-ci.Dockerfile` es una imagen ligera pensada solo para lint y tests del backend. No instala R ni dependencias pesadas de runtime.
+
+`docker/Dockerfile` ahora tiene dos targets:
+
+- `backend-base`: runtime principal para FastAPI + PostgreSQL directo
+- `backend-analysis`: runtime extendido con R, Bioconductor y dependencias de análisis
 
 ## CI mínimo
 
@@ -130,13 +157,15 @@ Jobs actuales:
 - `backend`: construye la imagen de checks backend y ejecuta lint, smoke de app y tests dentro del contenedor
 - `frontend`: construye la imagen frontend y ejecuta typecheck y build dentro del contenedor
 
-Esto deja un baseline estable antes de añadir E2E, integración con Supabase, TDD más profundo o despliegue.
+Esto deja un baseline estable antes de añadir E2E, TDD más profundo o despliegue.
 
-## Supabase
+## Migración a PostgreSQL
 
-El módulo `supabase/` sigue modularizado para migraciones, seeds y tests SQL. Se mantiene fuera del CI mínimo para no mezclar en el primer paso validaciones de app con validaciones de infraestructura.
+Se ha añadido una base inicial reproducible en `docker/postgres/initdb/001_atom_base.sql`.
 
-Ver detalle en `supabase/README.md`.
+La cobertura SQL mínima del stack vive en `docker/postgres/tests/001_schema_smoke.sql` y se ejecuta dentro del flujo Docker con `./scripts/test.sh postgres`.
+
+Consulta el plan técnico en `docs/postgres-migration.md`.
 
 ## Solución de problemas
 

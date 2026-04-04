@@ -1,8 +1,30 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS backend-base
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+      curl \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY backend/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+COPY backend /app/backend
+COPY docker/start-backend.sh /app/docker/start-backend.sh
+RUN chmod +x /app/docker/start-backend.sh
+
+EXPOSE 8000
+
+CMD ["/app/docker/start-backend.sh"]
+
+FROM backend-base AS backend-analysis
 
 RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
     && for i in 1 2 3; do \
@@ -14,8 +36,6 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
           cmake \
           gfortran \
           git \
-          curl \
-          ca-certificates \
           libcurl4-openssl-dev \
           libssl-dev \
           libxml2-dev \
@@ -46,18 +66,5 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
     done \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-COPY backend/requirements.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
-
 COPY docker/install_r_packages.R /tmp/install_r_packages.R
 RUN Rscript /tmp/install_r_packages.R
-
-COPY backend /app/backend
-COPY docker/start-backend.sh /app/docker/start-backend.sh
-RUN chmod +x /app/docker/start-backend.sh
-
-EXPOSE 8000
-
-CMD ["/app/docker/start-backend.sh"]

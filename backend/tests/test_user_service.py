@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from backend.app.services import users as user_service
-from backend.app.services.supabase import SupabaseError
+from backend.app.services.errors import ServiceError
 
 
 def test_create_user_persists_user_role_department_and_project_dir(
@@ -77,7 +77,7 @@ def test_create_user_rolls_back_auth_user_when_role_sync_fails(
     monkeypatch.setattr(
         user_service,
         "_apply_user_role",
-        lambda **kwargs: (_ for _ in ()).throw(SupabaseError("No se pudo asignar el rol")),
+        lambda **kwargs: (_ for _ in ()).throw(ServiceError("No se pudo asignar el rol")),
     )
     monkeypatch.setattr(
         user_service,

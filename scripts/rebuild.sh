@@ -15,6 +15,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 FRONTEND_MODE="${ATOM_FRONTEND_MODE:-docker}"
+BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-base}"
 
 case "$FRONTEND_MODE" in
   docker)
@@ -29,4 +30,5 @@ case "$FRONTEND_MODE" in
     ;;
 esac
 
+echo "Imagen backend Docker: ${BACKEND_BUILD_TARGET}"
 echo "Imagenes reconstruidas."

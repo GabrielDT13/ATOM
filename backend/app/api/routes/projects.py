@@ -13,6 +13,7 @@ from backend.app.schemas.projects import (
     ProjectResponse,
     ProjectShareCandidatesResponse,
 )
+from backend.app.services.errors import ServiceError
 from backend.app.services.projects import (
     add_project_member,
     create_project,
@@ -32,7 +33,6 @@ from backend.app.services.projects import (
     user_can_edit_project,
     user_can_view_project,
 )
-from backend.app.services.supabase import SupabaseError
 from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 
@@ -223,7 +223,7 @@ async def put_project_member(
                 (member for member in get_project_members(owner, project_name) if member["username"] == username),
                 None,
             )
-        except SupabaseError:
+        except ServiceError:
             member = None
     return ProjectMemberMutationResponse(success=success, message=message, member=member)
 

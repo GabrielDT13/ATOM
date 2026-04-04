@@ -4,13 +4,9 @@ from typing import Any, Literal
 from uuid import UUID
 
 from backend.app.core.config import get_settings
+from backend.app.services.database import execute, fetch_all, fetch_one
+from backend.app.services.errors import ServiceError
 from backend.app.services.project_inventory import normalize_project_name
-from backend.app.services.supabase import (
-    SupabaseError,
-    build_query_string,
-    call_rpc_with_service_role,
-    request_with_service_role,
-)
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
 
@@ -21,21 +17,36 @@ def _fetch_profiles(
     limit: int | None = None,
     order: str | None = "username.asc",
 ) -> list[dict[str, Any]]:
-    query_params: dict[str, str | int | None] = {
-        "select": "id,email,username,full_name,avatar_url,department,bio,is_active,roles",
-        "order": order,
-        "limit": limit,
-    }
+    query = """
+    SELECT
+      id,
+      email,
+      username,
+      full_name,
+      avatar_url,
+      department,
+      bio,
+      is_active,
+      roles
+    FROM public.vw_profiles
+    """
+    clauses: list[str] = []
+    params: list[Any] = []
     if filters:
-        query_params.update(filters)
-
-    payload = request_with_service_role(
-        "GET",
-        f"/rest/v1/vw_profiles?{build_query_string(query_params)}",
-    )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de perfiles inválida")
-    return [profile for profile in payload if isinstance(profile, dict)]
+        if "username" in filters and filters["username"].startswith("eq."):
+            clauses.append("username = %s")
+            params.append(filters["username"][3:])
+        if "id" in filters and filters["id"].startswith("eq."):
+            clauses.append("id = %s")
+            params.append(filters["id"][3:])
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    if order:
+        query += " ORDER BY username ASC"
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    return fetch_all(query, tuple(params))
 
 
 def _get_profile_by_username(username: str) -> dict[str, Any] | None:
@@ -49,21 +60,43 @@ def _fetch_project_records(
     limit: int | None = None,
     order: str | None = "owner_username.asc,name.asc",
 ) -> list[dict[str, Any]]:
-    query_params: dict[str, str | int | None] = {
-        "select": "id,owner_id,owner_username,name,slug,description,status,created_at,updated_at,member_count",
-        "order": order,
-        "limit": limit,
-    }
+    query = """
+    SELECT
+      id,
+      owner_id,
+      owner_username,
+      name,
+      slug,
+      description,
+      status,
+      created_at,
+      updated_at,
+      member_count
+    FROM public.vw_projects
+    """
+    clauses: list[str] = []
+    params: list[Any] = []
     if filters:
-        query_params.update(filters)
-
-    payload = request_with_service_role(
-        "GET",
-        f"/rest/v1/vw_projects?{build_query_string(query_params)}",
-    )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de proyectos inválida")
-    return [project for project in payload if isinstance(project, dict)]
+        if "owner_username" in filters and filters["owner_username"].startswith("eq."):
+            clauses.append("owner_username = %s")
+            params.append(filters["owner_username"][3:])
+        if "name" in filters and filters["name"].startswith("eq."):
+            clauses.append("name = %s")
+            params.append(filters["name"][3:])
+        if "id" in filters and filters["id"].startswith("eq."):
+            clauses.append("id = %s")
+            params.append(filters["id"][3:])
+        if "slug" in filters and filters["slug"].startswith("eq."):
+            clauses.append("slug = %s")
+            params.append(filters["slug"][3:])
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    if order:
+        query += " ORDER BY owner_username ASC, name ASC"
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    return fetch_all(query, tuple(params))
 
 
 def _get_project_record(owner: str, project_name: str) -> dict[str, Any] | None:
@@ -109,20 +142,16 @@ def _list_owned_project_records(username: str) -> list[dict[str, Any]]:
 
 
 def _list_shared_project_records(user_id: str) -> list[dict[str, Any]]:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_projects_with_users?"
-        + build_query_string(
-            {
-                "select": "project_id,member_role",
-                "member_id": f"eq.{user_id}",
-                "member_role": "neq.owner",
-                "order": "project_name.asc",
-            }
-        ),
+    payload = fetch_all(
+        """
+        SELECT project_id, member_role
+        FROM public.vw_projects_with_users
+        WHERE member_id = %s
+          AND member_role <> 'owner'
+        ORDER BY project_name ASC
+        """,
+        (user_id,),
     )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de miembros de proyecto inválida")
 
     projects: list[dict[str, Any]] = []
     for row in payload:
@@ -152,24 +181,38 @@ def _upsert_project_record(owner: str, project_name: str) -> dict[str, Any]:
 
     owner_profile = _get_profile_by_username(owner)
     if not owner_profile:
-        raise SupabaseError("No se encontró el propietario del proyecto en Supabase")
+        raise ServiceError("No se encontró el propietario del proyecto")
 
     owner_id = str(owner_profile.get("id") or "").strip()
     if not owner_id:
-        raise SupabaseError("El propietario del proyecto no tiene un id válido")
+        raise ServiceError("El propietario del proyecto no tiene un id válido")
 
-    call_rpc_with_service_role(
-        "admin_create_project",
-        json_body={
-            "p_description": None,
-            "p_name": normalized_name,
-            "p_owner_user_id": owner_id,
-            "p_status": "active",
-        },
+    slug_row = fetch_one(
+        "SELECT internal.ensure_project_slug(%s, %s, NULL) AS slug",
+        (owner, normalized_name),
+    )
+    slug = str((slug_row or {}).get("slug") or "").strip()
+    if not slug:
+        raise ServiceError("No se pudo calcular el slug del proyecto")
+    execute(
+        """
+        INSERT INTO internal.projects (owner_id, name, slug, description, status)
+        VALUES (%s, %s, %s, %s, %s)
+        """,
+        (owner_id, normalized_name, slug, None, "active"),
     )
     created = _get_project_record(owner, normalized_name)
     if not created:
-        raise SupabaseError("No se pudo registrar el proyecto en Supabase")
+        raise ServiceError("No se pudo registrar el proyecto")
+    execute(
+        """
+        INSERT INTO internal.project_members (project_id, user_id, member_role)
+        VALUES (%s, %s, 'owner')
+        ON CONFLICT (project_id, user_id) DO UPDATE
+        SET member_role = EXCLUDED.member_role
+        """,
+        (created["id"], owner_id),
+    )
     return created
 
 
@@ -179,14 +222,22 @@ def _rename_project_record(owner: str, current_name: str, new_name: str) -> None
         _upsert_project_record(owner, current_name)
         record = _get_project_record(owner, current_name)
     if not record:
-        raise SupabaseError("No se pudo resolver el proyecto en Supabase")
+        raise ServiceError("No se pudo resolver el proyecto")
 
-    call_rpc_with_service_role(
-        "admin_update_project",
-        json_body={
-            "p_name": new_name,
-            "p_project_id": record["id"],
-        },
+    slug_row = fetch_one(
+        "SELECT internal.ensure_project_slug(%s, %s, %s) AS slug",
+        (owner, new_name, record["id"]),
+    )
+    slug = str((slug_row or {}).get("slug") or "").strip()
+    if not slug:
+        raise ServiceError("No se pudo resolver el slug del proyecto")
+    execute(
+        """
+        UPDATE internal.projects
+        SET name = %s, slug = %s
+        WHERE id = %s
+        """,
+        (new_name, slug, record["id"]),
     )
 
 
@@ -194,27 +245,26 @@ def _delete_project_record(owner: str, project_name: str) -> None:
     record = _get_project_record(owner, project_name)
     if not record:
         return
-    call_rpc_with_service_role(
-        "admin_delete_project",
-        json_body={"p_project_id": record["id"]},
-    )
+    execute("DELETE FROM internal.projects WHERE id = %s", (record["id"],))
 
 
 def _list_project_members_by_project_id(project_id: str) -> list[dict[str, Any]]:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_projects_with_users?"
-        + build_query_string(
-            {
-                "select": "project_id,owner_id,owner_username,member_id,member_username,member_role,member_created_at",
-                "project_id": f"eq.{project_id}",
-                "order": "member_username.asc",
-            }
-        ),
+    return fetch_all(
+        """
+        SELECT
+          project_id,
+          owner_id,
+          owner_username,
+          member_id,
+          member_username,
+          member_role,
+          member_created_at
+        FROM public.vw_projects_with_users
+        WHERE project_id = %s
+        ORDER BY member_username ASC
+        """,
+        (project_id,),
     )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de miembros inválida")
-    return [member for member in payload if isinstance(member, dict)]
 
 
 def _get_project_member(project_id: str, user_id: str) -> dict[str, Any] | None:
