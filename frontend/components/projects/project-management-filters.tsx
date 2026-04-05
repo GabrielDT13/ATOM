@@ -3,32 +3,41 @@ import { useMemo } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   FilterIcon,
+  GridViewIcon,
+  ListViewIcon,
   SearchIcon,
 } from "@/components/projects/project-management-icons";
 import type {
   ProjectOwnerFilter,
   ProjectStatusFilter,
 } from "@/components/projects/project-management-utils";
+import { cn } from "@/lib/utils";
 import { ChevronDownIcon } from "@/components/users/user-management-icons";
+
+type ProjectViewMode = "board" | "list";
 
 type ProjectManagementFiltersProps = {
   onOwnerFilterChange: (value: ProjectOwnerFilter) => void;
   onSearchChange: (value: string) => void;
   onStatusFilterChange: (value: ProjectStatusFilter) => void;
+  onViewModeChange: (value: ProjectViewMode) => void;
   ownerFilter: ProjectOwnerFilter;
   owners: string[];
   search: string;
   statusFilter: ProjectStatusFilter;
+  viewMode: ProjectViewMode;
 };
 
 export function ProjectManagementFilters({
   onOwnerFilterChange,
   onSearchChange,
   onStatusFilterChange,
+  onViewModeChange,
   ownerFilter,
   owners,
   search,
   statusFilter,
+  viewMode,
 }: ProjectManagementFiltersProps) {
   const activeFilterCount = useMemo(() => {
     let total = 0;
@@ -57,7 +66,38 @@ export function ProjectManagementFilters({
           />
         </div>
 
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="inline-flex h-12 items-center rounded-2xl border border-slate-200 bg-slate-50 p-1">
+            <button
+              aria-label="Cambiar a vista en lista"
+              className={cn(
+                "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
+                viewMode === "list"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700",
+              )}
+              onClick={() => onViewModeChange("list")}
+              type="button"
+            >
+              <ListViewIcon />
+              <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              aria-label="Cambiar a vista en tablero"
+              className={cn(
+                "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
+                viewMode === "board"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700",
+              )}
+              onClick={() => onViewModeChange("board")}
+              type="button"
+            >
+              <GridViewIcon />
+              <span className="hidden sm:inline">Board</span>
+            </button>
+          </div>
+
           <Popover>
             <PopoverTrigger asChild>
               <button

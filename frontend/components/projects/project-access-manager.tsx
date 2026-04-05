@@ -20,6 +20,7 @@ import { ProjectMemberRow } from "@/components/projects/project-member-row";
 import { ProjectSharePopover } from "@/components/projects/project-share-popover";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -200,6 +201,8 @@ export function ProjectAccessManager({
     setMemberPendingRoleEdit(member);
   }
 
+  const memberSkeletons = Array.from({ length: 3 }, (_, index) => index);
+
   return (
     <section className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -234,7 +237,23 @@ export function ProjectAccessManager({
 
       <div className="mt-4 flex flex-col gap-3">
         {loadingMembers ? (
-          <p className="text-sm text-slate-500">Cargando usuarios con acceso...</p>
+          memberSkeletons.map((index) => (
+            <div
+              className="rounded-3xl border border-slate-200 bg-white px-4 py-4"
+              key={index}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-3">
+                  <Skeleton className="h-10 w-10 rounded-full" />
+                  <div className="min-w-0 space-y-2">
+                    <Skeleton className="h-4 w-32" />
+                    <Skeleton className="h-3 w-24" />
+                  </div>
+                </div>
+                <Skeleton className="h-7 w-20 rounded-full" />
+              </div>
+            </div>
+          ))
         ) : members.length > 0 ? (
           members.map((member) => (
             <ProjectMemberRow

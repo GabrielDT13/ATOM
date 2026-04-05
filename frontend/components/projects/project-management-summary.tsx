@@ -5,14 +5,43 @@ import {
   TemplateIcon,
   UploadStackIcon,
 } from "@/components/projects/project-management-icons";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ProjectRecord } from "@/components/projects/project-management-utils";
 import { getProjectSummaryMetrics } from "@/components/projects/project-management-utils";
 
 type ProjectManagementSummaryProps = {
+  loading?: boolean;
   projects: ProjectRecord[];
 };
 
-export function ProjectManagementSummary({ projects }: ProjectManagementSummaryProps) {
+function ProjectSummarySkeletonCard() {
+  return (
+    <article className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+      <Skeleton className="mb-4 h-12 w-12 rounded-2xl" />
+      <Skeleton className="h-4 w-32" />
+      <Skeleton className="mt-3 h-9 w-20" />
+      <div className="mt-3 space-y-2">
+        <Skeleton className="h-4 w-full" />
+        <Skeleton className="h-4 w-5/6" />
+      </div>
+    </article>
+  );
+}
+
+export function ProjectManagementSummary({
+  loading = false,
+  projects,
+}: ProjectManagementSummaryProps) {
+  if (loading) {
+    return (
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }, (_, index) => (
+          <ProjectSummarySkeletonCard key={index} />
+        ))}
+      </section>
+    );
+  }
+
   const metrics = getProjectSummaryMetrics(projects);
 
   return (

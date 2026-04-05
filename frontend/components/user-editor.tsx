@@ -9,6 +9,7 @@ import type { MutationResponse, UserRecord } from "@/types/api";
 import { Button, buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function UserEditor() {
   const params = useParams<{ username: string }>();
@@ -19,6 +20,7 @@ export function UserEditor() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const loadingUser = !currentUser && !message;
 
   useEffect(() => {
     let active = true;
@@ -131,7 +133,15 @@ export function UserEditor() {
             </FormMessage>
           ) : null}
 
-          {!currentUser && !message ? <FormMessage>Cargando usuario...</FormMessage> : null}
+          {loadingUser ? (
+            <div className="space-y-3 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Skeleton className="h-10 rounded-xl bg-white" />
+                <Skeleton className="h-10 rounded-xl bg-white" />
+              </div>
+              <Skeleton className="h-10 rounded-xl bg-white" />
+            </div>
+          ) : null}
         </FormCard>
       </form>
     </FormPage>

@@ -8,6 +8,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -47,6 +48,8 @@ type DataTableProps<T> = {
   rowClassName?: string | ((row: T) => string | undefined);
   initialSort?: DataTableSortState;
 };
+
+const TABLE_SKELETON_ROW_COUNT = 6;
 
 function compareSortValues(left: DataTableSortValue, right: DataTableSortValue) {
   if (left == null && right == null) {
@@ -164,6 +167,8 @@ export function DataTable<T>({
     });
   }
 
+  const skeletonRows = Array.from({ length: TABLE_SKELETON_ROW_COUNT }, (_, rowIndex) => rowIndex);
+
   return (
     <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div className="overflow-x-auto">
@@ -205,11 +210,33 @@ export function DataTable<T>({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {loading ? (
-              <tr>
-                <td className="px-6 py-14 text-center text-sm text-slate-500" colSpan={columns.length}>
-                  {loadingLabel}
-                </td>
-              </tr>
+              <>
+                {skeletonRows.map((rowIndex) => (
+                  <tr key={`skeleton-row-${rowIndex}`}>
+                    {columns.map((column, columnIndex) => (
+                      <td
+                        className={cn("px-6 py-5 align-middle text-sm text-slate-700", column.cellClassName)}
+                        key={`${column.id}-skeleton-${rowIndex}`}
+                      >
+                        <div className="space-y-2">
+                          <Skeleton
+                            className={cn(
+                              "h-4",
+                              columnIndex === 0 ? "w-36" : columnIndex === columns.length - 1 ? "ml-auto w-10" : "w-full max-w-[10rem]",
+                            )}
+                          />
+                          {columnIndex === 0 ? <Skeleton className="h-3 w-24" /> : null}
+                        </div>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr>
+                  <td className="px-6 pb-6 pt-2 text-center text-sm text-slate-400" colSpan={columns.length}>
+                    {loadingLabel}
+                  </td>
+                </tr>
+              </>
             ) : null}
 
             {!loading && data.length === 0 ? (

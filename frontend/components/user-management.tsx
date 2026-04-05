@@ -289,7 +289,7 @@ export function UserManagement() {
           </div>
         </section>
 
-        <UserManagementSummary users={users} />
+        <UserManagementSummary loading={loading} users={users} />
 
         <UserManagementFilters
           departmentFilter={departmentFilter}

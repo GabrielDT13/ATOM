@@ -38,6 +38,77 @@ export function FilterIcon({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+export function GridViewIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="4.25"
+        y="4.25"
+      />
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="14.25"
+        y="4.25"
+      />
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="4.25"
+        y="14.25"
+      />
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="14.25"
+        y="14.25"
+      />
+    </svg>
+  );
+}
+
+export function ListViewIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M8.5 7H19.25M8.5 12H19.25M8.5 17H19.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <circle cx="5.25" cy="7" fill="currentColor" r="1.25" />
+      <circle cx="5.25" cy="12" fill="currentColor" r="1.25" />
+      <circle cx="5.25" cy="17" fill="currentColor" r="1.25" />
+    </svg>
+  );
+}
+
 export function PlusIcon({ className = "h-4 w-4" }: IconProps) {
   return (
     <svg
