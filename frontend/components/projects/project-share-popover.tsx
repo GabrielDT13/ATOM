@@ -11,6 +11,7 @@ import { SearchIcon } from "@/components/projects/project-management-icons";
 import { ProjectAccessUserTrigger } from "@/components/projects/project-access-user-trigger";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
   SelectContent,
@@ -94,7 +95,23 @@ export function ProjectSharePopover({
 
           <div className="max-h-72 overflow-y-auto">
             {loading ? (
-              <p className="py-6 text-center text-sm text-slate-500">Buscando usuarios...</p>
+              <div className="space-y-2 py-2">
+                {Array.from({ length: 3 }, (_, index) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                    key={index}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="min-w-0 space-y-2">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-3 w-40" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-9 w-28 rounded-full" />
+                  </div>
+                ))}
+              </div>
             ) : candidates.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {candidates.map((candidate) => (

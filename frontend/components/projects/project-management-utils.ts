@@ -83,6 +83,7 @@ export function getProjectStatusMeta(status: ProjectStatus) {
           "border border-emerald-200 bg-emerald-50 text-emerald-700",
         description: "El proyecto ya tiene entregables HTML listos para revisar.",
         label: "Resultados listos",
+        panelClassName: "from-emerald-100 via-white to-emerald-50",
       };
     case "configured":
       return {
@@ -90,6 +91,7 @@ export function getProjectStatusMeta(status: ProjectStatus) {
         badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
         description: "El proyecto tiene archivos cargados, pero aún no hay resultados HTML.",
         label: "Pendiente de análisis",
+        panelClassName: "from-sky-100 via-white to-sky-50",
       };
     default:
       return {
@@ -97,6 +99,7 @@ export function getProjectStatusMeta(status: ProjectStatus) {
         badgeClassName: "border border-slate-200 bg-slate-50 text-slate-600",
         description: "Todavía no hay archivos disponibles en el inventario del proyecto.",
         label: "Sin archivos",
+        panelClassName: "from-slate-100 via-white to-slate-50",
       };
   }
 }

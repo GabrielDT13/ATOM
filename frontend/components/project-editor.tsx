@@ -15,6 +15,7 @@ import {
 import { Button, buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function ProjectEditor() {
   const params = useParams<{ owner: string; projectName: string }>();
@@ -38,6 +39,7 @@ export function ProjectEditor() {
       )}`,
     ),
   }));
+  const loadingProject = !details && !message;
 
   async function loadProject() {
     try {
@@ -193,7 +195,16 @@ export function ProjectEditor() {
             </FormMessage>
           ) : null}
 
-          {!details && !message ? <FormMessage>Cargando proyecto...</FormMessage> : null}
+          {loadingProject ? (
+            <div className="space-y-3 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+              <Skeleton className="h-4 w-36" />
+              <Skeleton className="h-10 w-full rounded-xl bg-white" />
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Skeleton className="h-40 rounded-[24px] bg-white" />
+                <Skeleton className="h-40 rounded-[24px] bg-white" />
+              </div>
+            </div>
+          ) : null}
         </FormCard>
       </form>
     </FormPage>

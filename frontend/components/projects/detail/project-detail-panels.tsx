@@ -17,6 +17,7 @@ import {
 } from "@/components/projects/detail/project-detail-helpers";
 import type { PreviewState } from "@/components/projects/detail/project-detail-types";
 import { buttonStyles } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { buildProjectReportHref } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 import type { ProjectFileEntry, ProjectMemberRecord } from "@/types/api";
@@ -127,8 +128,12 @@ export function PreviewPanel({
 
       <div className={cn(panelHeight, "bg-slate-50", stretch && "flex-1")}>
         {loading ? (
-          <div className={cn("flex items-center justify-center px-6 text-center text-sm leading-6 text-slate-500", panelHeight)}>
-            Cargando vista previa...
+          <div className={cn("px-6 py-6", panelHeight)}>
+            <div className="flex h-full flex-col gap-4">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="flex-1 rounded-[24px]" />
+            </div>
           </div>
         ) : null}
 

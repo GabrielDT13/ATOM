@@ -29,6 +29,7 @@ import type { ProjectExecutionGroup } from "@/components/projects/project-detail
 import type { ParsedProjectReport } from "@/components/projects/project-report-utils";
 import { buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord } from "@/types/api";
 
@@ -36,13 +37,13 @@ export function ProjectDetailLoadingState() {
   return (
     <div className="grid gap-6">
       <section className="page-hero-surface rounded-[32px] border border-white/10 p-6 sm:p-8">
-        <div className="h-8 w-48 animate-pulse rounded-full bg-white/10" />
-        <div className="mt-5 h-12 w-full max-w-2xl animate-pulse rounded-2xl bg-white/10" />
-        <div className="mt-3 h-6 w-full max-w-3xl animate-pulse rounded-xl bg-white/10" />
+        <Skeleton className="h-8 w-48 rounded-full bg-white/12" />
+        <Skeleton className="mt-5 h-12 w-full max-w-2xl rounded-2xl bg-white/12" />
+        <Skeleton className="mt-3 h-6 w-full max-w-3xl rounded-xl bg-white/12" />
       </section>
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="h-[24rem] animate-pulse rounded-[28px] bg-white" />
-        <div className="h-[24rem] animate-pulse rounded-[28px] bg-white" />
+        <Skeleton className="h-[24rem] rounded-[28px] bg-slate-200/80" />
+        <Skeleton className="h-[24rem] rounded-[28px] bg-slate-200/80" />
       </div>
     </div>
   );

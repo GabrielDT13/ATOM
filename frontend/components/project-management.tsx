@@ -16,6 +16,7 @@ import type { SessionResponse } from "@/types/api";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { buttonStyles } from "@/components/ui/button";
 import { ProjectEditDialog, type ProjectEditValues } from "@/components/projects/project-edit-dialog";
+import { ProjectManagementBoard } from "@/components/projects/project-management-board";
 import { ProjectManagementFilters } from "@/components/projects/project-management-filters";
 import {
   PlusIcon,
@@ -32,6 +33,10 @@ import {
   buildProjectRecords,
 } from "@/components/projects/project-management-utils";
 
+type ProjectViewMode = "board" | "list";
+
+const PROJECT_VIEW_STORAGE_KEY = "atom.project-management.view";
+
 export function ProjectManagement() {
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
@@ -41,6 +46,8 @@ export function ProjectManagement() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all");
   const [ownerFilter, setOwnerFilter] = useState<ProjectOwnerFilter>("all");
+  const [viewMode, setViewMode] = useState<ProjectViewMode>("list");
+  const [viewPreferenceLoaded, setViewPreferenceLoaded] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectRecord | null>(null);
   const [pendingDeleteProject, setPendingDeleteProject] = useState<ProjectRecord | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -70,6 +77,26 @@ export function ProjectManagement() {
       .catch(() => setSession(null));
     void loadProjects();
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const storedViewMode = window.localStorage.getItem(PROJECT_VIEW_STORAGE_KEY);
+    if (storedViewMode === "list" || storedViewMode === "board") {
+      setViewMode(storedViewMode);
+    }
+    setViewPreferenceLoaded(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !viewPreferenceLoaded) {
+      return;
+    }
+
+    window.localStorage.setItem(PROJECT_VIEW_STORAGE_KEY, viewMode);
+  }, [viewMode, viewPreferenceLoaded]);
 
   async function handleEdit(values: ProjectEditValues) {
     if (!editingProject) {
@@ -200,29 +227,45 @@ export function ProjectManagement() {
           </div>
         </section>
 
-        <ProjectManagementSummary projects={projects} />
+        <ProjectManagementSummary loading={loading} projects={projects} />
 
         <ProjectManagementFilters
           onOwnerFilterChange={setOwnerFilter}
           onSearchChange={setSearch}
           onStatusFilterChange={setStatusFilter}
+          onViewModeChange={setViewMode}
           ownerFilter={ownerFilter}
           owners={isAdmin ? owners : owners.slice(0, 1)}
           search={search}
           statusFilter={statusFilter}
+          viewMode={viewMode}
         />
 
-        <ProjectManagementTable
-          canDeleteProject={canDeleteProject}
-          canEditProject={canEditProject}
-          loading={loading}
-          onDelete={setPendingDeleteProject}
-          onEdit={setEditingProject}
-          onView={(project) =>
-            router.push(buildProjectDetailHref(project.routeRef))
-          }
-          projects={filteredProjects}
-        />
+        {viewMode === "board" ? (
+          <ProjectManagementBoard
+            canDeleteProject={canDeleteProject}
+            canEditProject={canEditProject}
+            loading={loading}
+            onDelete={setPendingDeleteProject}
+            onEdit={setEditingProject}
+            onView={(project) =>
+              router.push(buildProjectDetailHref(project.routeRef))
+            }
+            projects={filteredProjects}
+          />
+        ) : (
+          <ProjectManagementTable
+            canDeleteProject={canDeleteProject}
+            canEditProject={canEditProject}
+            loading={loading}
+            onDelete={setPendingDeleteProject}
+            onEdit={setEditingProject}
+            onView={(project) =>
+              router.push(buildProjectDetailHref(project.routeRef))
+            }
+            projects={filteredProjects}
+          />
+        )}
       </div>
 
       <ProjectEditDialog

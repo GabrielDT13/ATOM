@@ -9,6 +9,7 @@ import {
 import { DownloadIcon, EyeIcon, ProjectStackIcon } from "@/components/projects/project-management-icons";
 import { ButtonLink } from "@/components/ui/button-link";
 import { buttonStyles } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api";
 import { buildProjectDetailHref, getProjectByRef } from "@/lib/projects";
 import { parseProjectReportHtml } from "@/components/projects/project-report-utils";
@@ -163,8 +164,12 @@ export function ProjectReportView({
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         {loading ? (
-          <div className="flex min-h-[75vh] items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm leading-6 text-slate-500">
-            Cargando informe...
+          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-9 w-28 rounded-full" />
+            </div>
+            <Skeleton className="h-[75vh] rounded-[20px] bg-white" />
           </div>
         ) : null}
 
