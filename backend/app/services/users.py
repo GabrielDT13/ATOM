@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import secrets
-import string
 import shutil
-from uuid import UUID
+import string
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from backend.app.core.config import get_settings
 from backend.app.services.auth import build_session_user_from_profile
