@@ -121,8 +121,9 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
         now = datetime.now(timezone.utc).isoformat()
         created_at, updated_at = now, now
 
-    created_at = _normalize_timestamp(metadata.get("created_at")) if metadata else created_at
-    updated_at = _normalize_timestamp(metadata.get("updated_at")) if metadata else updated_at
+    if metadata:
+        created_at = _normalize_timestamp(metadata.get("created_at")) or created_at
+        updated_at = _normalize_timestamp(metadata.get("updated_at")) or updated_at
     resolved_name = str(metadata.get("name") or project_dir.name).strip() if metadata else project_dir.name
     resolved_owner = str(metadata.get("owner_username") or metadata.get("owner") or owner).strip() if metadata else owner
     resolved_access_role = (

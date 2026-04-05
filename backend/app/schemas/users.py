@@ -5,7 +5,6 @@ from pydantic import BaseModel, field_validator
 
 class UserCreateRequest(BaseModel):
     username: str
-    password: str
     email: str
     role: str = "user"
     department: str | None = None
@@ -82,3 +81,4 @@ class UserMutationResponse(BaseModel):
     success: bool
     message: str
     user: UserResponse | None = None
+    temporary_password: str | None = None

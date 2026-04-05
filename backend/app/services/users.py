@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import secrets
 import shutil
+import string
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
 from backend.app.core.config import get_settings
 from backend.app.services.auth import build_session_user_from_profile
 from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
 from backend.app.services.errors import ServiceError
+
+_TEMP_PASSWORD_ALPHABET = "".join(
+    character
+    for character in (string.ascii_letters + string.digits)
+    if character not in {"0", "O", "I", "l", "1"}
+)
 
 
 def _normalize_username(username: str) -> str:
@@ -32,6 +41,10 @@ def _normalize_optional_text(value: Any) -> str | None:
 
 def _build_user_response(profile: dict[str, Any]) -> dict[str, str | None]:
     return build_session_user_from_profile(profile)
+
+
+def _generate_temporary_password(length: int = 16) -> str:
+    return "".join(secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length))
 
 
 def _fetch_profiles(
@@ -165,22 +178,28 @@ def _create_auth_user(
           raw_user_meta_data
         )
         VALUES (
-          %s,
-          crypt(%s, gen_salt('bf')),
+          %s::text,
+          crypt(%s::text, gen_salt('bf')),
           '{"provider":"email","providers":["email"]}'::jsonb,
           jsonb_build_object(
-            'username', %s,
-            'full_name', %s,
-            'department', COALESCE(%s, '')
+            'username', %s::text,
+            'full_name', %s::text,
+            'department', COALESCE(%s::text, '')
           )
         )
         RETURNING id
         """,
         (email, password, username, username, department),
     )
-    if not rows or not isinstance(rows[0].get("id"), str):
+    if not rows:
         raise ServiceError("No se pudo crear el usuario")
-    return rows[0]["id"]
+
+    user_id = rows[0].get("id")
+    if isinstance(user_id, UUID):
+        return str(user_id)
+    if isinstance(user_id, str):
+        return user_id
+    raise ServiceError("No se pudo crear el usuario")
 
 
 def _update_auth_user(
@@ -197,16 +216,16 @@ def _update_auth_user(
         """
         UPDATE auth.users
         SET
-          email = %s,
+          email = %s::text,
           encrypted_password = CASE
-            WHEN %s IS NULL OR %s = '' THEN encrypted_password
-            ELSE crypt(%s, gen_salt('bf'))
+            WHEN %s::text IS NULL OR %s::text = '' THEN encrypted_password
+            ELSE crypt(%s::text, gen_salt('bf'))
           END,
           raw_user_meta_data = jsonb_build_object(
-            'username', %s,
-            'full_name', COALESCE(%s, ''),
-            'avatar_url', COALESCE(%s, ''),
-            'department', COALESCE(%s, '')
+            'username', %s::text,
+            'full_name', COALESCE(%s::text, ''),
+            'avatar_url', COALESCE(%s::text, ''),
+            'department', COALESCE(%s::text, '')
           )
         WHERE id = %s
         RETURNING id
@@ -359,28 +378,28 @@ def _delete_user_projects_dir(username: str) -> None:
 
 def create_user(
     username: str,
-    password: str,
     email: str,
     role: str,
     department: str | None,
     actor_user_id: str,
-) -> tuple[bool, str]:
+) -> tuple[bool, str, str | None]:
     try:
         normalized_username = _normalize_username(username)
     except ValueError as exc:
-        return False, str(exc)
+        return False, str(exc), None
 
     normalized_email = _normalize_email(email)
     uniqueness_error = _ensure_create_user_is_unique(normalized_username, normalized_email)
     if uniqueness_error:
-        return False, uniqueness_error
+        return False, uniqueness_error, None
 
     created_user_id: str | None = None
     user_dir: Path | None = None
+    temporary_password = _generate_temporary_password()
     try:
         created_user_id = _create_auth_user(
             normalized_username,
-            password,
+            temporary_password,
             normalized_email,
             department,
         )
@@ -395,13 +414,13 @@ def create_user(
             shutil.rmtree(user_dir, ignore_errors=True)
         if created_user_id:
             _safe_delete_auth_user(created_user_id)
-        return False, str(exc)
+        return False, str(exc), None
     except OSError:
         if created_user_id:
             _safe_delete_auth_user(created_user_id)
-        return False, "No se pudo preparar la carpeta local del usuario"
+        return False, "No se pudo preparar la carpeta local del usuario", None
 
-    return True, "Usuario registrado correctamente"
+    return True, "Usuario registrado correctamente", temporary_password
 
 
 def update_user(
