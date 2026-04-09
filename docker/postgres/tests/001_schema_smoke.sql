@@ -23,13 +23,15 @@ DECLARE
     'internal.dashboard_activity',
     'internal.projects',
     'internal.project_members',
+    'internal.notifications',
     'public.vw_departments',
     'public.vw_profiles',
     'public.vw_projects',
     'public.vw_projects_with_users',
     'public.vw_profile_preferences',
     'public.vw_profile_activity',
-    'public.vw_dashboard_activity'
+    'public.vw_dashboard_activity',
+    'public.vw_notifications'
   ];
   relation_name text;
 BEGIN

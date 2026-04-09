@@ -5,6 +5,7 @@ from backend.app.api.routes.auth import router as auth_router
 from backend.app.api.routes.dashboard import router as dashboard_router
 from backend.app.api.routes.departments import router as departments_router
 from backend.app.api.routes.navigation import router as navigation_router
+from backend.app.api.routes.notifications import router as notifications_router
 from backend.app.api.routes.profile import router as profile_router
 from backend.app.api.routes.projects import router as projects_router
 from backend.app.api.routes.users import router as users_router
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(dashboard_router)
     app.include_router(navigation_router)
+    app.include_router(notifications_router)
     app.include_router(departments_router)
     app.include_router(profile_router)
     app.include_router(users_router)

@@ -10,6 +10,10 @@ from backend.app.services.analysis_runs import list_active_analysis_runs_for_pro
 from backend.app.services.dashboard_activity import log_project_dashboard_event
 from backend.app.services.database import execute
 from backend.app.services.errors import ServiceError
+from backend.app.services.notifications import (
+    notify_project_ownership_transferred,
+    notify_project_shared,
+)
 from backend.app.services.project_inventory import (
     _build_project_payload,
     _classify_project_file,
@@ -488,18 +492,27 @@ def add_project_member(
     try:
         project = _upsert_project_record(owner, project_name)
         candidate = _get_profile_by_username(username)
+        owner_profile = _get_profile_by_username(owner)
         if not candidate:
             return False, "No se encontró el usuario seleccionado"
+        if not owner_profile:
+            return False, "No se encontró el propietario del proyecto"
 
         candidate_id = str(candidate.get("id") or "").strip()
         candidate_username = str(candidate.get("username") or "").strip()
+        owner_user_id = str(owner_profile.get("id") or "").strip()
         if not candidate_id or not candidate_username:
             return False, "El usuario seleccionado no es válido"
+        if not owner_user_id:
+            return False, "El propietario del proyecto no es válido"
         if candidate_username == owner:
             return False, "El propietario ya tiene acceso al proyecto"
 
         current_member = _get_project_member(str(project["id"]), candidate_id)
+        previous_role = str(current_member.get("member_role") or "").strip().lower() if current_member else None
         if current_member:
+            if previous_role == member_role:
+                return True, "El usuario ya contaba con ese nivel de acceso"
             execute(
                 """
                 INSERT INTO internal.project_members (project_id, user_id, member_role)
@@ -508,6 +521,17 @@ def add_project_member(
                 SET member_role = EXCLUDED.member_role
                 """,
                 (project["id"], candidate_id, member_role),
+            )
+            notify_project_shared(
+                actor_user_id=owner_user_id,
+                actor_username=owner,
+                member_role=member_role,
+                project_id=str(project.get("id") or "").strip() or None,
+                project_name=str(project.get("name") or "").strip() or project_name,
+                project_owner_username=owner,
+                project_slug=str(project.get("slug") or "").strip() or None,
+                recipient_user_id=candidate_id,
+                updated_existing_access=True,
             )
             return True, "Permisos del usuario actualizados correctamente"
 
@@ -519,6 +543,17 @@ def add_project_member(
             SET member_role = EXCLUDED.member_role
             """,
             (project["id"], candidate_id, member_role),
+        )
+        notify_project_shared(
+            actor_user_id=owner_user_id,
+            actor_username=owner,
+            member_role=member_role,
+            project_id=str(project.get("id") or "").strip() or None,
+            project_name=str(project.get("name") or "").strip() or project_name,
+            project_owner_username=owner,
+            project_slug=str(project.get("slug") or "").strip() or None,
+            recipient_user_id=candidate_id,
+            updated_existing_access=False,
         )
         return True, "Proyecto compartido correctamente"
     except ServiceError as exc:
@@ -539,13 +574,19 @@ def transfer_project_ownership(
 
         project = _upsert_project_record(owner, normalized_name)
         candidate = _get_profile_by_username(username)
+        owner_profile = _get_profile_by_username(owner)
         if not candidate:
             return False, "No se encontró el usuario seleccionado", owner
+        if not owner_profile:
+            return False, "No se encontró el propietario actual del proyecto", owner
 
         candidate_id = str(candidate.get("id") or "").strip()
         candidate_username = str(candidate.get("username") or "").strip()
+        owner_user_id = str(owner_profile.get("id") or "").strip()
         if not candidate_id or not candidate_username:
             return False, "El usuario seleccionado no es válido", owner
+        if not owner_user_id:
+            return False, "El propietario actual del proyecto no es válido", owner
         if candidate_username == owner:
             return False, "Ese usuario ya es el propietario del proyecto", owner
 
@@ -592,6 +633,15 @@ def transfer_project_ownership(
         except ServiceError as exc:
             next_project_dir.rename(project_dir)
             return False, str(exc), owner
+
+        notify_project_ownership_transferred(
+            actor_user_id=owner_user_id,
+            actor_username=owner,
+            project_id=str(project.get("id") or "").strip() or None,
+            project_name=str(project.get("name") or "").strip() or normalized_name,
+            project_slug=str(project.get("slug") or "").strip() or None,
+            recipient_user_id=candidate_id,
+        )
 
         return True, "Propiedad del proyecto transferida correctamente", candidate_username
     except (ServiceError, ValueError) as exc:

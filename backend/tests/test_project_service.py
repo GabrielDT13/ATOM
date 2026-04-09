@@ -390,18 +390,33 @@ def test_update_project_renames_and_replaces_inputs_without_deleting_results(
 
 def test_add_project_member_inserts_viewer_permission(monkeypatch) -> None:
     executed: list[tuple[str, tuple[object, ...]]] = []
+    notifications: list[dict[str, object]] = []
 
     monkeypatch.setattr(
         project_service,
         "_upsert_project_record",
-        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+        lambda owner, project_name: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+            "slug": "researcher-rna-atlas",
+        },
     )
     monkeypatch.setattr(
         project_service,
         "_get_profile_by_username",
-        lambda username: {"id": "user-2", "username": username},
+        lambda username: (
+            {"id": "user-owner", "username": username}
+            if username == "researcher"
+            else {"id": "user-2", "username": username}
+        ),
     )
     monkeypatch.setattr(project_service, "_get_project_member", lambda project_id, user_id: None)
+    monkeypatch.setattr(
+        project_service,
+        "notify_project_shared",
+        lambda **kwargs: notifications.append(kwargs),
+    )
 
     monkeypatch.setattr(
         project_service,
@@ -415,6 +430,19 @@ def test_add_project_member_inserts_viewer_permission(monkeypatch) -> None:
     assert message == "Proyecto compartido correctamente"
     assert len(executed) == 1
     assert "INSERT INTO internal.project_members" in executed[0][0]
+    assert notifications == [
+        {
+            "actor_user_id": "user-owner",
+            "actor_username": "researcher",
+            "member_role": "viewer",
+            "project_id": "project-1",
+            "project_name": "RNA Atlas",
+            "project_owner_username": "researcher",
+            "project_slug": "researcher-rna-atlas",
+            "recipient_user_id": "user-2",
+            "updated_existing_access": False,
+        }
+    ]
 
 
 def test_remove_project_member_blocks_owner(monkeypatch) -> None:
@@ -480,6 +508,7 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
     project_dir.mkdir(parents=True)
     (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
     executed: list[tuple[str, tuple[object, ...]]] = []
+    notifications: list[dict[str, object]] = []
 
     monkeypatch.setattr(
         project_service,
@@ -487,6 +516,7 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
         lambda owner, project_name: {
             "id": "project-1",
             "name": project_name,
+            "slug": "researcher-rna-atlas",
             "owner_username": owner,
             "owner_id": "user-owner",
         },
@@ -494,7 +524,11 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
     monkeypatch.setattr(
         project_service,
         "_get_profile_by_username",
-        lambda username: {"id": "user-2", "username": username},
+        lambda username: (
+            {"id": "user-owner", "username": username}
+            if username == "researcher"
+            else {"id": "user-2", "username": username}
+        ),
     )
     monkeypatch.setattr(
         project_service,
@@ -507,6 +541,11 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
         "execute",
         lambda query, params=(): executed.append((query, params)),
     )
+    monkeypatch.setattr(
+        project_service,
+        "notify_project_ownership_transferred",
+        lambda **kwargs: notifications.append(kwargs),
+    )
 
     success, message, next_owner = project_service.transfer_project_ownership(
         "researcher",
@@ -518,6 +557,16 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
     assert message == "Propiedad del proyecto transferida correctamente"
     assert next_owner == "manager"
     assert not project_dir.exists()
+    assert notifications == [
+        {
+            "actor_user_id": "user-owner",
+            "actor_username": "researcher",
+            "project_id": "project-1",
+            "project_name": "RNA Atlas",
+            "project_slug": "researcher-rna-atlas",
+            "recipient_user_id": "user-2",
+        }
+    ]
     assert (isolated_app_env["projects_dir"] / "manager" / "RNA Atlas" / "template.xlsx").exists()
     assert len(executed) == 3
     assert "UPDATE internal.projects" in executed[0][0]

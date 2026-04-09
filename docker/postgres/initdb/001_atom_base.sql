@@ -120,6 +120,31 @@ CREATE TABLE IF NOT EXISTS internal.project_members (
   PRIMARY KEY (project_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS internal.notifications (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id uuid NOT NULL REFERENCES internal.profiles (id) ON DELETE CASCADE,
+  actor_user_id uuid REFERENCES internal.profiles (id) ON DELETE SET NULL,
+  project_id uuid REFERENCES internal.projects (id) ON DELETE SET NULL,
+  notification_type text NOT NULL,
+  title text NOT NULL,
+  message text NOT NULL,
+  action_label text,
+  action_url text,
+  is_read boolean NOT NULL DEFAULT false,
+  read_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (
+    notification_type IN (
+      'analysis_completed',
+      'analysis_failed',
+      'project_access_changed',
+      'project_ownership_transferred',
+      'project_shared'
+    )
+  ),
+  CHECK ((is_read = false AND read_at IS NULL) OR is_read = true)
+);
+
 CREATE TABLE IF NOT EXISTS internal.analysis_runs (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   project_id uuid NOT NULL REFERENCES internal.projects (id) ON DELETE CASCADE,
@@ -162,6 +187,10 @@ CREATE INDEX IF NOT EXISTS idx_internal_dashboard_activity_user_created_at
   ON internal.dashboard_activity (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_internal_dashboard_activity_project_created_at
   ON internal.dashboard_activity (project_owner_username, project_name, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_internal_notifications_user_created_at
+  ON internal.notifications (user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_internal_notifications_user_unread_created_at
+  ON internal.notifications (user_id, is_read, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_internal_projects_owner_id ON internal.projects (owner_id);
 CREATE INDEX IF NOT EXISTS idx_internal_project_members_user_id ON internal.project_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_internal_analysis_runs_project_created_at
@@ -435,6 +464,33 @@ SELECT
   da.design_id,
   da.created_at
 FROM internal.dashboard_activity da;
+
+CREATE OR REPLACE VIEW public.vw_notifications AS
+SELECT
+  n.id,
+  n.user_id,
+  n.actor_user_id,
+  actor_profile.username AS actor_username,
+  actor_profile.full_name AS actor_display_name,
+  n.project_id,
+  p.name AS project_name,
+  p.slug AS project_slug,
+  owner_profile.username AS project_owner_username,
+  n.notification_type,
+  n.title,
+  n.message,
+  n.action_label,
+  n.action_url,
+  n.is_read,
+  n.read_at,
+  n.created_at
+FROM internal.notifications n
+LEFT JOIN internal.profiles actor_profile
+  ON actor_profile.id = n.actor_user_id
+LEFT JOIN internal.projects p
+  ON p.id = n.project_id
+LEFT JOIN internal.profiles owner_profile
+  ON owner_profile.id = p.owner_id;
 
 CREATE OR REPLACE VIEW public.vw_analysis_runs AS
 SELECT

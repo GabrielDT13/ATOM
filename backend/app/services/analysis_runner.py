@@ -7,6 +7,7 @@ from backend.app.services.analysis_runs import (
     mark_analysis_run_finished,
     update_analysis_run_progress,
 )
+from backend.app.services.notifications import notify_analysis_run_finished
 
 
 def execute_analysis_run(run_id: str) -> None:
@@ -81,6 +82,9 @@ def execute_analysis_run(run_id: str) -> None:
                     total_designs=total_designs,
                 )
                 mark_analysis_run_finished(run_id, status="completed")
+                completed_run = get_analysis_run(run_id)
+                if completed_run:
+                    notify_analysis_run_finished(completed_run, status="completed")
                 return
 
             if event_type == "run_failed":
@@ -97,9 +101,15 @@ def execute_analysis_run(run_id: str) -> None:
                     error_message=str(event.get("message") or "").strip() or None,
                     status="failed",
                 )
+                failed_run = get_analysis_run(run_id)
+                if failed_run:
+                    notify_analysis_run_finished(failed_run, status="failed")
                 return
 
         mark_analysis_run_finished(run_id, status="completed")
+        completed_run = get_analysis_run(run_id)
+        if completed_run:
+            notify_analysis_run_finished(completed_run, status="completed")
     except Exception as exc:
         payload = {
             "type": "run_failed",
@@ -108,3 +118,6 @@ def execute_analysis_run(run_id: str) -> None:
         }
         append_analysis_run_event(run_id, payload)
         mark_analysis_run_finished(run_id, error_message=str(exc), status="failed")
+        failed_run = get_analysis_run(run_id)
+        if failed_run:
+            notify_analysis_run_finished(failed_run, status="failed")
