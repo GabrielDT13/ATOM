@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from backend.app.dependencies.auth import get_current_user
 from backend.app.schemas.analysis import (
     AnalysisRunCollectionResponse,
     AnalysisRunEventCollectionResponse,
@@ -10,7 +11,7 @@ from backend.app.schemas.analysis import (
     AnalysisRunRequest,
     AnalysisRunResponse,
 )
-from backend.app.dependencies.auth import get_current_user
+from backend.app.services.analysis import stream_analysis
 from backend.app.services.analysis_runs import (
     build_analysis_stream_event,
     create_or_reuse_analysis_run,
@@ -18,7 +19,6 @@ from backend.app.services.analysis_runs import (
     list_analysis_run_events,
     list_analysis_runs_for_project,
 )
-from backend.app.services.analysis import stream_analysis
 from backend.app.services.projects import (
     get_project_details,
     resolve_project_reference,
