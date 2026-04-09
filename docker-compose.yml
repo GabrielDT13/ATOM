@@ -45,6 +45,18 @@ services:
       - JWT_SECRET=${JWT_SECRET}
       - JWT_AUDIENCE=${JWT_AUDIENCE:-authenticated}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - MAIL_DELIVERY_MODE=${MAIL_DELIVERY_MODE:-console}
+      - MAIL_FROM_EMAIL=${MAIL_FROM_EMAIL:-no-reply@atom.local}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-ATOM}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
+      - EMAIL_TOKEN_SECRET=${EMAIL_TOKEN_SECRET:-}
+      - PASSWORD_RESET_TOKEN_TTL_SECONDS=${PASSWORD_RESET_TOKEN_TTL_SECONDS:-3600}
+      - ACCOUNT_SETUP_TOKEN_TTL_SECONDS=${ACCOUNT_SETUP_TOKEN_TTL_SECONDS:-604800}
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null"]
       interval: 10s
@@ -98,6 +110,16 @@ services:
       - ANALYSIS_WORKER_POLL_SECONDS=${ANALYSIS_WORKER_POLL_SECONDS:-2}
       - JWT_SECRET=${JWT_SECRET}
       - JWT_AUDIENCE=${JWT_AUDIENCE:-authenticated}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - MAIL_DELIVERY_MODE=${MAIL_DELIVERY_MODE:-console}
+      - MAIL_FROM_EMAIL=${MAIL_FROM_EMAIL:-no-reply@atom.local}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-ATOM}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
     restart: unless-stopped
 
 volumes:
