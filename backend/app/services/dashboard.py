@@ -239,6 +239,7 @@ def _build_featured_projects(projects: list[dict[str, object]]) -> list[dict[str
         items.append(
             {
                 "access_role": project.get("access_role"),
+                "active_run": project.get("active_run"),
                 "file_count": int(project.get("file_count") or 0),
                 "highlight_files": highlight_files,
                 "name": str(project.get("name") or ""),

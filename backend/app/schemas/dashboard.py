@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from backend.app.schemas.analysis import AnalysisRunResponse
 from pydantic import BaseModel
 
 DashboardProjectStatus = Literal["configured", "empty", "results"]
@@ -46,6 +47,7 @@ class DashboardStatusBreakdownResponse(BaseModel):
 
 class DashboardProjectHighlightResponse(BaseModel):
     access_role: str | None = None
+    active_run: AnalysisRunResponse | None = None
     file_count: int
     highlight_files: list[str]
     name: str

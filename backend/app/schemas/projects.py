@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from backend.app.schemas.analysis import AnalysisRunResponse
 from pydantic import BaseModel, field_validator
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
@@ -18,6 +19,7 @@ class ProjectFileResponse(BaseModel):
 
 class ProjectSummaryResponse(BaseModel):
     access_role: ProjectMemberRole | None = None
+    active_run: AnalysisRunResponse | None = None
     additional_files: list[str]
     created_at: str
     file_count: int

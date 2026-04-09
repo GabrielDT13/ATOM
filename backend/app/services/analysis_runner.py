@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from backend.app.services.analysis import iter_analysis_events
+from backend.app.services.analysis_runs import (
+    append_analysis_run_event,
+    get_analysis_run,
+    mark_analysis_run_finished,
+    update_analysis_run_progress,
+)
+
+
+def execute_analysis_run(run_id: str) -> None:
+    run = get_analysis_run(run_id)
+    if not run:
+        raise FileNotFoundError("Ejecución no encontrada")
+
+    project_owner_username = str(run.get("project_owner_username") or "").strip()
+    project_name = str(run.get("project_name") or "").strip()
+    actor_username = str(run.get("requested_by_username") or "").strip() or project_owner_username
+
+    successful_designs = int(run.get("successful_designs") or 0)
+    failed_designs = int(run.get("failed_designs") or 0)
+    processed_designs = int(run.get("processed_designs") or 0)
+
+    try:
+        for event in iter_analysis_events(
+            project_owner_username,
+            project_name,
+            actor_username=actor_username,
+        ):
+            append_analysis_run_event(run_id, event)
+
+            event_type = str(event.get("type") or "log").strip().lower()
+            total_designs = int(event.get("total_designs") or 0) if event.get("total_designs") is not None else None
+
+            if event_type == "run_started":
+                update_analysis_run_progress(run_id, total_designs=total_designs or 0)
+                continue
+
+            if event_type == "design_started":
+                update_analysis_run_progress(
+                    run_id,
+                    current_analysis_type=str(event.get("analysis_type") or "").strip() or None,
+                    current_design_id=str(event.get("design_id") or "").strip() or None,
+                    total_designs=total_designs,
+                )
+                continue
+
+            if event_type == "design_completed":
+                processed_designs += 1
+                successful_designs += 1
+                update_analysis_run_progress(
+                    run_id,
+                    current_analysis_type=str(event.get("analysis_type") or "").strip() or None,
+                    current_design_id=str(event.get("design_id") or "").strip() or None,
+                    processed_designs=processed_designs,
+                    successful_designs=successful_designs,
+                    total_designs=total_designs,
+                )
+                continue
+
+            if event_type == "design_failed":
+                processed_designs += 1
+                failed_designs += 1
+                update_analysis_run_progress(
+                    run_id,
+                    current_analysis_type=str(event.get("analysis_type") or "").strip() or None,
+                    current_design_id=str(event.get("design_id") or "").strip() or None,
+                    failed_designs=failed_designs,
+                    processed_designs=processed_designs,
+                    total_designs=total_designs,
+                )
+                continue
+
+            if event_type == "run_completed":
+                update_analysis_run_progress(
+                    run_id,
+                    failed_designs=failed_designs,
+                    processed_designs=processed_designs,
+                    successful_designs=successful_designs,
+                    total_designs=total_designs,
+                )
+                mark_analysis_run_finished(run_id, status="completed")
+                return
+
+            if event_type == "run_failed":
+                update_analysis_run_progress(
+                    run_id,
+                    error_message=str(event.get("message") or "").strip() or None,
+                    failed_designs=failed_designs,
+                    processed_designs=processed_designs,
+                    successful_designs=successful_designs,
+                    total_designs=total_designs,
+                )
+                mark_analysis_run_finished(
+                    run_id,
+                    error_message=str(event.get("message") or "").strip() or None,
+                    status="failed",
+                )
+                return
+
+        mark_analysis_run_finished(run_id, status="completed")
+    except Exception as exc:
+        payload = {
+            "type": "run_failed",
+            "level": "error",
+            "message": f"Fallo inesperado del worker: {exc}",
+        }
+        append_analysis_run_event(run_id, payload)
+        mark_analysis_run_finished(run_id, error_message=str(exc), status="failed")

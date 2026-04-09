@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from backend.app.constants.navigation import SIDEBAR_LEFT_LINKS, SIDEBAR_LEFT_TITLE
 from backend.app.core.config import get_settings
+from backend.app.services.analysis_runs import list_active_analysis_runs_for_projects
 from backend.app.services.dashboard_activity import log_project_dashboard_event
 from backend.app.services.database import execute
 from backend.app.services.errors import ServiceError
@@ -69,6 +70,28 @@ def _log_project_event(
     )
 
 
+def _attach_active_runs(items: list[dict[str, object]]) -> list[dict[str, object]]:
+    project_ids = [
+        str(item.get("id") or "").strip()
+        for item in items
+        if isinstance(item, dict) and str(item.get("id") or "").strip()
+    ]
+    indexed_runs = list_active_analysis_runs_for_projects(project_ids)
+    if not indexed_runs:
+        return items
+
+    enriched_items: list[dict[str, object]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            enriched_items.append(item)
+            continue
+        enriched = item.copy()
+        project_id = str(item.get("id") or "").strip()
+        enriched["active_run"] = indexed_runs.get(project_id)
+        enriched_items.append(enriched)
+    return enriched_items
+
+
 def list_sidebar_left(role: str) -> dict[str, object]:
     items: list[dict[str, object]] = []
 
@@ -126,6 +149,7 @@ def list_sidebar_projects_for_user(
                 "slug": project_slug,
                 "status": str(project.get("status") or "empty").strip() or "empty",
                 "updated_at": str(project.get("updated_at") or "").strip(),
+                "active_run": project.get("active_run"),
             }
         )
 
@@ -220,6 +244,7 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
         projects[owner] = sorted(project_names, key=lambda item: item.lower())
 
     items.extend(indexed_items.values())
+    items = _attach_active_runs(items)
     items.sort(
         key=lambda item: (
             str(item.get("owner", "")).lower(),
@@ -298,7 +323,8 @@ def get_project_details(owner: str, project_name: str) -> dict[str, object]:
     if (not project_dir.exists() or not project_dir.is_dir()) and metadata is None:
         raise FileNotFoundError("Proyecto no encontrado")
 
-    return _build_project_payload(owner, project_dir, metadata)
+    payload = _build_project_payload(owner, project_dir, metadata)
+    return _attach_active_runs([payload])[0]
 
 
 def resolve_project_reference(project_ref: str) -> dict[str, Any] | None:
@@ -316,7 +342,8 @@ def get_project_details_by_ref(project_ref: str) -> dict[str, object]:
         raise FileNotFoundError("Proyecto no encontrado")
 
     project_dir = get_settings().projects_dir / owner / project_name
-    return _build_project_payload(owner, project_dir, metadata)
+    payload = _build_project_payload(owner, project_dir, metadata)
+    return _attach_active_runs([payload])[0]
 
 
 def user_can_view_project(user_id: str, username: str, role: str, owner: str, project_name: str) -> bool:
