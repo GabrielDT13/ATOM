@@ -2,7 +2,8 @@
 
 import type { SessionUser } from "@/types/api";
 
-import { BellIcon, MenuIcon, UserIcon } from "@/components/dashboard/dashboard-icons";
+import { MenuIcon, UserIcon } from "@/components/dashboard/dashboard-icons";
+import { HeaderNotificationsPopover } from "@/components/dashboard/header-notifications-popover";
 
 type AppHeaderProps = {
   onOpenSidebar: () => void;
@@ -41,13 +42,7 @@ export function AppHeader({ onOpenSidebar, user }: AppHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
-        <button
-          aria-label="Notificaciones"
-          className="flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary"
-          type="button"
-        >
-          <BellIcon className="h-5 w-5" />
-        </button>
+        <HeaderNotificationsPopover user={user} />
 
         <div className="h-8 w-px bg-slate-200" />
 
