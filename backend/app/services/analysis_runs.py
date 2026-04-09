@@ -11,6 +11,7 @@ from backend.app.services.database import (
     fetch_one,
     get_db_connection,
 )
+from psycopg import OperationalError
 from psycopg.errors import UndefinedTable
 
 AnalysisRunStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
@@ -161,7 +162,7 @@ def list_active_analysis_runs_for_projects(project_ids: list[str]) -> dict[str, 
             """,
             (normalized_ids, list(ACTIVE_ANALYSIS_RUN_STATUSES)),
         )
-    except UndefinedTable:
+    except (OperationalError, UndefinedTable):
         return {}
 
     indexed: dict[str, dict[str, object]] = {}

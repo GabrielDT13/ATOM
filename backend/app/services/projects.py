@@ -87,7 +87,9 @@ def _attach_active_runs(items: list[dict[str, object]]) -> list[dict[str, object
             continue
         enriched = item.copy()
         project_id = str(item.get("id") or "").strip()
-        enriched["active_run"] = indexed_runs.get(project_id)
+        active_run = indexed_runs.get(project_id)
+        if active_run is not None:
+            enriched["active_run"] = active_run
         enriched_items.append(enriched)
     return enriched_items
 
@@ -136,22 +138,23 @@ def list_sidebar_projects_for_user(
         if not route_ref or not owner or not name:
             continue
 
-        items.append(
-            {
-                "access_role": project.get("access_role"),
-                "can_run": owner == session_username,
-                "file_count": int(project.get("file_count") or 0),
-                "html_count": html_count,
-                "id": project_id,
-                "name": name,
-                "owner": owner,
-                "route_ref": route_ref,
-                "slug": project_slug,
-                "status": str(project.get("status") or "empty").strip() or "empty",
-                "updated_at": str(project.get("updated_at") or "").strip(),
-                "active_run": project.get("active_run"),
-            }
-        )
+        payload = {
+            "access_role": project.get("access_role"),
+            "can_run": owner == session_username,
+            "file_count": int(project.get("file_count") or 0),
+            "html_count": html_count,
+            "id": project_id,
+            "name": name,
+            "owner": owner,
+            "route_ref": route_ref,
+            "slug": project_slug,
+            "status": str(project.get("status") or "empty").strip() or "empty",
+            "updated_at": str(project.get("updated_at") or "").strip(),
+        }
+        active_run = project.get("active_run")
+        if active_run is not None:
+            payload["active_run"] = active_run
+        items.append(payload)
 
     items.sort(
         key=lambda item: (
