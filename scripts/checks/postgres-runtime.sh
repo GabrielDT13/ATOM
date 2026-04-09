@@ -19,7 +19,7 @@ set -a
 source "$ENV_FILE"
 set +a
 
-export ATOM_BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-base}"
+export ATOM_BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}"
 
 if [[ -z "${JWT_SECRET:-}" ]]; then
   echo "Falta JWT_SECRET en el archivo de entorno." >&2

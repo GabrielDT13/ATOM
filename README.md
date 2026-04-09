@@ -37,7 +37,7 @@ Los scripts usan `.env.local` por defecto. Si no existe, usan `.env`.
 
 Variables base:
 
-- `ATOM_BACKEND_BUILD_TARGET`: `backend-base` para el backend web normal o `backend-analysis` para incluir R y análisis dentro de la imagen
+- `ATOM_BACKEND_BUILD_TARGET`: `backend-analysis` por defecto para incluir R y análisis dentro de la imagen; puedes forzar `backend-base` si quieres un arranque más ligero sin worker analítico
 - `ATOM_PORT`: puerto publicado del frontend
 - `ATOM_API_PORT`: puerto publicado del backend
 - `BACKEND_HOST` y `BACKEND_PORT`: host/puerto internos del proceso `uvicorn`
@@ -91,13 +91,18 @@ Servicios por defecto:
 - `http://localhost:3000` frontend con `.env.example`
 - `http://localhost:8080` frontend con el `.env.local` actual del repo
 - `http://localhost:8000` backend
+- `atom-worker` worker de análisis en segundo plano
 - `postgresql://atom:atom@localhost:5432/atom` PostgreSQL directo
 
-Por defecto `docker compose` usa `ATOM_BACKEND_BUILD_TARGET=backend-base`, que arranca rápido y cubre auth, perfil, proyectos, dashboard y demás API web. Si necesitas también el runtime analítico con R dentro de Docker, cambia a:
+Por defecto `docker compose` usa `ATOM_BACKEND_BUILD_TARGET=backend-analysis`, así que `./scripts/up.sh` ya levanta el runtime con R y el worker de análisis sin pasos extra. Si alguna vez quieres un arranque más ligero y sin runtime analítico, puedes cambiar temporalmente a:
 
 ```bash
-ATOM_BACKEND_BUILD_TARGET=backend-analysis ./scripts/up.sh
+ATOM_BACKEND_BUILD_TARGET=backend-base ./scripts/up.sh
 ```
+
+El procesamiento asíncrono de análisis usa un worker separado (`atom-worker`) y ahora queda cubierto por defecto con ese target.
+
+Si ya tenías una base local creada antes de añadir la cola de ejecuciones asíncronas, recuerda recrearla para aplicar las tablas nuevas de `analysis_runs` y `analysis_run_logs`.
 
 Comandos útiles:
 
