@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { AuthBrand } from "@/components/auth/auth-brand";
@@ -105,6 +106,15 @@ export function LoginForm() {
             type={showPassword ? "text" : "password"}
             value={password}
           />
+
+          <div className="-mt-2 flex justify-end">
+            <Link
+              className="text-sm font-medium text-primary transition-colors hover:text-blue-700"
+              href="/forgot-password"
+            >
+              He olvidado mi contraseña
+            </Link>
+          </div>
 
           <button
             className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-lg bg-primary text-base font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"

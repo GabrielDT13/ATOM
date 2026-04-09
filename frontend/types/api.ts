@@ -14,6 +14,11 @@ export type SessionResponse = {
   user: SessionUser | null;
 };
 
+export type AuthMessageResponse = {
+  success: boolean;
+  message: string;
+};
+
 export type ProfilePreferences = {
   email_notifications: boolean;
   security_alerts: boolean;
