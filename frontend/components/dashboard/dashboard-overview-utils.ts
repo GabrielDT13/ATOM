@@ -1,4 +1,5 @@
 import type {
+  AnalysisRun,
   DashboardActivityItem,
   DashboardOverview,
   DashboardExampleFile,
@@ -134,7 +135,23 @@ export function formatBytes(sizeBytes: number) {
   return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-export function getStatusMeta(status: ProjectStatus) {
+export function getStatusMeta(status: ProjectStatus, activeRun?: AnalysisRun | null) {
+  if (activeRun?.status === "queued") {
+    return {
+      badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
+      label: "En cola",
+      panelClassName: "from-amber-100 via-white to-amber-50",
+    };
+  }
+
+  if (activeRun?.status === "running") {
+    return {
+      badgeClassName: "border border-violet-200 bg-violet-50 text-violet-700",
+      label: "Procesando",
+      panelClassName: "from-violet-100 via-white to-violet-50",
+    };
+  }
+
   switch (status) {
     case "results":
       return {
@@ -179,6 +196,14 @@ export function getExampleKindMeta(exampleFile: DashboardExampleFile) {
 }
 
 export function getProjectSupportingText(project: DashboardProjectHighlight) {
+  if (project.active_run?.status === "queued") {
+    return "La ejecución está en cola y arrancará automáticamente.";
+  }
+
+  if (project.active_run?.status === "running") {
+    return "El proyecto se está procesando en segundo plano.";
+  }
+
   if (project.status === "results") {
     return `${project.result_count} informe(s) HTML listos para revisar.`;
   }

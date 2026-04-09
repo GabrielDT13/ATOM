@@ -122,21 +122,23 @@ export function ProjectDetailHero({
 }
 
 export function ProjectQuickActions({
+  activeRun,
   activeDeliverablesCount,
   canRegenerate,
   downloadZipFile,
+  executionHref,
   executionCount,
   htmlCount,
-  onRegenerate,
   project,
   supportFileCount,
 }: {
+  activeRun: ProjectDetails["active_run"];
   activeDeliverablesCount: number;
   canRegenerate: boolean;
   downloadZipFile: ProjectFileEntry | null;
+  executionHref: string | null;
   executionCount: number;
   htmlCount: number;
-  onRegenerate: () => void;
   project: ProjectDetails;
   supportFileCount: number;
 }) {
@@ -144,15 +146,13 @@ export function ProjectQuickActions({
     <SectionCard
       actions={
         <>
-          {canRegenerate ? (
-            <button
-              className={buttonStyles({ size: "md", variant: "secondary" })}
-              onClick={onRegenerate}
-              type="button"
-            >
+          {canRegenerate && executionHref ? (
+            <ButtonLink href={executionHref} size="md" variant="secondary">
               <RefreshIcon className="h-4 w-4" />
-              Volver a ejecutar
-            </button>
+              {activeRun?.status === "queued" || activeRun?.status === "running"
+                ? "Ver ejecución activa"
+                : "Volver a ejecutar"}
+            </ButtonLink>
           ) : null}
           {downloadZipFile ? (
             <a
@@ -171,6 +171,11 @@ export function ProjectQuickActions({
       title="Acciones rápidas"
     >
       <div className="flex flex-wrap gap-3">
+        {activeRun ? (
+          <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+            {activeRun.status === "queued" ? "En cola" : activeRun.status === "running" ? "Procesando" : activeRun.status}
+          </span>
+        ) : null}
         <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
           {executionCount} ejecuciones disponibles
         </span>

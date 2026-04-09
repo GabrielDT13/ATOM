@@ -2,7 +2,7 @@
 
 import type { AnalysisStreamEvent } from "@/types/api";
 
-export type AnalysisExecutionStatus = "idle" | "running" | "completed" | "failed";
+export type AnalysisExecutionStatus = "idle" | "queued" | "running" | "completed" | "failed";
 export type AnalysisExecutionLogLevel = "error" | "info" | "success" | "warning";
 export type AnalysisExecutionStepStatus = "active" | "completed" | "failed" | "pending";
 
@@ -406,6 +406,8 @@ export function buildAnalysisExecutionSnapshot(
 
   if (state.status === "completed" || state.status === "failed") {
     etaMs = 0;
+  } else if (state.status === "queued") {
+    etaMs = null;
   } else if (estimatedCurrentDesignDurationMs && state.totalDesigns > 0) {
     const remainingDesigns = Math.max(
       state.totalDesigns - processedDesigns - (activeDesign ? 1 : 0),
@@ -428,6 +430,8 @@ export function buildAnalysisExecutionSnapshot(
   let progressPercent = 0;
   if (state.status === "completed" || state.status === "failed") {
     progressPercent = 100;
+  } else if (state.status === "queued") {
+    progressPercent = state.totalDesigns > 0 ? 3 : 0;
   } else if (state.totalDesigns > 0) {
     const activeBonus = activeDesign
       ? activeDesignEstimatedProgress
@@ -452,11 +456,13 @@ export function buildAnalysisExecutionSnapshot(
       description:
         state.status === "idle"
           ? "Estamos preparando los datos iniciales del proyecto."
-          : "La plantilla y los archivos del proyecto ya se han preparado correctamente.",
+          : state.status === "queued"
+            ? "La ejecución ya está registrada y está esperando a que el worker la recoja."
+            : "La plantilla y los archivos del proyecto ya se han preparado correctamente.",
       id: "project-preparation",
       label: "Preparación",
       meta: state.startedAt ? formatTimeOfDay(state.startedAt) : null,
-      status: state.status === "idle" ? "pending" : "completed",
+      status: state.status === "idle" ? "pending" : state.status === "queued" ? "active" : "completed",
     },
     {
       description:
@@ -464,6 +470,8 @@ export function buildAnalysisExecutionSnapshot(
           ? "Todas las ejecuciones previstas ya se han procesado."
           : state.status === "failed"
             ? "El procesamiento se detuvo antes de completar todas las ejecuciones."
+            : state.status === "queued"
+              ? "La ejecución está en cola y comenzará automáticamente en cuanto haya un worker disponible."
             : activeDesign
               ? "Estamos procesando las ejecuciones del proyecto y actualizando el detalle técnico en tiempo real."
               : "El procesamiento comenzará en cuanto arranque la primera ejecución.",
@@ -480,6 +488,8 @@ export function buildAnalysisExecutionSnapshot(
           ? "failed"
           : state.status === "completed"
             ? "completed"
+            : state.status === "queued"
+              ? "pending"
             : activeDesign || processedDesigns > 0
               ? "active"
               : "pending",
@@ -490,6 +500,8 @@ export function buildAnalysisExecutionSnapshot(
           ? "El informe ya se ha generado con los resultados disponibles."
           : state.status === "failed"
             ? "La generación del informe no pudo finalizar por completo."
+            : state.status === "queued"
+              ? "El informe se generará automáticamente cuando comience el procesamiento."
             : remainingExecutions === 0 && (activeDesign || processedDesigns > 0)
               ? "Estamos cerrando el informe final con los últimos resultados."
               : "El informe final se generará cuando terminen las ejecuciones pendientes.",
@@ -503,10 +515,12 @@ export function buildAnalysisExecutionSnapshot(
         state.status === "completed"
           ? "completed"
           : state.status === "failed"
-            ? "failed"
-            : remainingExecutions === 0 && (activeDesign || processedDesigns > 0)
-              ? "active"
-              : "pending",
+          ? "failed"
+          : state.status === "queued"
+            ? "pending"
+          : remainingExecutions === 0 && (activeDesign || processedDesigns > 0)
+            ? "active"
+            : "pending",
     },
     {
       description:
@@ -514,6 +528,8 @@ export function buildAnalysisExecutionSnapshot(
           ? "Los resultados ya están listos y la vista volverá al proyecto automáticamente."
           : state.status === "failed"
             ? "Puedes volver al proyecto y relanzar la generación cuando lo necesites."
+            : state.status === "queued"
+              ? "Los resultados aparecerán en el proyecto cuando el worker termine la ejecución."
             : "Los resultados aparecerán en el proyecto cuando termine el informe.",
       id: "publish-results",
       label: "Resultados listos",

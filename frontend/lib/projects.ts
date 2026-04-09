@@ -61,8 +61,12 @@ export function buildProjectReportHref(projectRef: string, reportPath: string) {
   return `/dashboard/project-report/${encodeURIComponent(projectRef)}?path=${encodeURIComponent(reportPath)}`;
 }
 
-export function buildProjectExecutionHref(projectRef: string) {
-  return `/dashboard/project-execution/${encodeURIComponent(projectRef)}`;
+export function buildProjectExecutionHref(projectRef: string, options?: { autoStart?: boolean }) {
+  const basePath = `/dashboard/project-execution/${encodeURIComponent(projectRef)}`;
+  if (!options?.autoStart) {
+    return basePath;
+  }
+  return `${basePath}?start=1`;
 }
 
 export function listProjects() {

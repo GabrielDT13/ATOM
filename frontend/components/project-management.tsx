@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { fetchSession } from "@/lib/api";
 import {
@@ -54,29 +54,35 @@ export function ProjectManagement() {
   const [uploadState, setUploadState] = useState<"complete" | "idle" | "uploading">("idle");
   const appToast = useAppToast();
 
-  async function loadProjects() {
-    setLoading(true);
+  const loadProjects = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
 
     try {
       const payload = await listProjects();
       setProjects(buildProjectRecords(payload.items));
     } catch (loadError) {
-      appToast.error(
-        "No se pudieron cargar los proyectos",
-        loadError instanceof Error ? loadError.message : undefined,
-      );
-      setProjects([]);
+      if (!options?.silent) {
+        appToast.error(
+          "No se pudieron cargar los proyectos",
+          loadError instanceof Error ? loadError.message : undefined,
+        );
+        setProjects([]);
+      }
     } finally {
-      setLoading(false);
+      if (!options?.silent) {
+        setLoading(false);
+      }
     }
-  }
+  }, [appToast]);
 
   useEffect(() => {
     void fetchSession()
       .then((nextSession) => setSession(nextSession))
       .catch(() => setSession(null));
     void loadProjects();
-  }, []);
+  }, [loadProjects]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -179,6 +185,10 @@ export function ProjectManagement() {
   }
 
   const owners = useMemo(() => getProjectOwners(projects), [projects]);
+  const hasActiveRuns = useMemo(
+    () => projects.some((project) => project.activeRun?.status === "queued" || project.activeRun?.status === "running"),
+    [projects],
+  );
   const filteredProjects = useMemo(
     () => filterProjects(projects, search, statusFilter, ownerFilter),
     [ownerFilter, projects, search, statusFilter],
@@ -187,6 +197,51 @@ export function ProjectManagement() {
   const canEditProject = (project: ProjectRecord) => Boolean(isAdmin || project.accessRole === "owner" || project.accessRole === "editor");
   const canDeleteProject = (project: ProjectRecord) => Boolean(isAdmin || project.accessRole === "owner");
   const canShareProject = (project: ProjectRecord) => Boolean(project.accessRole === "owner");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshProjects() {
+      if (cancelled) {
+        return;
+      }
+
+      try {
+        await loadProjects({ silent: true });
+      } catch {
+        // Evita romper la vista por una revalidación periódica.
+      }
+    }
+
+    function handleVisibilityRefresh() {
+      if (document.visibilityState === "visible") {
+        void refreshProjects();
+      }
+    }
+
+    function handleWindowFocus() {
+      void refreshProjects();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+    window.addEventListener("focus", handleWindowFocus);
+
+    let intervalId: number | null = null;
+    if (hasActiveRuns) {
+      intervalId = window.setInterval(() => {
+        void refreshProjects();
+      }, 5000);
+    }
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
+      if (intervalId) {
+        window.clearInterval(intervalId);
+      }
+    };
+  }, [hasActiveRuns, loadProjects]);
 
   return (
     <>

@@ -19,7 +19,7 @@ import {
 } from "@/components/projects/project-management-utils";
 
 function ProjectStatusBadge({ project }: { project: ProjectRecord }) {
-  const meta = getProjectStatusMeta(project.status);
+  const meta = getProjectStatusMeta(project.status, project.activeRun);
 
   return (
     <span
@@ -76,7 +76,7 @@ export function ProjectManagementTable({
   const columns: DataTableColumn<ProjectRecord>[] = [
     {
       cell: (project) => {
-        const statusMeta = getProjectStatusMeta(project.status);
+        const statusMeta = getProjectStatusMeta(project.status, project.activeRun);
 
         return (
           <div className="flex items-center gap-4">
@@ -123,7 +123,7 @@ export function ProjectManagementTable({
       cell: (project) => <ProjectStatusBadge project={project} />,
       header: "Estado",
       id: "status",
-      sortValue: (project) => getProjectStatusMeta(project.status).label.toLowerCase(),
+      sortValue: (project) => getProjectStatusMeta(project.status, project.activeRun).label.toLowerCase(),
     },
     {
       cell: (project) => {

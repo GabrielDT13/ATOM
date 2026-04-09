@@ -509,7 +509,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             {dashboard.featured_projects.length ? dashboard.featured_projects.map((project) => {
-              const statusMeta = getStatusMeta(project.status);
+              const statusMeta = getStatusMeta(project.status, project.active_run);
 
               return (
                 <article

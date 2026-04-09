@@ -23,6 +23,14 @@ type ProjectExplorerProps = {
 };
 
 function getStatusLabel(item: SidebarProjectItem) {
+  if (item.active_run?.status === "queued") {
+    return "En cola";
+  }
+
+  if (item.active_run?.status === "running") {
+    return "Procesando";
+  }
+
   switch (item.status) {
     case "results":
       return "Con resultados";
@@ -119,15 +127,27 @@ export function ProjectExplorer({
                       </div>
 
                       {item.can_run ? (
-                        item.html_count > 0 ? (
-                          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                        item.active_run?.status === "queued" || item.active_run?.status === "running" ? (
+                          <Link
+                            aria-label={`Abrir ejecución de ${item.name}`}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600 transition hover:bg-violet-100"
+                            href={buildProjectExecutionHref(item.route_ref)}
+                          >
+                            <span className="h-3 w-3 rounded-full bg-current animate-pulse" />
+                          </Link>
+                        ) : item.html_count > 0 ? (
+                          <Link
+                            aria-label={`Abrir proyecto ${item.name}`}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
+                            href={buildProjectDetailHref(item.route_ref)}
+                          >
                             <CheckIcon className="h-5 w-5" />
-                          </span>
+                          </Link>
                         ) : (
                           <Link
                             aria-label={`Ejecutar proyecto ${item.name}`}
                             className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary hover:text-white"
-                            href={buildProjectExecutionHref(item.route_ref)}
+                            href={buildProjectExecutionHref(item.route_ref, { autoStart: true })}
                           >
                             <PlayIcon className="h-4 w-4" />
                           </Link>

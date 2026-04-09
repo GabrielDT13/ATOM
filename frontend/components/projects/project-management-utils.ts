@@ -1,5 +1,10 @@
 import { resolveProjectRouteRef } from "@/lib/projects";
-import type { ProjectMemberRole, ProjectStatus, ProjectSummary } from "@/types/api";
+import type {
+  AnalysisRun,
+  ProjectMemberRole,
+  ProjectStatus,
+  ProjectSummary,
+} from "@/types/api";
 
 export type ProjectStatusFilter = "all" | ProjectStatus;
 export type ProjectOwnerFilter = "all" | string;
@@ -7,6 +12,7 @@ export type ProjectOwnerFilter = "all" | string;
 export type ProjectRecord = ProjectSummary & {
   additionalFiles: string[];
   accessRole: ProjectMemberRole;
+  activeRun: AnalysisRun | null;
   htmlFiles: string[];
   id: string;
   routeRef: string;
@@ -20,6 +26,7 @@ export function buildProjectRecords(projects: ProjectSummary[]) {
       ...project,
       additionalFiles: project.additional_files,
       accessRole: project.access_role ?? "owner",
+      activeRun: project.active_run ?? null,
       htmlFiles: project.html_files,
       id: project.id?.trim() || `${project.owner}::${project.name}`,
       routeRef: resolveProjectRouteRef(project) ?? `${project.owner}::${project.name}`,
@@ -74,7 +81,27 @@ export function getProjectOwners(projects: ProjectRecord[]) {
   );
 }
 
-export function getProjectStatusMeta(status: ProjectStatus) {
+export function getProjectStatusMeta(status: ProjectStatus, activeRun?: AnalysisRun | null) {
+  if (activeRun?.status === "queued") {
+    return {
+      accentClassName: "bg-amber-100 text-amber-700",
+      badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
+      description: "El proyecto está en cola y se ejecutará en segundo plano en cuanto el worker lo recoja.",
+      label: "En cola",
+      panelClassName: "from-amber-100 via-white to-amber-50",
+    };
+  }
+
+  if (activeRun?.status === "running") {
+    return {
+      accentClassName: "bg-violet-100 text-violet-700",
+      badgeClassName: "border border-violet-200 bg-violet-50 text-violet-700",
+      description: "El proyecto se está procesando en segundo plano y seguirá avanzando aunque salgas de esta vista.",
+      label: "Procesando",
+      panelClassName: "from-violet-100 via-white to-violet-50",
+    };
+  }
+
   switch (status) {
     case "results":
       return {
