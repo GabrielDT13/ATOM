@@ -181,6 +181,37 @@ export type SidebarResponse<T> = {
   items: T[];
 };
 
+export type NotificationRecord = {
+  action_label?: string | null;
+  action_url?: string | null;
+  actor_display_name?: string | null;
+  actor_user_id?: string | null;
+  actor_username?: string | null;
+  created_at?: string | null;
+  id: number;
+  is_read: boolean;
+  message: string;
+  project_id?: string | null;
+  project_name?: string | null;
+  project_owner_username?: string | null;
+  project_slug?: string | null;
+  read_at?: string | null;
+  title: string;
+  type: string;
+  user_id: string;
+};
+
+export type NotificationCollectionResponse = {
+  items: NotificationRecord[];
+  unread_count: number;
+};
+
+export type NotificationMutationResponse = {
+  success: boolean;
+  unread_count: number;
+  updated_count: number;
+};
+
 export type UserRecord = {
   id: string;
   username: string;
