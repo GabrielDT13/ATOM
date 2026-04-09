@@ -29,6 +29,18 @@ class Settings:
     access_token_ttl_seconds: int
     refresh_token_ttl_seconds: int
     analysis_worker_poll_seconds: float
+    mail_delivery_mode: str
+    mail_from_email: str
+    mail_from_name: str
+    smtp_host: str
+    smtp_port: int
+    smtp_username: str
+    smtp_password: str
+    smtp_use_tls: bool
+    smtp_use_ssl: bool
+    email_token_secret: str
+    password_reset_token_ttl_seconds: int
+    account_setup_token_ttl_seconds: int
 
 
 def _resolve_path(env_var: str, default_relative_path: str, project_root: Path) -> Path:
@@ -73,4 +85,19 @@ def get_settings() -> Settings:
         access_token_ttl_seconds=int(os.getenv("ACCESS_TOKEN_TTL_SECONDS", os.getenv("JWT_EXP", "3600"))),
         refresh_token_ttl_seconds=int(os.getenv("REFRESH_TOKEN_TTL_SECONDS", "2592000")),
         analysis_worker_poll_seconds=float(os.getenv("ANALYSIS_WORKER_POLL_SECONDS", "2")),
+        mail_delivery_mode=os.getenv("MAIL_DELIVERY_MODE", "console").strip().lower() or "console",
+        mail_from_email=os.getenv("MAIL_FROM_EMAIL", "no-reply@atom.local").strip(),
+        mail_from_name=os.getenv("MAIL_FROM_NAME", "ATOM").strip() or "ATOM",
+        smtp_host=os.getenv("SMTP_HOST", "").strip(),
+        smtp_port=int(os.getenv("SMTP_PORT", "587")),
+        smtp_username=os.getenv("SMTP_USERNAME", "").strip(),
+        smtp_password=os.getenv("SMTP_PASSWORD", "").strip(),
+        smtp_use_tls=os.getenv("SMTP_USE_TLS", "true").strip().lower() not in {"0", "false", "no"},
+        smtp_use_ssl=os.getenv("SMTP_USE_SSL", "false").strip().lower() in {"1", "true", "yes"},
+        email_token_secret=(
+            os.getenv("EMAIL_TOKEN_SECRET", "").strip()
+            or os.getenv("SESSION_SECRET", "change-this-in-production")
+        ),
+        password_reset_token_ttl_seconds=int(os.getenv("PASSWORD_RESET_TOKEN_TTL_SECONDS", "3600")),
+        account_setup_token_ttl_seconds=int(os.getenv("ACCOUNT_SETUP_TOKEN_TTL_SECONDS", "604800")),
     )

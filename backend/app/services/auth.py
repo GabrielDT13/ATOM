@@ -9,6 +9,12 @@ from typing import Any
 from backend.app.core.config import get_settings
 from backend.app.core.jwt import JwtValidationError, decode_and_validate_hs256_jwt, encode_hs256_jwt
 from backend.app.services.database import execute, fetch_one, hash_token
+from backend.app.services.emailing import (
+    build_absolute_frontend_url,
+    send_password_changed_email,
+    send_password_reset_email,
+)
+from itsdangerous import BadSignature, BadTimeSignature, SignatureExpired, URLSafeTimedSerializer
 
 
 class AuthenticationError(RuntimeError):
@@ -24,6 +30,10 @@ class AuthenticatedSession:
     user: dict[str, str | None]
 
 
+def _get_password_token_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(secret_key=get_settings().email_token_secret)
+
+
 def _normalize_email(email: str) -> str:
     normalized = email.strip().lower()
     if not normalized:
@@ -31,10 +41,109 @@ def _normalize_email(email: str) -> str:
     return normalized
 
 
+def _normalize_password(value: str) -> str:
+    normalized = value.strip()
+    if len(normalized) < 8:
+        raise AuthenticationError("La contraseña debe tener al menos 8 caracteres", status_code=400)
+    return normalized
+
+
 def _resolve_role(roles: Any) -> str:
     if isinstance(roles, list) and "admin" in roles:
         return "admin"
     return "user"
+
+
+def _get_profile_by_email(email: str) -> dict[str, Any] | None:
+    return fetch_one(
+        """
+        SELECT
+          p.id,
+          p.email,
+          p.username,
+          p.full_name,
+          p.is_active
+        FROM public.vw_profiles p
+        WHERE lower(p.email) = lower(%s)
+        LIMIT 1
+        """,
+        (email,),
+    )
+
+
+def _get_profile_by_user_id(user_id: str) -> dict[str, Any]:
+    profile = fetch_one(
+        """
+        SELECT
+          id,
+          email,
+          username,
+          full_name,
+          department,
+          is_active,
+          roles
+        FROM public.vw_profiles
+        WHERE id = %s
+        LIMIT 1
+        """,
+        (user_id,),
+    )
+    if not profile:
+        raise AuthenticationError(
+            "No se encontró el perfil del usuario autenticado",
+            status_code=500,
+        )
+    return profile
+
+
+def generate_password_action_token(
+    *,
+    user_id: str,
+    email: str,
+    username: str,
+    kind: str,
+) -> str:
+    payload = {
+        "sub": user_id,
+        "email": email.strip().lower(),
+        "username": username.strip(),
+        "kind": kind.strip(),
+        "iat": int(time.time()),
+    }
+    return _get_password_token_serializer().dumps(payload, salt="atom-password-action")
+
+
+def _decode_password_action_token(token: str) -> dict[str, Any]:
+    settings = get_settings()
+    max_age = max(
+        settings.password_reset_token_ttl_seconds,
+        settings.account_setup_token_ttl_seconds,
+    )
+    try:
+        payload = _get_password_token_serializer().loads(
+            token.strip(),
+            salt="atom-password-action",
+            max_age=max_age,
+        )
+    except SignatureExpired as exc:
+        raise AuthenticationError("El enlace ha caducado", status_code=400) from exc
+    except (BadSignature, BadTimeSignature) as exc:
+        raise AuthenticationError("El enlace no es válido", status_code=400) from exc
+
+    if not isinstance(payload, dict):
+        raise AuthenticationError("El enlace no es válido", status_code=400)
+
+    kind = str(payload.get("kind") or "").strip()
+    issued_at = int(payload.get("iat") or 0)
+    now = int(time.time())
+    ttl = (
+        settings.account_setup_token_ttl_seconds
+        if kind == "account-setup"
+        else settings.password_reset_token_ttl_seconds
+    )
+    if issued_at <= 0 or now - issued_at > ttl:
+        raise AuthenticationError("El enlace ha caducado", status_code=400)
+    return payload
 
 
 def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | None]:
@@ -62,31 +171,6 @@ def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | 
         "department": str(profile.get("department") or "").strip() or None,
         "display_name": full_name or username,
     }
-
-
-def _get_profile_by_user_id(user_id: str) -> dict[str, Any]:
-    profile = fetch_one(
-        """
-        SELECT
-          id,
-          email,
-          username,
-          full_name,
-          department,
-          is_active,
-          roles
-        FROM public.vw_profiles
-        WHERE id = %s
-        LIMIT 1
-        """,
-        (user_id,),
-    )
-    if not profile:
-        raise AuthenticationError(
-            "No se encontró el perfil del usuario autenticado",
-            status_code=500,
-        )
-    return profile
 
 
 def get_session_user_by_id(user_id: str) -> dict[str, str | None]:
@@ -161,6 +245,72 @@ def authenticate_email_password(email: str, password: str) -> AuthenticatedSessi
         raise AuthenticationError("No se pudo resolver el usuario autenticado", status_code=502)
 
     return _build_local_authenticated_session(user_id)
+
+
+def request_password_reset(email: str) -> None:
+    normalized_email = _normalize_email(email)
+    profile = _get_profile_by_email(normalized_email)
+    if not profile or profile.get("is_active") is False:
+        return
+
+    user_id = str(profile.get("id") or "").strip()
+    username = str(profile.get("username") or "").strip()
+    if not user_id or not username:
+        return
+
+    token = generate_password_action_token(
+        user_id=user_id,
+        email=normalized_email,
+        username=username,
+        kind="password-reset",
+    )
+    send_password_reset_email(
+        to_email=normalized_email,
+        username=username,
+        reset_url=build_absolute_frontend_url(f"/reset-password?token={token}"),
+        expires_minutes=max(1, get_settings().password_reset_token_ttl_seconds // 60),
+    )
+
+
+def reset_password_with_token(token: str, new_password: str) -> None:
+    payload = _decode_password_action_token(token)
+    user_id = str(payload.get("sub") or "").strip()
+    email = str(payload.get("email") or "").strip().lower()
+    username = str(payload.get("username") or "").strip()
+    normalized_password = _normalize_password(new_password)
+    if not user_id or not email:
+        raise AuthenticationError("El enlace no es válido", status_code=400)
+
+    profile = _get_profile_by_user_id(user_id)
+    profile_email = str(profile.get("email") or "").strip().lower()
+    profile_username = str(profile.get("username") or "").strip() or username
+    if profile.get("is_active") is False:
+        raise AuthenticationError("Tu cuenta está desactivada", status_code=403)
+    if profile_email != email:
+        raise AuthenticationError("El enlace no es válido", status_code=400)
+
+    execute(
+        """
+        UPDATE auth.users
+        SET encrypted_password = crypt(%s, gen_salt('bf'))
+        WHERE id = %s
+        """,
+        (normalized_password, user_id),
+    )
+    execute(
+        """
+        UPDATE auth.refresh_tokens
+        SET revoked_at = now()
+        WHERE user_id = %s
+          AND revoked_at IS NULL
+        """,
+        (user_id,),
+    )
+    send_password_changed_email(
+        to_email=profile_email,
+        username=profile_username,
+        login_url=build_absolute_frontend_url("/login"),
+    )
 
 
 def refresh_authenticated_session(refresh_token: str) -> AuthenticatedSession:
