@@ -52,8 +52,8 @@ Esto permite empezar a mover la logica del backend sin depender de Supabase CLI.
 ## Estado actual del runtime
 
 - `docker compose up` levanta `atom-db`, `atom-backend` y `atom-frontend`.
-- El backend web normal usa por defecto `ATOM_BACKEND_BUILD_TARGET=backend-base` para evitar que cada arranque instale el stack completo de R.
-- El runtime analitico sigue estando disponible dentro de Docker usando `ATOM_BACKEND_BUILD_TARGET=backend-analysis`.
+- El stack local usa por defecto `ATOM_BACKEND_BUILD_TARGET=backend-analysis` para que el runtime analitico y el worker queden disponibles sin comandos extra.
+- Si hace falta un arranque mas ligero y sin analitica, se puede forzar manualmente `ATOM_BACKEND_BUILD_TARGET=backend-base`.
 - Auth, perfil, departamentos, proyectos y dashboard ya funcionan sobre PostgreSQL directo sin Supabase.
 
 ## Orden recomendado para seguir

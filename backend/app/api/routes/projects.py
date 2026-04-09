@@ -67,7 +67,7 @@ def _resolve_project_for_ref(project_ref: str) -> dict[str, object]:
     return project
 
 
-@router.get("", response_model=ProjectCollectionResponse)
+@router.get("", response_model=ProjectCollectionResponse, response_model_exclude_none=True)
 async def get_projects(request: Request) -> ProjectCollectionResponse:
     current_user = get_current_user(request)
     return ProjectCollectionResponse(
@@ -75,7 +75,7 @@ async def get_projects(request: Request) -> ProjectCollectionResponse:
     )
 
 
-@router.get("/by-ref/{project_ref}", response_model=ProjectResponse)
+@router.get("/by-ref/{project_ref}", response_model=ProjectResponse, response_model_exclude_none=True)
 async def get_project_by_ref(project_ref: str, request: Request) -> ProjectResponse:
     project = _resolve_project_for_ref(project_ref)
     owner = str(project.get("owner_username") or "").strip()
@@ -89,7 +89,7 @@ async def get_project_by_ref(project_ref: str, request: Request) -> ProjectRespo
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.get("/{owner}/{project_name}", response_model=ProjectResponse)
+@router.get("/{owner}/{project_name}", response_model=ProjectResponse, response_model_exclude_none=True)
 async def get_project(owner: str, project_name: str, request: Request) -> ProjectResponse:
     _require_project_view_access(request, owner, project_name)
     try:
@@ -100,7 +100,7 @@ async def get_project(owner: str, project_name: str, request: Request) -> Projec
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.post("", response_model=ProjectMutationResponse)
+@router.post("", response_model=ProjectMutationResponse, response_model_exclude_none=True)
 async def post_project(
     request: Request,
     project_name: str = Form(...),
@@ -121,7 +121,7 @@ async def post_project(
     return ProjectMutationResponse(success=success, message=message, project=project)
 
 
-@router.put("/{owner}/{project_name}", response_model=ProjectMutationResponse)
+@router.put("/{owner}/{project_name}", response_model=ProjectMutationResponse, response_model_exclude_none=True)
 async def put_project(
     owner: str,
     project_name: str,
@@ -146,7 +146,7 @@ async def put_project(
     return ProjectMutationResponse(success=success, message=message, project=project)
 
 
-@router.delete("/{owner}/{project_name}", response_model=ProjectMutationResponse)
+@router.delete("/{owner}/{project_name}", response_model=ProjectMutationResponse, response_model_exclude_none=True)
 async def remove_project(owner: str, project_name: str, request: Request) -> ProjectMutationResponse:
     current_user = require_admin_or_owner(request, owner)
     success, message = delete_project(
@@ -228,7 +228,11 @@ async def put_project_member(
     return ProjectMemberMutationResponse(success=success, message=message, member=member)
 
 
-@router.post("/{owner}/{project_name}/transfer/{username}", response_model=ProjectMutationResponse)
+@router.post(
+    "/{owner}/{project_name}/transfer/{username}",
+    response_model=ProjectMutationResponse,
+    response_model_exclude_none=True,
+)
 async def post_transfer_project_ownership(
     owner: str,
     project_name: str,

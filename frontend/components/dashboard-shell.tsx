@@ -120,6 +120,54 @@ export function DashboardShell({ children }: DashboardShellProps) {
     };
   }, [pathname, router]);
 
+  useEffect(() => {
+    if (!showProjectExplorer || !session?.authenticated || !session.user) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshRightNav() {
+      try {
+        const rightData = await apiFetch<SidebarResponse<SidebarProjectItem>>(
+          "/api/navigation/sidebar-right",
+        );
+
+        if (!cancelled) {
+          setRightNav(rightData);
+        }
+      } catch {
+        // Evita romper el shell por un refresh periódico.
+      }
+    }
+
+    function handleVisibilityRefresh() {
+      if (document.visibilityState === "visible") {
+        void refreshRightNav();
+      }
+    }
+
+    function handleWindowFocus() {
+      void refreshRightNav();
+    }
+
+    void refreshRightNav();
+
+    const intervalId = window.setInterval(() => {
+      void refreshRightNav();
+    }, 5000);
+
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [session, showProjectExplorer]);
+
   async function handleLogout() {
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });

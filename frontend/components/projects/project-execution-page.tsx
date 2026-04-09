@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { formatDuration, formatTimeOfDay } from "@/components/projects/project-execution-utils";
@@ -22,6 +22,7 @@ import { useAppToast } from "@/hooks/use-app-toast";
 import { useProjectAnalysisStream } from "@/hooks/use-project-analysis-stream";
 import {
   buildProjectDetailHref,
+  buildProjectExecutionHref,
   getProject,
   getProjectByRef,
   resolveProjectRouteRef,
@@ -31,17 +32,20 @@ import type { ProjectDetails } from "@/types/api";
 
 type ProjectExecutionPageProps =
   | {
+      autoStart?: boolean;
       owner: string;
       projectName: string;
       projectRef?: never;
     }
   | {
+      autoStart?: boolean;
       owner?: never;
       projectName?: never;
       projectRef: string;
     };
 
 export function ProjectExecutionPage({
+  autoStart = false,
   owner,
   projectName,
   projectRef,
@@ -52,7 +56,34 @@ export function ProjectExecutionPage({
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
-  const execution = useProjectAnalysisStream(project?.name ?? null);
+  const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
+  const executionPageHref =
+    resolvedProjectRef
+      ? buildProjectExecutionHref(resolvedProjectRef)
+      : project
+        ? `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`
+        : null;
+  const analysisTarget = useMemo(() => {
+    if (!project) {
+      return null;
+    }
+
+    if (resolvedProjectRef) {
+      return {
+        autoStart,
+        projectRef: resolvedProjectRef,
+        runId: project.active_run?.id ?? null,
+      } as const;
+    }
+
+    return {
+      autoStart,
+      owner: project.owner,
+      projectName: project.name,
+      runId: project.active_run?.id ?? null,
+    } as const;
+  }, [autoStart, project, resolvedProjectRef]);
+  const execution = useProjectAnalysisStream(analysisTarget);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,13 +127,54 @@ export function ProjectExecutionPage({
     };
   }, [owner, projectName, projectRef]);
 
-  const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
+  useEffect(() => {
+    if (!autoStart || !executionPageHref) {
+      return;
+    }
+
+    const boundRunId = execution.run?.id ?? project?.active_run?.id ?? null;
+    if (!boundRunId) {
+      return;
+    }
+
+    router.replace(executionPageHref, { scroll: false });
+  }, [autoStart, execution.run?.id, executionPageHref, project?.active_run?.id, router]);
+
   const projectDetailHref =
     resolvedProjectRef
       ? buildProjectDetailHref(resolvedProjectRef)
       : project
         ? `/dashboard/projects/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`
         : "/dashboard/projects";
+
+  useEffect(() => {
+    if (execution.status !== "completed" && execution.status !== "failed") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshProjectSnapshot() {
+      try {
+        const nextProject =
+          typeof projectRef === "string"
+            ? await getProjectByRef(projectRef)
+            : await getProject(owner, projectName);
+
+        if (!cancelled) {
+          setProject(nextProject);
+        }
+      } catch {
+        // El detalle puede permanecer con el último snapshot disponible.
+      }
+    }
+
+    void refreshProjectSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [execution.status, owner, projectName, projectRef]);
 
   useEffect(() => {
     if (execution.status !== "completed") {
@@ -154,6 +226,41 @@ export function ProjectExecutionPage({
           <ButtonLink href="/dashboard/projects" variant="secondary">
             Volver a proyectos
           </ButtonLink>
+        </div>
+      </section>
+    );
+  }
+
+  if (execution.error) {
+    return (
+      <section className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-800 shadow-sm">
+        <h1 className="text-lg font-semibold">No se pudo iniciar la ejecución</h1>
+        <p className="mt-2 text-sm leading-6">{execution.error}</p>
+        <div className="mt-5">
+          <ButtonLink href={projectDetailHref} variant="secondary">
+            Volver al proyecto
+          </ButtonLink>
+        </div>
+      </section>
+    );
+  }
+
+  if (!execution.run && !autoStart) {
+    return (
+      <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="text-lg font-semibold text-slate-950">No hay una ejecución activa</h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          Este proyecto no tiene ahora mismo una ejecución en curso. Puedes volver al proyecto o lanzar una nueva ejecución manualmente.
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <ButtonLink href={projectDetailHref} variant="secondary">
+            Volver al proyecto
+          </ButtonLink>
+          {resolvedProjectRef ? (
+            <ButtonLink href={buildProjectExecutionHref(resolvedProjectRef, { autoStart: true })}>
+              Iniciar ejecución
+            </ButtonLink>
+          ) : null}
         </div>
       </section>
     );

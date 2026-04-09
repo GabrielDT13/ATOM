@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
 
 import {
   buildProjectFilePreviewPath,
@@ -68,7 +67,6 @@ export function ProjectDetailPage({
   projectName,
   projectRef,
 }: ProjectDetailPageProps) {
-  const router = useRouter();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
@@ -269,15 +267,51 @@ export function ProjectDetailPage({
     void loadPreview(firstPreviewableSupportFile, "file", project.name, project.owner);
   }, [detailModel, filePreview, project]);
 
-  function handleRegenerate() {
-    if (!project) {
+  const executionHref = project
+    ? resolvedProjectRef
+      ? buildProjectExecutionHref(resolvedProjectRef, {
+          autoStart: !(project.active_run?.status === "queued" || project.active_run?.status === "running"),
+        })
+      : `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}${
+          project.active_run?.status === "queued" || project.active_run?.status === "running" ? "" : "?start=1"
+        }`
+    : null;
+
+  useEffect(() => {
+    if (project?.active_run?.status !== "queued" && project?.active_run?.status !== "running") {
       return;
     }
-    const executionHref = resolvedProjectRef
-      ? buildProjectExecutionHref(resolvedProjectRef)
-      : `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
-    router.push(executionHref);
-  }
+
+    let cancelled = false;
+
+    async function refreshProjectState() {
+      await loadProjectState(() => cancelled);
+    }
+
+    function handleVisibilityRefresh() {
+      if (document.visibilityState === "visible") {
+        void refreshProjectState();
+      }
+    }
+
+    function handleWindowFocus() {
+      void refreshProjectState();
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshProjectState();
+    }, 5000);
+
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [project?.active_run?.status, owner, projectName, projectRef]);
 
   if (loading) {
     return <ProjectDetailLoadingState />;
@@ -287,7 +321,7 @@ export function ProjectDetailPage({
     return <ProjectDetailErrorState message={error ?? "El proyecto solicitado no existe."} />;
   }
 
-  const statusMeta = getProjectStatusMeta(project.status);
+  const statusMeta = getProjectStatusMeta(project.status, project.active_run);
   const projectReportHref =
     resolvedProjectRef && activeExecutionGroup?.htmlFile
       ? buildProjectReportHref(resolvedProjectRef, activeExecutionGroup.htmlFile.path)
@@ -319,12 +353,13 @@ export function ProjectDetailPage({
       <ProjectDetailHero accessRole={accessRole} canEdit={canEdit} project={project} />
 
       <ProjectQuickActions
+        activeRun={project.active_run ?? null}
         activeDeliverablesCount={activeDeliverables.length}
         canRegenerate={canRegenerate}
         downloadZipFile={downloadZipFile}
+        executionHref={executionHref}
         executionCount={detailModel.executionGroups.length}
         htmlCount={htmlCount}
-        onRegenerate={handleRegenerate}
         project={project}
         supportFileCount={detailModel.supportFiles.length + (detailModel.templateFile ? 1 : 0)}
       />

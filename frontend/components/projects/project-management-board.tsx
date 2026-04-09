@@ -34,7 +34,7 @@ type ProjectManagementBoardProps = {
 const PROJECT_BOARD_SKELETON_COUNT = 6;
 
 function ProjectStatusBadge({ project }: { project: ProjectRecord }) {
-  const meta = getProjectStatusMeta(project.status);
+  const meta = getProjectStatusMeta(project.status, project.activeRun);
 
   return (
     <span
@@ -186,7 +186,7 @@ export function ProjectManagementBoard({
   return (
     <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {projects.map((project) => {
-        const statusMeta = getProjectStatusMeta(project.status);
+        const statusMeta = getProjectStatusMeta(project.status, project.activeRun);
         const actions: RowActionItem[] = [
           {
             icon: <EyeIcon className="h-4 w-4" />,

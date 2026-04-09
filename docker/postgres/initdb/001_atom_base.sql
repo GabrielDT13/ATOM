@@ -120,6 +120,41 @@ CREATE TABLE IF NOT EXISTS internal.project_members (
   PRIMARY KEY (project_id, user_id)
 );
 
+CREATE TABLE IF NOT EXISTS internal.analysis_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id uuid NOT NULL REFERENCES internal.projects (id) ON DELETE CASCADE,
+  requested_by_user_id uuid NOT NULL REFERENCES internal.profiles (id) ON DELETE RESTRICT,
+  status text NOT NULL DEFAULT 'queued',
+  total_designs integer NOT NULL DEFAULT 0,
+  processed_designs integer NOT NULL DEFAULT 0,
+  successful_designs integer NOT NULL DEFAULT 0,
+  failed_designs integer NOT NULL DEFAULT 0,
+  current_design_id text,
+  current_analysis_type text,
+  error_message text,
+  trigger_source text NOT NULL DEFAULT 'manual',
+  started_at timestamptz,
+  finished_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (status IN ('queued', 'running', 'completed', 'failed', 'cancelled'))
+);
+
+CREATE TABLE IF NOT EXISTS internal.analysis_run_logs (
+  id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  run_id uuid NOT NULL REFERENCES internal.analysis_runs (id) ON DELETE CASCADE,
+  event_type text NOT NULL,
+  level text NOT NULL DEFAULT 'info',
+  message text NOT NULL,
+  analysis_type text,
+  design_id text,
+  current_index integer,
+  total_designs integer,
+  duration_seconds double precision,
+  exit_code integer,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_internal_user_roles_role_id ON internal.user_roles (role_id);
 CREATE INDEX IF NOT EXISTS idx_internal_profile_activity_user_created_at
   ON internal.profile_activity (user_id, created_at DESC);
@@ -129,6 +164,12 @@ CREATE INDEX IF NOT EXISTS idx_internal_dashboard_activity_project_created_at
   ON internal.dashboard_activity (project_owner_username, project_name, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_internal_projects_owner_id ON internal.projects (owner_id);
 CREATE INDEX IF NOT EXISTS idx_internal_project_members_user_id ON internal.project_members (user_id);
+CREATE INDEX IF NOT EXISTS idx_internal_analysis_runs_project_created_at
+  ON internal.analysis_runs (project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_internal_analysis_runs_status_created_at
+  ON internal.analysis_runs (status, created_at ASC);
+CREATE INDEX IF NOT EXISTS idx_internal_analysis_run_logs_run_created_at
+  ON internal.analysis_run_logs (run_id, created_at ASC);
 
 CREATE OR REPLACE FUNCTION internal.set_updated_at()
 RETURNS trigger
@@ -287,6 +328,12 @@ BEFORE UPDATE ON internal.projects
 FOR EACH ROW
 EXECUTE FUNCTION internal.set_updated_at();
 
+DROP TRIGGER IF EXISTS trg_analysis_runs_updated_at ON internal.analysis_runs;
+CREATE TRIGGER trg_analysis_runs_updated_at
+BEFORE UPDATE ON internal.analysis_runs
+FOR EACH ROW
+EXECUTE FUNCTION internal.set_updated_at();
+
 CREATE OR REPLACE VIEW public.vw_departments AS
 SELECT
   d.id,
@@ -388,6 +435,35 @@ SELECT
   da.design_id,
   da.created_at
 FROM internal.dashboard_activity da;
+
+CREATE OR REPLACE VIEW public.vw_analysis_runs AS
+SELECT
+  ar.id,
+  ar.project_id,
+  p.name AS project_name,
+  owner_profile.username AS project_owner_username,
+  ar.requested_by_user_id,
+  requester_profile.username AS requested_by_username,
+  ar.status,
+  ar.total_designs,
+  ar.processed_designs,
+  ar.successful_designs,
+  ar.failed_designs,
+  ar.current_design_id,
+  ar.current_analysis_type,
+  ar.error_message,
+  ar.trigger_source,
+  ar.started_at,
+  ar.finished_at,
+  ar.created_at,
+  ar.updated_at
+FROM internal.analysis_runs ar
+JOIN internal.projects p
+  ON p.id = ar.project_id
+JOIN internal.profiles owner_profile
+  ON owner_profile.id = p.owner_id
+JOIN internal.profiles requester_profile
+  ON requester_profile.id = ar.requested_by_user_id;
 
 INSERT INTO internal.roles (id, description)
 VALUES

@@ -36,9 +36,11 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
           cmake \
           gfortran \
           git \
+          pkg-config \
           libcurl4-openssl-dev \
           libssl-dev \
           libxml2-dev \
+          libuv1-dev \
           libfontconfig1-dev \
           libfreetype6-dev \
           libfribidi-dev \

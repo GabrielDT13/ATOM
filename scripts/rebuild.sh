@@ -15,7 +15,7 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 FRONTEND_MODE="${ATOM_FRONTEND_MODE:-docker}"
-BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-base}"
+BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}"
 
 case "$FRONTEND_MODE" in
   docker)

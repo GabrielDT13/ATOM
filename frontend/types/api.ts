@@ -77,6 +77,74 @@ export type ProfileMutationResponse = {
   profile: ProfileRecord | null;
 };
 
+export type AnalysisRunStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type AnalysisRun = {
+  id: string;
+  project_id: string;
+  project_name: string;
+  project_owner_username: string;
+  requested_by_user_id: string;
+  requested_by_username: string;
+  status: AnalysisRunStatus;
+  total_designs: number;
+  processed_designs: number;
+  successful_designs: number;
+  failed_designs: number;
+  current_design_id?: string | null;
+  current_analysis_type?: string | null;
+  error_message?: string | null;
+  trigger_source: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AnalysisRunMutationResponse = {
+  created: boolean;
+  run: AnalysisRun;
+};
+
+export type AnalysisRunEventType =
+  | "run_started"
+  | "run_completed"
+  | "run_failed"
+  | "design_started"
+  | "design_completed"
+  | "design_failed"
+  | "cleanup_completed"
+  | "cleanup_failed"
+  | "log";
+
+export type AnalysisRunEvent = {
+  id: number;
+  run_id: string;
+  event_type: AnalysisRunEventType;
+  level: "error" | "info" | "success" | "warning" | string;
+  message: string;
+  analysis_type?: string | null;
+  design_id?: string | null;
+  current_index?: number | null;
+  total_designs?: number | null;
+  duration_seconds?: number | null;
+  exit_code?: number | null;
+  created_at?: string | null;
+};
+
+export type AnalysisRunCollectionResponse = {
+  items: AnalysisRun[];
+};
+
+export type AnalysisRunEventCollectionResponse = {
+  items: AnalysisRunEvent[];
+};
+
 export type SidebarLink = {
   name: string;
   url: string;
@@ -95,6 +163,7 @@ export type SidebarTreeItem = {
 
 export type SidebarProjectItem = {
   access_role?: ProjectMemberRole | null;
+  active_run?: AnalysisRun | null;
   can_run: boolean;
   file_count: number;
   html_count: number;
@@ -150,6 +219,7 @@ export type ProjectFileEntry = {
 
 export type ProjectSummary = {
   access_role?: ProjectMemberRole | null;
+  active_run?: AnalysisRun | null;
   additional_files: string[];
   created_at: string;
   file_count: number;
@@ -328,6 +398,7 @@ export type DashboardStatusBreakdown = {
 
 export type DashboardProjectHighlight = {
   access_role?: ProjectMemberRole | null;
+  active_run?: AnalysisRun | null;
   file_count: number;
   highlight_files: string[];
   name: string;

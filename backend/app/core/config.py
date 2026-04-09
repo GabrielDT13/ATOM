@@ -28,6 +28,7 @@ class Settings:
     jwt_audience: str
     access_token_ttl_seconds: int
     refresh_token_ttl_seconds: int
+    analysis_worker_poll_seconds: float
 
 
 def _resolve_path(env_var: str, default_relative_path: str, project_root: Path) -> Path:
@@ -71,4 +72,5 @@ def get_settings() -> Settings:
         jwt_audience=os.getenv("JWT_AUDIENCE", "authenticated").strip(),
         access_token_ttl_seconds=int(os.getenv("ACCESS_TOKEN_TTL_SECONDS", os.getenv("JWT_EXP", "3600"))),
         refresh_token_ttl_seconds=int(os.getenv("REFRESH_TOKEN_TTL_SECONDS", "2592000")),
+        analysis_worker_poll_seconds=float(os.getenv("ANALYSIS_WORKER_POLL_SECONDS", "2")),
     )
