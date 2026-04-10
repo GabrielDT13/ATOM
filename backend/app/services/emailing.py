@@ -6,12 +6,14 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formataddr
 from html import escape
+from pathlib import Path
 from urllib.parse import urljoin
 
 from backend.app.core.config import get_settings
 from backend.app.services.database import fetch_one
 
 logger = logging.getLogger(__name__)
+INLINE_LOGO_CID = "atom-logo"
 
 
 @dataclass(frozen=True)
@@ -89,7 +91,32 @@ def _build_message(
     message["Subject"] = subject
     message.set_content(text_body)
     message.add_alternative(html_body, subtype="html")
+    _attach_inline_logo(message)
     return message
+
+
+def _get_logo_path() -> Path:
+    settings = get_settings()
+    return settings.project_root / "frontend" / "public" / "images" / "logo.png"
+
+
+def _attach_inline_logo(message: EmailMessage) -> None:
+    logo_path = _get_logo_path()
+    if not logo_path.exists():
+        return
+
+    html_part = message.get_payload()[-1]
+    try:
+        html_part.add_related(
+            logo_path.read_bytes(),
+            maintype="image",
+            subtype="png",
+            cid=f"<{INLINE_LOGO_CID}>",
+            disposition="inline",
+            filename="atom-logo.png",
+        )
+    except OSError:
+        logger.exception("No se pudo adjuntar el logo inline del email")
 
 
 def send_email(
@@ -170,7 +197,6 @@ def build_email_contents(
     accent_value: str | None = None,
     footer: str | None = None,
 ) -> tuple[str, str]:
-    logo_url = build_absolute_frontend_url("/images/logo.png")
     safe_title = escape(title)
     safe_preview = escape(preview)
     safe_intro = escape(intro)
@@ -211,13 +237,20 @@ def build_email_contents(
       <tr>
         <td style="padding:0;">
           <div style="overflow:hidden;border-radius:28px;background:#ffffff;box-shadow:0 24px 60px rgba(15,23,42,.18);">
-            <div style="padding:26px 28px;background:linear-gradient(135deg,#eff6ff,#dbeafe 55%,#bfdbfe);border-bottom:1px solid #cbd5e1;">
-              <div style="display:flex;align-items:center;gap:14px;">
-                <img src="{escape(logo_url, quote=True)}" alt="ATOM" width="52" height="52" style="display:block;border-radius:14px;background:#ffffff;padding:8px;" />
-                <div>
-                  <div style="font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#475569;">Atlantic Omics</div>
-                  <div style="margin-top:6px;font-size:28px;font-weight:800;line-height:1.2;color:#0f172a;">{safe_title}</div>
-                </div>
+            <div style="padding:30px 28px 26px;background:linear-gradient(135deg,#eff6ff,#dbeafe 55%,#bfdbfe);border-bottom:1px solid #cbd5e1;text-align:center;">
+              <div style="display:inline-block;border-radius:22px;background:#ffffff;padding:14px 18px;border:1px solid #dbeafe;">
+                <img
+                  src="cid:{INLINE_LOGO_CID}"
+                  alt="ATOM"
+                  width="168"
+                  style="display:block;width:168px;max-width:168px;height:auto;border:0;"
+                />
+              </div>
+              <div style="margin-top:14px;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+                Atlantic Omics
+              </div>
+              <div style="margin-top:12px;font-size:30px;font-weight:800;line-height:1.2;color:#0f172a;">
+                {safe_title}
               </div>
             </div>
             <div style="padding:28px;">
