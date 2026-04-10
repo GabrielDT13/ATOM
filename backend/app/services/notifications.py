@@ -3,12 +3,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
+from backend.app.services.database import execute, execute_rowcount, fetch_all, fetch_one, fetch_value
 from backend.app.services.emailing import (
     build_absolute_frontend_url,
     get_email_user_context,
     send_notification_email,
 )
-from backend.app.services.database import execute, execute_rowcount, fetch_all, fetch_one, fetch_value
 from psycopg.errors import UndefinedTable
 
 NotificationType = Literal[
