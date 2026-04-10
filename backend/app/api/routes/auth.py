@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from fastapi import APIRouter, HTTPException, Request
+
 from backend.app.dependencies.auth import get_optional_current_user, get_request_access_token
 from backend.app.schemas.auth import (
     AuthMessageResponse,
@@ -13,12 +15,11 @@ from backend.app.services.auth import (
     AuthenticationError,
     authenticate_email_password,
     logout_session,
+    refresh_authenticated_session,
     request_password_reset,
     reset_password_with_token,
-    refresh_authenticated_session,
     validate_access_token,
 )
-from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 

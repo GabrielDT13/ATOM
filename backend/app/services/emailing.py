@@ -197,6 +197,19 @@ def build_email_contents(
     accent_value: str | None = None,
     footer: str | None = None,
 ) -> tuple[str, str]:
+    header_shell_style = (
+        "padding:30px 28px 26px;"
+        "background:linear-gradient(135deg,#eff6ff,#dbeafe 55%,#bfdbfe);"
+        "border-bottom:1px solid #cbd5e1;text-align:center;"
+    )
+    brand_label_style = (
+        "margin-top:14px;font-size:12px;font-weight:700;"
+        "letter-spacing:.18em;text-transform:uppercase;color:#475569;"
+    )
+    footer_style = (
+        "padding:18px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;"
+        "font-size:12px;line-height:1.6;color:#64748b;"
+    )
     safe_title = escape(title)
     safe_preview = escape(preview)
     safe_intro = escape(intro)
@@ -237,7 +250,7 @@ def build_email_contents(
       <tr>
         <td style="padding:0;">
           <div style="overflow:hidden;border-radius:28px;background:#ffffff;box-shadow:0 24px 60px rgba(15,23,42,.18);">
-            <div style="padding:30px 28px 26px;background:linear-gradient(135deg,#eff6ff,#dbeafe 55%,#bfdbfe);border-bottom:1px solid #cbd5e1;text-align:center;">
+            <div style="{header_shell_style}">
               <div style="display:inline-block;border-radius:22px;background:#ffffff;padding:14px 18px;border:1px solid #dbeafe;">
                 <img
                   src="cid:{INLINE_LOGO_CID}"
@@ -246,7 +259,7 @@ def build_email_contents(
                   style="display:block;width:168px;max-width:168px;height:auto;border:0;"
                 />
               </div>
-              <div style="margin-top:14px;font-size:12px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#475569;">
+              <div style="{brand_label_style}">
                 Atlantic Omics
               </div>
               <div style="margin-top:12px;font-size:30px;font-weight:800;line-height:1.2;color:#0f172a;">
@@ -258,7 +271,7 @@ def build_email_contents(
               {_render_lines(paragraphs)}
               {action_html}
             </div>
-            <div style="padding:18px 28px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;line-height:1.6;color:#64748b;">
+            <div style="{footer_style}">
               {safe_footer}
             </div>
           </div>
@@ -341,7 +354,8 @@ def send_account_created_email(
         preview="Se ha creado tu acceso a la plataforma y ya puedes establecer tu contraseña.",
         intro=f"Hola {username}, se ha creado tu usuario en ATOM.",
         paragraphs=[
-            "Puedes entrar directamente con la contraseña temporal o, de forma recomendada, establecer una nueva contraseña desde el enlace de activación.",
+            "Puedes entrar directamente con la contraseña temporal o, de forma "
+            "recomendada, establecer una nueva contraseña desde el enlace de activación.",
             "Una vez dentro, revisa tu perfil y cambia la contraseña si todavía no lo has hecho.",
         ],
         action_label="Establecer contraseña",
