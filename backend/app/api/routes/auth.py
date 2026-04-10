@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 from backend.app.dependencies.auth import get_optional_current_user, get_request_access_token
-from backend.app.schemas.auth import LoginRequest, SessionResponse, SessionUser
+from backend.app.schemas.auth import (
+    AuthMessageResponse,
+    LoginRequest,
+    PasswordResetConfirmRequest,
+    PasswordResetRequest,
+    SessionResponse,
+    SessionUser,
+)
 from backend.app.services.auth import (
     AuthenticationError,
     authenticate_email_password,
     logout_session,
     refresh_authenticated_session,
+    request_password_reset,
+    reset_password_with_token,
     validate_access_token,
 )
 from fastapi import APIRouter, HTTPException, Request
@@ -30,6 +39,33 @@ async def login(payload: LoginRequest, request: Request) -> SessionResponse:
     }
     request.session["user"] = session.user
     return SessionResponse(authenticated=True, user=SessionUser(**session.user))
+
+
+@router.post("/forgot-password", response_model=AuthMessageResponse)
+async def forgot_password(payload: PasswordResetRequest) -> AuthMessageResponse:
+    request_password_reset(payload.email)
+    return AuthMessageResponse(
+        success=True,
+        message=(
+            "Si existe una cuenta asociada a ese email, te hemos enviado "
+            "las instrucciones para restablecer la contraseña."
+        ),
+    )
+
+
+@router.post("/reset-password", response_model=AuthMessageResponse)
+async def reset_password(payload: PasswordResetConfirmRequest) -> AuthMessageResponse:
+    try:
+        reset_password_with_token(payload.token, payload.new_password)
+    except AuthenticationError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=str(exc),
+        ) from exc
+    return AuthMessageResponse(
+        success=True,
+        message="La contraseña se ha actualizado correctamente.",
+    )
 
 
 @router.post("/logout", response_model=SessionResponse)

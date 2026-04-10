@@ -4,6 +4,11 @@ from datetime import datetime
 from typing import Any, Literal
 
 from backend.app.services.database import execute, execute_rowcount, fetch_all, fetch_one, fetch_value
+from backend.app.services.emailing import (
+    build_absolute_frontend_url,
+    get_email_user_context,
+    send_notification_email,
+)
 from psycopg.errors import UndefinedTable
 
 NotificationType = Literal[
@@ -201,6 +206,29 @@ def _build_project_action_url(project_slug: str | None, project_id: str | None) 
     return f"/dashboard/projects/{route_ref}"
 
 
+def _send_email_for_notification(
+    *,
+    user_id: str,
+    title: str,
+    message: str,
+    action_label: str | None,
+    action_url: str | None,
+) -> None:
+    recipient = get_email_user_context(user_id)
+    if not recipient or not recipient.email_notifications:
+        return
+
+    send_notification_email(
+        to_email=recipient.email,
+        recipient_name=recipient.display_name,
+        subject=f"ATOM · {title}",
+        title=title,
+        message=message,
+        action_label=action_label,
+        action_url=build_absolute_frontend_url(action_url) if action_url else None,
+    )
+
+
 def notify_project_shared(
     *,
     actor_user_id: str | None,
@@ -231,15 +259,24 @@ def notify_project_shared(
         if updated_existing_access
         else f"{actor_username.strip()} ha compartido contigo {project_label} como {role_label}."
     )
+    action_label = "Abrir proyecto"
+    action_url = _build_project_action_url(project_slug, project_id)
     create_notification(
         user_id=recipient_user_id,
         actor_user_id=actor_user_id,
-        action_label="Abrir proyecto",
-        action_url=_build_project_action_url(project_slug, project_id),
+        action_label=action_label,
+        action_url=action_url,
         message=message,
         notification_type=notification_type,
         project_id=project_id,
         title=title,
+    )
+    _send_email_for_notification(
+        user_id=recipient_user_id,
+        title=title,
+        message=message,
+        action_label=action_label,
+        action_url=action_url,
     )
 
 
@@ -253,15 +290,26 @@ def notify_project_ownership_transferred(
     recipient_user_id: str,
 ) -> None:
     project_label = project_name.strip()
+    title = f"Nueva propiedad sobre {project_label}"
+    message = f"{actor_username.strip()} te ha transferido la propiedad de {project_label}."
+    action_label = "Abrir proyecto"
+    action_url = _build_project_action_url(project_slug, project_id)
     create_notification(
         user_id=recipient_user_id,
         actor_user_id=actor_user_id,
-        action_label="Abrir proyecto",
-        action_url=_build_project_action_url(project_slug, project_id),
-        message=f"{actor_username.strip()} te ha transferido la propiedad de {project_label}.",
+        action_label=action_label,
+        action_url=action_url,
+        message=message,
         notification_type="project_ownership_transferred",
         project_id=project_id,
-        title=f"Nueva propiedad sobre {project_label}",
+        title=title,
+    )
+    _send_email_for_notification(
+        user_id=recipient_user_id,
+        title=title,
+        message=message,
+        action_label=action_label,
+        action_url=action_url,
     )
 
 
@@ -342,12 +390,21 @@ def notify_analysis_run_finished(
         notification_type = "analysis_failed"
 
     for recipient_user_id in recipients:
+        action_label = "Ver proyecto"
+        action_url = _build_project_action_url(project_slug, project_id)
         create_notification(
             user_id=recipient_user_id,
-            action_label="Ver proyecto",
-            action_url=_build_project_action_url(project_slug, project_id),
+            action_label=action_label,
+            action_url=action_url,
             message=message,
             notification_type=notification_type,
             project_id=project_id,
             title=title,
+        )
+        _send_email_for_notification(
+            user_id=recipient_user_id,
+            title=title,
+            message=message,
+            action_label=action_label,
+            action_url=action_url,
         )

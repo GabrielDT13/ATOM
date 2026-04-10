@@ -8,8 +8,9 @@ from typing import Any
 from uuid import UUID
 
 from backend.app.core.config import get_settings
-from backend.app.services.auth import build_session_user_from_profile
+from backend.app.services.auth import build_session_user_from_profile, generate_password_action_token
 from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
+from backend.app.services.emailing import build_absolute_frontend_url, send_account_created_email
 from backend.app.services.errors import ServiceError
 
 _TEMP_PASSWORD_ALPHABET = "".join(
@@ -419,6 +420,22 @@ def create_user(
         if created_user_id:
             _safe_delete_auth_user(created_user_id)
         return False, "No se pudo preparar la carpeta local del usuario", None
+
+    send_account_created_email(
+        to_email=normalized_email,
+        username=normalized_username,
+        temporary_password=temporary_password,
+        login_url=build_absolute_frontend_url("/login"),
+        setup_url=build_absolute_frontend_url(
+            "/reset-password?token="
+            + generate_password_action_token(
+                user_id=created_user_id,
+                email=normalized_email,
+                username=normalized_username,
+                kind="account-setup",
+            )
+        ),
+    )
 
     return True, "Usuario registrado correctamente", temporary_password
 

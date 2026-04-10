@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any
 
 from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
+from backend.app.services.emailing import build_absolute_frontend_url, send_password_changed_email
 from backend.app.services.errors import ServiceError
 from backend.app.services.users import _delete_user_projects_dir
 
@@ -573,12 +574,21 @@ def change_my_password(
             """,
             (new_password, user_id),
         )
+        profile = _fetch_profile_by_user_id(user_id)
         _log_profile_activity(
             user_id,
             activity_type="password_changed",
             title="Cambio de contraseña",
             description="Se actualizó la contraseña de la cuenta.",
         )
+        email = str(profile.get("email") or "").strip().lower()
+        username = str(profile.get("username") or "").strip()
+        if email and username:
+            send_password_changed_email(
+                to_email=email,
+                username=username,
+                login_url=build_absolute_frontend_url("/login"),
+            )
     except ServiceError as exc:
         return False, str(exc)
 
