@@ -43,6 +43,16 @@ export function ProjectTeamSharePopover({
   submittingTeamId,
   trigger,
 }: ProjectTeamSharePopoverProps) {
+  function formatOverlap(usernames: string[]) {
+    if (usernames.length <= 2) {
+      return usernames.map((username) => `@${username}`).join(", ");
+    }
+    return `${usernames
+      .slice(0, 2)
+      .map((username) => `@${username}`)
+      .join(", ")} y ${usernames.length - 2} mas`;
+  }
+
   return (
     <Popover onOpenChange={onOpenChange} open={open}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
@@ -114,18 +124,26 @@ export function ProjectTeamSharePopover({
                     className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
                     key={candidate.id}
                   >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
-                        <ProjectStackIcon className="h-5 w-5" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+                          <ProjectStackIcon className="h-5 w-5" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{candidate.name}</p>
+                          <p className="truncate text-xs text-slate-500">
+                            @{candidate.owner_username}
+                            {candidate.entity_name ? ` · ${candidate.entity_name}` : ""}
+                            {` · ${candidate.member_count} miembro${candidate.member_count === 1 ? "" : "s"}`}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">{candidate.name}</p>
-                        <p className="truncate text-xs text-slate-500">
-                          @{candidate.owner_username}
-                          {candidate.entity_name ? ` · ${candidate.entity_name}` : ""}
-                          {` · ${candidate.member_count} miembro${candidate.member_count === 1 ? "" : "s"}`}
+                      {(candidate.direct_member_overlap_count ?? 0) > 0 ? (
+                        <p className="mt-2 truncate text-xs text-slate-500">
+                          Ya con acceso individual:{" "}
+                          {formatOverlap(candidate.direct_member_overlap_usernames ?? [])}
                         </p>
-                      </div>
+                      ) : null}
                     </div>
                     <Button
                       disabled={submittingTeamId === candidate.id}

@@ -77,12 +77,16 @@ class ProjectMembersResponse(BaseModel):
 
 
 class ProjectShareCandidateResponse(BaseModel):
+    access_via_teams: list[str] = Field(default_factory=list)
     avatar_url: str | None = None
     bio: str | None = None
     department: str | None = None
+    direct_member_role: ProjectMemberRole | None = None
     display_name: str
     email: str | None = None
+    has_direct_access: bool = False
     id: str
+    member_role: ProjectMemberRole | None = None
     username: str
 
 
@@ -91,6 +95,8 @@ class ProjectShareCandidatesResponse(BaseModel):
 
 
 class ProjectTeamResponse(BaseModel):
+    direct_member_overlap_count: int = 0
+    direct_member_overlap_usernames: list[str] = Field(default_factory=list)
     entity_name: str | None = None
     id: str
     linked_at: str

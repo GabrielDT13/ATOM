@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   buildProjectFileUrl,
@@ -85,6 +85,7 @@ export function ProjectDetailPage({
   const [reportPreviewLoading, setReportPreviewLoading] = useState(false);
   const [filePreviewLoading, setFilePreviewLoading] = useState(false);
   const appToast = useAppToast();
+  const projectSnapshotKeyRef = useRef<string | null>(null);
 
   async function loadProjectState(isCancelled: () => boolean = () => false) {
     setLoading(true);
@@ -110,6 +111,21 @@ export function ProjectDetailPage({
       if (isCancelled()) {
         return;
       }
+
+      const nextSnapshotKey = [
+        projectResponse.updated_at ?? "",
+        String(projectResponse.file_count ?? 0),
+        projectResponse.status,
+        projectResponse.active_run?.id ?? "",
+        projectResponse.active_run?.status ?? "",
+      ].join("::");
+      const previousSnapshotKey = projectSnapshotKeyRef.current;
+      if (previousSnapshotKey && previousSnapshotKey !== nextSnapshotKey) {
+        setReportPreview(null);
+        setFilePreview(null);
+        setActiveReport(null);
+      }
+      projectSnapshotKeyRef.current = nextSnapshotKey;
 
       setSession(sessionResponse);
       setProject(projectResponse);
@@ -157,6 +173,7 @@ export function ProjectDetailPage({
     kind: "file" | "report",
     currentProjectName = project?.name,
     currentProjectOwner = project?.owner,
+    currentProjectUpdatedAt = project?.updated_at,
   ) {
     if (!currentProjectName || !currentProjectOwner) {
       return;
@@ -173,6 +190,7 @@ export function ProjectDetailPage({
 
     try {
       const nextPreview = await buildProjectPreviewState({
+        cacheKey: currentProjectUpdatedAt ?? null,
         file,
         owner: currentProjectOwner,
         projectName: currentProjectName,
@@ -253,7 +271,7 @@ export function ProjectDetailPage({
     void (async () => {
       try {
         const fileContent = await apiFetch<FileContentResponse>(
-          buildProjectFilePreviewPath(project.owner, project.name, htmlFile.path),
+          buildProjectFilePreviewPath(project.owner, project.name, htmlFile.path, project.updated_at ?? null),
         );
         setActiveReport(
           parseProjectReportHtml(fileContent.content, {
@@ -262,6 +280,7 @@ export function ProjectDetailPage({
                 project.owner,
                 project.name,
                 resolveRelativeReportAssetPath(htmlFile.path, src),
+                project.updated_at ?? null,
               ),
           }),
         );

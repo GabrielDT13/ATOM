@@ -458,6 +458,8 @@ def test_add_project_member_inserts_viewer_permission(monkeypatch) -> None:
         ),
     )
     monkeypatch.setattr(project_service, "_get_project_member", lambda project_id, user_id: None)
+    monkeypatch.setattr(project_service, "_list_project_members_by_project_id", lambda project_id: [])
+    monkeypatch.setattr(project_service, "_list_project_team_members_by_project_id", lambda project_id: [])
     monkeypatch.setattr(
         project_service,
         "notify_project_shared",
@@ -634,6 +636,255 @@ def test_get_project_members_merges_direct_and_team_access(monkeypatch) -> None:
     ]
 
 
+def test_search_project_share_candidates_marks_direct_and_team_access(monkeypatch) -> None:
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_members_by_project_id",
+        lambda project_id: [
+            {
+                "member_id": "user-owner",
+                "member_role": "owner",
+                "member_username": "researcher",
+            },
+            {
+                "member_id": "user-direct",
+                "member_role": "viewer",
+                "member_username": "analyst",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_team_members_by_project_id",
+        lambda project_id: [
+            {
+                "member_id": "user-direct",
+                "member_username": "analyst",
+                "project_member_role": "editor",
+                "team_id": "team-2",
+                "team_name": "Equipo Beta",
+            },
+            {
+                "member_id": "user-team",
+                "member_username": "collab",
+                "project_member_role": "viewer",
+                "team_id": "team-1",
+                "team_name": "Equipo Alpha",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_fetch_profiles",
+        lambda: [
+            {"id": "user-owner", "username": "researcher", "full_name": "Research Owner", "email": "owner@example.com"},
+            {"id": "user-direct", "username": "analyst", "full_name": "Direct Analyst", "email": "analyst@example.com"},
+            {"id": "user-team", "username": "collab", "full_name": "Team Collaborator", "email": "collab@example.com"},
+            {"id": "user-free", "username": "guest", "full_name": "Guest User", "email": "guest@example.com"},
+        ],
+    )
+
+    candidates = project_service.search_project_share_candidates("researcher", "RNA Atlas", "", limit=8)
+
+    assert candidates == [
+        {
+            "access_via_teams": [],
+            "avatar_url": None,
+            "bio": None,
+            "department": None,
+            "direct_member_role": None,
+            "display_name": "Guest User",
+            "email": "guest@example.com",
+            "has_direct_access": False,
+            "id": "user-free",
+            "member_role": None,
+            "username": "guest",
+        },
+        {
+            "access_via_teams": ["Equipo Alpha"],
+            "avatar_url": None,
+            "bio": None,
+            "department": None,
+            "direct_member_role": None,
+            "display_name": "Team Collaborator",
+            "email": "collab@example.com",
+            "has_direct_access": False,
+            "id": "user-team",
+            "member_role": "viewer",
+            "username": "collab",
+        },
+        {
+            "access_via_teams": ["Equipo Beta"],
+            "avatar_url": None,
+            "bio": None,
+            "department": None,
+            "direct_member_role": "viewer",
+            "display_name": "Direct Analyst",
+            "email": "analyst@example.com",
+            "has_direct_access": True,
+            "id": "user-direct",
+            "member_role": "editor",
+            "username": "analyst",
+        },
+    ]
+
+
+def test_list_project_teams_reports_direct_member_overlaps(monkeypatch) -> None:
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_members_by_project_id",
+        lambda project_id: [
+            {
+                "member_id": "user-owner",
+                "member_role": "owner",
+                "member_username": "researcher",
+            },
+            {
+                "member_id": "user-direct",
+                "member_role": "viewer",
+                "member_username": "analyst",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_team_members_by_project_id",
+        lambda project_id: [
+            {
+                "member_id": "user-direct",
+                "member_username": "analyst",
+                "project_member_role": "viewer",
+                "team_id": "team-1",
+                "team_name": "Equipo Alpha",
+            },
+            {
+                "member_id": "user-team",
+                "member_username": "collab",
+                "project_member_role": "viewer",
+                "team_id": "team-1",
+                "team_name": "Equipo Alpha",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_teams_by_project_id",
+        lambda project_id: [
+            {
+                "linked_at": "2026-04-14T10:00:00+00:00",
+                "member_role": "viewer",
+                "team_entity_name": "ULPGC",
+                "team_id": "team-1",
+                "team_member_count": 2,
+                "team_name": "Equipo Alpha",
+                "team_owner_username": "researcher",
+                "team_slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+
+    teams = project_service.list_project_teams("researcher", "RNA Atlas")
+
+    assert teams == [
+        {
+            "direct_member_overlap_count": 1,
+            "direct_member_overlap_usernames": ["analyst"],
+            "entity_name": "ULPGC",
+            "id": "team-1",
+            "linked_at": "2026-04-14T10:00:00+00:00",
+            "member_count": 2,
+            "member_role": "viewer",
+            "name": "Equipo Alpha",
+            "owner_username": "researcher",
+            "slug": "researcher-equipo-alpha",
+        }
+    ]
+
+
+def test_search_project_team_candidates_reports_direct_member_overlaps(monkeypatch) -> None:
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+    )
+    monkeypatch.setattr(project_service, "_list_project_teams_by_project_id", lambda project_id: [])
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_members_by_project_id",
+        lambda project_id: [
+            {
+                "member_id": "user-owner",
+                "member_role": "owner",
+                "member_username": "researcher",
+            },
+            {
+                "member_id": "user-direct",
+                "member_role": "viewer",
+                "member_username": "analyst",
+            },
+        ],
+    )
+    monkeypatch.setattr(project_service, "_list_project_team_members_by_project_id", lambda project_id: [])
+    monkeypatch.setattr(
+        project_service,
+        "list_teams_for_user",
+        lambda session_user_id, session_username, role: [
+            {
+                "entity_name": "ULPGC",
+                "id": "team-1",
+                "member_count": 3,
+                "name": "Equipo Alpha",
+                "owner_username": session_username,
+                "slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "get_team_details",
+        lambda team_id, session_user_id, session_username, role: {
+            "members": [
+                {"id": "user-direct", "username": "analyst"},
+                {"id": "user-team", "username": "collab"},
+            ]
+        },
+    )
+
+    candidates = project_service.search_project_team_candidates(
+        "researcher",
+        "RNA Atlas",
+        session_user_id="user-owner",
+        session_username="researcher",
+        role="user",
+        query="",
+    )
+
+    assert candidates == [
+        {
+            "direct_member_overlap_count": 1,
+            "direct_member_overlap_usernames": ["analyst"],
+            "entity_name": "ULPGC",
+            "id": "team-1",
+            "linked_at": "",
+            "member_count": 3,
+            "member_role": "viewer",
+            "name": "Equipo Alpha",
+            "owner_username": "researcher",
+            "slug": "researcher-equipo-alpha",
+        }
+    ]
+
+
 def test_add_project_member_returns_controlled_error_when_repository_fails(monkeypatch) -> None:
     monkeypatch.setattr(
         project_service,
@@ -656,6 +907,8 @@ def test_add_project_team_inserts_viewer_permission(monkeypatch) -> None:
         lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
     )
     monkeypatch.setattr(project_service, "_get_project_team", lambda project_id, team_id: None)
+    monkeypatch.setattr(project_service, "_list_project_members_by_project_id", lambda project_id: [])
+    monkeypatch.setattr(project_service, "_list_project_team_members_by_project_id", lambda project_id: [])
     monkeypatch.setattr(
         project_service,
         "list_teams_for_user",
@@ -666,6 +919,11 @@ def test_add_project_team_inserts_viewer_permission(monkeypatch) -> None:
                 "owner_username": session_username,
             }
         ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "get_team_details",
+        lambda team_id, session_user_id, session_username, role: {"members": []},
     )
     monkeypatch.setattr(
         project_service,

@@ -163,6 +163,7 @@ export function ProjectExecutionPage({
 
         if (!cancelled) {
           setProject(nextProject);
+          router.refresh();
         }
       } catch {
         // El detalle puede permanecer con el último snapshot disponible.
@@ -174,7 +175,7 @@ export function ProjectExecutionPage({
     return () => {
       cancelled = true;
     };
-  }, [execution.status, owner, projectName, projectRef]);
+  }, [execution.status, owner, projectName, projectRef, router]);
 
   useEffect(() => {
     if (execution.status !== "completed") {
@@ -194,6 +195,7 @@ export function ProjectExecutionPage({
     );
 
     const timeoutId = window.setTimeout(() => {
+      router.refresh();
       router.replace(projectDetailHref);
     }, 5000);
 

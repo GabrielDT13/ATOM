@@ -496,6 +496,55 @@ def test_get_project_members_by_ref_route_returns_members(
     assert response.json()["members"][0]["username"] == "researcher"
 
 
+def test_get_project_share_candidates_route_returns_overlap_metadata(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(project_routes, "_require_project_owner", lambda request, owner: None)
+    monkeypatch.setattr(
+        project_routes,
+        "search_project_share_candidates",
+        lambda owner, project_name, q, limit: [
+            {
+                "access_via_teams": ["Equipo Alpha"],
+                "avatar_url": None,
+                "bio": None,
+                "department": "Bioinformatica",
+                "direct_member_role": None,
+                "display_name": "Team Collaborator",
+                "email": "collab@example.com",
+                "has_direct_access": False,
+                "id": "user-2",
+                "member_role": "viewer",
+                "username": "collab",
+            }
+        ],
+    )
+
+    response = client.get("/api/projects/researcher/RNA%20Atlas/share-candidates?q=col")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "users": [
+            {
+                "access_via_teams": ["Equipo Alpha"],
+                "avatar_url": None,
+                "bio": None,
+                "department": "Bioinformatica",
+                "direct_member_role": None,
+                "display_name": "Team Collaborator",
+                "email": "collab@example.com",
+                "has_direct_access": False,
+                "id": "user-2",
+                "member_role": "viewer",
+                "username": "collab",
+            }
+        ]
+    }
+
+
 def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -> None:
     from backend.app.api.routes import projects as project_routes
 
@@ -552,6 +601,57 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
     }
 
 
+def test_get_project_team_candidates_route_returns_overlap_metadata(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "_require_project_owner",
+        lambda request, owner: {"id": "user-1", "username": owner, "role": "user"},
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "search_project_team_candidates",
+        lambda owner, project_name, session_user_id, session_username, role, query, limit: [
+            {
+                "direct_member_overlap_count": 1,
+                "direct_member_overlap_usernames": ["analyst"],
+                "entity_name": "ULPGC",
+                "id": "team-1",
+                "linked_at": "",
+                "member_count": 3,
+                "member_role": "viewer",
+                "name": "Equipo Alpha",
+                "owner_username": session_username,
+                "slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+
+    response = client.get("/api/projects/researcher/RNA%20Atlas/team-candidates?q=equipo")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "teams": [
+            {
+                "direct_member_overlap_count": 1,
+                "direct_member_overlap_usernames": ["analyst"],
+                "entity_name": "ULPGC",
+                "id": "team-1",
+                "linked_at": "",
+                "member_count": 3,
+                "member_role": "viewer",
+                "name": "Equipo Alpha",
+                "owner_username": "researcher",
+                "slug": "researcher-equipo-alpha",
+            }
+        ]
+    }
+
+
 def test_get_project_teams_route_returns_linked_teams(client: TestClient, monkeypatch) -> None:
     from backend.app.api.routes import projects as project_routes
 
@@ -579,6 +679,8 @@ def test_get_project_teams_route_returns_linked_teams(client: TestClient, monkey
     assert response.json() == {
         "teams": [
             {
+                "direct_member_overlap_count": 0,
+                "direct_member_overlap_usernames": [],
                 "entity_name": "Universidad de Las Palmas de Gran Canaria",
                 "id": "team-1",
                 "linked_at": "2026-04-14T10:00:00+00:00",
@@ -635,6 +737,8 @@ def test_put_project_team_route_adds_team(client: TestClient, monkeypatch) -> No
         "message": "Proyecto compartido con el equipo correctamente",
         "success": True,
         "team": {
+            "direct_member_overlap_count": 0,
+            "direct_member_overlap_usernames": [],
             "entity_name": None,
             "id": "team-1",
             "linked_at": "2026-04-14T10:00:00+00:00",

@@ -342,6 +342,34 @@ def _get_project_owner_snapshot(project_id: str) -> dict[str, str] | None:
     }
 
 
+def _list_project_notification_recipient_ids(project_id: str) -> set[str]:
+    try:
+        rows = fetch_all(
+            """
+            WITH recipients AS (
+              SELECT member_id AS user_id
+              FROM public.vw_projects_with_users
+              WHERE project_id = %s
+              UNION
+              SELECT member_id AS user_id
+              FROM public.vw_project_team_members
+              WHERE project_id = %s
+            )
+            SELECT user_id
+            FROM recipients
+            """,
+            (project_id, project_id),
+        )
+    except UndefinedTable:
+        return set()
+
+    return {
+        str(row.get("user_id") or "").strip()
+        for row in rows
+        if isinstance(row, dict) and str(row.get("user_id") or "").strip()
+    }
+
+
 def notify_analysis_run_finished(
     run: dict[str, object],
     *,
@@ -360,7 +388,9 @@ def notify_analysis_run_finished(
 
     project_slug = project_snapshot["project_slug"] or None
     owner_user_id = project_snapshot["owner_id"]
-    recipients = {owner_user_id}
+    recipients = _list_project_notification_recipient_ids(project_id)
+    if owner_user_id:
+        recipients.add(owner_user_id)
     if requested_by_user_id:
         recipients.add(requested_by_user_id)
 
@@ -370,10 +400,10 @@ def notify_analysis_run_finished(
     total_designs = int(run.get("total_designs") or 0)
 
     if status == "completed":
-        title = f"Ejecución finalizada en {project_name}"
+        title = f"Informe listo en {project_name}"
         message = (
             f"La ejecución lanzada por {requested_by_username or project_snapshot['owner_username']} "
-            f"ha terminado en {project_name}. "
+            f"ha terminado y el informe ya está disponible en {project_name}. "
             f"Procesados {processed_designs}/{total_designs} diseños, "
             f"{successful_designs} correctos y {failed_designs} con incidencias."
         )

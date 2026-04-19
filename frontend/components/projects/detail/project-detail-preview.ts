@@ -35,17 +35,19 @@ export function getPreferredPrimaryPreviewFile(group: ProjectExecutionGroup | nu
 }
 
 export async function buildProjectPreviewState({
+  cacheKey,
   file,
   owner,
   projectName,
 }: {
+  cacheKey?: string | null;
   file: ProjectFileEntry;
   owner: string;
   projectName: string;
 }): Promise<PreviewState> {
   if (isHtmlProjectFile(file)) {
     const fileContent = await apiFetch<FileContentResponse>(
-      buildProjectFilePreviewPath(owner, projectName, file.path),
+      buildProjectFilePreviewPath(owner, projectName, file.path, cacheKey),
     );
 
     return {
@@ -56,7 +58,7 @@ export async function buildProjectPreviewState({
   }
 
   if (canAttemptEmbeddedPreview(file)) {
-    const downloadUrl = buildProjectFileUrl(owner, projectName, file.path);
+    const downloadUrl = buildProjectFileUrl(owner, projectName, file.path, cacheKey);
     const response = await fetch(downloadUrl, {
       cache: "no-store",
       credentials: "include",
@@ -71,8 +73,10 @@ export async function buildProjectPreviewState({
   }
 
   if (isPreviewableTextFile(file)) {
+    const previewPath = buildProjectFilePreviewPath(owner, projectName, file.path, cacheKey);
+    const separator = previewPath.includes("?") ? "&" : "?";
     const fileContent = await apiFetch<FileContentResponse>(
-      `${buildProjectFilePreviewPath(owner, projectName, file.path)}?max_lines=120`,
+      `${previewPath}${separator}max_lines=120`,
     );
 
     return {
@@ -83,7 +87,7 @@ export async function buildProjectPreviewState({
   }
 
   return {
-    actionHref: buildProjectFileUrl(owner, projectName, file.path),
+    actionHref: buildProjectFileUrl(owner, projectName, file.path, cacheKey),
     actionLabel: "Abrir archivo",
     description: "Este archivo no tiene una vista rápida embebida disponible.",
     label: file.path,
