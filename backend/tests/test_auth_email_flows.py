@@ -249,6 +249,11 @@ def test_notify_analysis_run_finished_sends_emails_to_owner_and_requester(monkey
     )
     monkeypatch.setattr(
         notification_service,
+        "_list_project_notification_recipient_ids",
+        lambda project_id: {"owner-id", "collab-id"},
+    )
+    monkeypatch.setattr(
+        notification_service,
         "get_email_user_context",
         lambda user_id: type(
             "Recipient",
@@ -280,6 +285,6 @@ def test_notify_analysis_run_finished_sends_emails_to_owner_and_requester(monkey
         status="completed",
     )
 
-    assert len(emails) == 2
-    assert all(email["subject"] == "ATOM · Ejecución finalizada en RNA Atlas" for email in emails)
+    assert len(emails) == 3
+    assert all(email["subject"] == "ATOM · Informe listo en RNA Atlas" for email in emails)
     assert all(email["action_url"] == "http://localhost:3000/dashboard/projects/owner/rna-atlas" for email in emails)

@@ -384,12 +384,16 @@ export type ProjectMembersResponse = {
 };
 
 export type ProjectShareCandidate = {
+  access_via_teams?: string[];
   avatar_url?: string | null;
   bio?: string | null;
   department?: string | null;
+  direct_member_role?: ProjectMemberRole | null;
   display_name: string;
   email?: string | null;
+  has_direct_access?: boolean;
   id: string;
+  member_role?: ProjectMemberRole | null;
   username: string;
 };
 
@@ -404,6 +408,8 @@ export type ProjectMemberMutationResponse = {
 };
 
 export type ProjectSharedTeam = {
+  direct_member_overlap_count?: number;
+  direct_member_overlap_usernames?: string[];
   entity_name?: string | null;
   id: string;
   linked_at: string;

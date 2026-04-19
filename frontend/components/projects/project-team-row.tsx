@@ -12,6 +12,16 @@ type ProjectTeamRowProps = {
 };
 
 export function ProjectTeamRow({ team, onEdit, onRemove }: ProjectTeamRowProps) {
+  const overlapUsernames = team.direct_member_overlap_usernames ?? [];
+  const overlapCount = team.direct_member_overlap_count ?? overlapUsernames.length;
+  const overlapLabel =
+    overlapUsernames.length <= 2
+      ? overlapUsernames.map((username) => `@${username}`).join(", ")
+      : `${overlapUsernames
+          .slice(0, 2)
+          .map((username) => `@${username}`)
+          .join(", ")} y ${overlapUsernames.length - 2} mas`;
+
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <div className="flex min-w-0 items-center gap-3">
@@ -25,6 +35,11 @@ export function ProjectTeamRow({ team, onEdit, onRemove }: ProjectTeamRowProps) 
             {team.entity_name ? ` · ${team.entity_name}` : ""}
             {` · ${team.member_count} miembro${team.member_count === 1 ? "" : "s"}`}
           </p>
+          {overlapCount > 0 ? (
+            <p className="truncate text-xs text-slate-500">
+              Tambien con acceso individual: {overlapLabel}
+            </p>
+          ) : null}
         </div>
       </div>
 

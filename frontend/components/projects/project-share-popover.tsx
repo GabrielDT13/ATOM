@@ -48,6 +48,13 @@ export function ProjectSharePopover({
   submittingUsername,
   trigger,
 }: ProjectSharePopoverProps) {
+  function formatTeamAccess(teams: string[]) {
+    if (teams.length <= 2) {
+      return teams.join(", ");
+    }
+    return `${teams.slice(0, 2).join(", ")} y ${teams.length - 2} mas`;
+  }
+
   return (
     <Popover onOpenChange={onOpenChange} open={open}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
@@ -115,25 +122,57 @@ export function ProjectSharePopover({
             ) : candidates.length > 0 ? (
               <div className="flex flex-col gap-2">
                 {candidates.map((candidate) => (
-                  <div
-                    className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-                    key={candidate.id}
-                  >
-                    <ProjectAccessUserTrigger
-                      projectRole={shareRole}
-                      projectRoleTitle="Rol al compartir"
-                      user={candidate}
-                    />
-                    <Button
-                      disabled={submittingUsername === candidate.username}
-                      onClick={() => onShare(candidate.username, shareRole)}
-                      size="sm"
-                      type="button"
-                      variant="primary"
-                    >
-                      Añadir como {getProjectMemberRoleLabel(shareRole)}
-                    </Button>
-                  </div>
+                  (() => {
+                    const accessViaTeams = candidate.access_via_teams ?? [];
+                    const hasDirectAccess = candidate.has_direct_access === true;
+                    const directRole = candidate.direct_member_role ?? null;
+                    const currentRole = candidate.member_role ?? null;
+                    const buttonDisabled =
+                      submittingUsername === candidate.username ||
+                      (hasDirectAccess && directRole === shareRole);
+                    const buttonLabel = hasDirectAccess
+                      ? directRole === shareRole
+                        ? `Ya es ${getProjectMemberRoleLabel(shareRole)}`
+                        : `Actualizar a ${getProjectMemberRoleLabel(shareRole)}`
+                      : currentRole
+                        ? `Añadir acceso directo como ${getProjectMemberRoleLabel(shareRole)}`
+                        : `Añadir como ${getProjectMemberRoleLabel(shareRole)}`;
+
+                    return (
+                      <div
+                        className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
+                        key={candidate.id}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <ProjectAccessUserTrigger
+                            projectRole={currentRole ?? shareRole}
+                            projectRoleTitle={currentRole ? "Rol actual" : "Rol al compartir"}
+                            user={candidate}
+                          />
+                          {hasDirectAccess ? (
+                            <p className="mt-2 truncate text-xs text-slate-500">
+                              Acceso directo actual: {getProjectMemberRoleLabel(directRole ?? "viewer")}
+                            </p>
+                          ) : null}
+                          {accessViaTeams.length > 0 ? (
+                            <p className="mt-1 truncate text-xs text-slate-500">
+                              {hasDirectAccess ? "Tambien accede por " : "Ya accede por "}
+                              {formatTeamAccess(accessViaTeams)}
+                            </p>
+                          ) : null}
+                        </div>
+                        <Button
+                          disabled={buttonDisabled}
+                          onClick={() => onShare(candidate.username, shareRole)}
+                          size="sm"
+                          type="button"
+                          variant="primary"
+                        >
+                          {buttonLabel}
+                        </Button>
+                      </div>
+                    );
+                  })()
                 ))}
               </div>
             ) : (

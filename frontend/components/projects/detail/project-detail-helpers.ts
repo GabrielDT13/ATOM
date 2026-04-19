@@ -2,6 +2,16 @@ import type { ProjectExecutionGroup } from "@/components/projects/project-detail
 import { buildApiUrl, encodePathSegments } from "@/lib/api";
 import type { ProjectFileEntry } from "@/types/api";
 
+function appendCacheKey(path: string, cacheKey?: string | null) {
+  const normalizedCacheKey = String(cacheKey || "").trim();
+  if (!normalizedCacheKey) {
+    return path;
+  }
+
+  const separator = path.includes("?") ? "&" : "?";
+  return `${path}${separator}v=${encodeURIComponent(normalizedCacheKey)}`;
+}
+
 export function formatDate(value: string) {
   return new Intl.DateTimeFormat("es-ES", {
     day: "numeric",
@@ -22,18 +32,34 @@ export function formatBytes(size: number) {
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function buildProjectFileUrl(owner: string, projectName: string, filePath: string) {
-  return buildApiUrl(
+export function buildProjectFileUrl(
+  owner: string,
+  projectName: string,
+  filePath: string,
+  cacheKey?: string | null,
+) {
+  return appendCacheKey(
+    buildApiUrl(
     `/api/projects/${encodeURIComponent(owner)}/download/${encodePathSegments(
       `${projectName}/${filePath}`,
     )}`,
+    ),
+    cacheKey,
   );
 }
 
-export function buildProjectFilePreviewPath(owner: string, projectName: string, filePath: string) {
-  return `/api/projects/${encodeURIComponent(owner)}/files/${encodePathSegments(
-    `${projectName}/${filePath}`,
-  )}`;
+export function buildProjectFilePreviewPath(
+  owner: string,
+  projectName: string,
+  filePath: string,
+  cacheKey?: string | null,
+) {
+  return appendCacheKey(
+    `/api/projects/${encodeURIComponent(owner)}/files/${encodePathSegments(
+      `${projectName}/${filePath}`,
+    )}`,
+    cacheKey,
+  );
 }
 
 export function isPreviewableTextFile(file: ProjectFileEntry) {

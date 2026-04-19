@@ -51,7 +51,7 @@ from backend.app.services.project_repository import (
     _set_project_entity,
     _upsert_project_record,
 )
-from backend.app.services.teams import list_teams_for_user
+from backend.app.services.teams import get_team_details, list_teams_for_user
 from fastapi import UploadFile
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
@@ -79,8 +79,22 @@ def _pick_highest_project_role(roles: list[str]) -> ProjectMemberRole | None:
     return best_role  # type: ignore[return-value]
 
 
-def _build_project_team_response(row: dict[str, Any]) -> dict[str, Any]:
+def _build_project_team_response(
+    row: dict[str, Any],
+    *,
+    direct_overlap_usernames: list[str] | None = None,
+) -> dict[str, Any]:
+    overlap_usernames = sorted(
+        {
+            str(username or "").strip()
+            for username in (direct_overlap_usernames or [])
+            if str(username or "").strip()
+        },
+        key=str.lower,
+    )
     return {
+        "direct_member_overlap_count": len(overlap_usernames),
+        "direct_member_overlap_usernames": overlap_usernames,
         "entity_name": str(row.get("team_entity_name") or "").strip() or None,
         "id": str(row.get("team_id") or "").strip(),
         "linked_at": str(row.get("linked_at") or "").strip(),
@@ -89,6 +103,63 @@ def _build_project_team_response(row: dict[str, Any]) -> dict[str, Any]:
         "name": str(row.get("team_name") or "").strip(),
         "owner_username": str(row.get("team_owner_username") or "").strip(),
         "slug": str(row.get("team_slug") or "").strip(),
+    }
+
+
+def _collect_project_access_state(project_id: str) -> dict[str, Any]:
+    direct_members = _list_project_members_by_project_id(project_id)
+    team_members = _list_project_team_members_by_project_id(project_id)
+
+    direct_roles_by_user_id: dict[str, ProjectMemberRole] = {}
+    effective_roles_by_user_id: dict[str, ProjectMemberRole] = {}
+    access_via_teams_by_user_id: dict[str, list[str]] = {}
+    direct_overlap_usernames_by_team_id: dict[str, set[str]] = {}
+
+    for member in direct_members:
+        user_id = str(member.get("member_id") or "").strip()
+        direct_role = _normalize_project_member_role(member.get("member_role"))
+        if not user_id or not direct_role:
+            continue
+        direct_roles_by_user_id[user_id] = direct_role
+        effective_roles_by_user_id[user_id] = direct_role
+
+    for member in team_members:
+        user_id = str(member.get("member_id") or "").strip()
+        team_id = str(member.get("team_id") or "").strip()
+        team_name = str(member.get("team_name") or "").strip()
+        team_role = _normalize_project_member_role(member.get("project_member_role"))
+        username = str(member.get("member_username") or "").strip()
+        if not user_id:
+            continue
+
+        if team_name:
+            team_names = access_via_teams_by_user_id.setdefault(user_id, [])
+            if team_name not in team_names:
+                team_names.append(team_name)
+                team_names.sort(key=str.lower)
+
+        if team_role:
+            current_role = effective_roles_by_user_id.get(user_id)
+            effective_role = _pick_highest_project_role(
+                [str(current_role or "").strip(), team_role]
+            )
+            if effective_role:
+                effective_roles_by_user_id[user_id] = effective_role
+
+        if team_id and user_id in direct_roles_by_user_id and username:
+            overlap_usernames = direct_overlap_usernames_by_team_id.setdefault(team_id, set())
+            overlap_usernames.add(username)
+
+    return {
+        "access_via_teams_by_user_id": access_via_teams_by_user_id,
+        "direct_members": direct_members,
+        "direct_overlap_usernames_by_team_id": {
+            team_id: sorted(usernames, key=str.lower)
+            for team_id, usernames in direct_overlap_usernames_by_team_id.items()
+        },
+        "direct_roles_by_user_id": direct_roles_by_user_id,
+        "effective_roles_by_user_id": effective_roles_by_user_id,
+        "team_members": team_members,
     }
 
 
@@ -463,8 +534,9 @@ def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
 
     try:
         project_id = str(record["id"])
-        direct_members = _list_project_members_by_project_id(project_id)
-        team_members = _list_project_team_members_by_project_id(project_id)
+        access_state = _collect_project_access_state(project_id)
+        direct_members = list(access_state.get("direct_members") or [])
+        team_members = list(access_state.get("team_members") or [])
         member_ids = {
             str(member.get("member_id") or "").strip()
             for member in [*direct_members, *team_members]
@@ -570,13 +642,13 @@ def search_project_share_candidates(owner: str, project_name: str, query: str, l
     except ServiceError:
         project = None
     excluded_usernames = {owner}
+    access_state: dict[str, Any] = {
+        "access_via_teams_by_user_id": {},
+        "direct_roles_by_user_id": {},
+        "effective_roles_by_user_id": {},
+    }
     if project:
-        direct_members = _list_project_members_by_project_id(str(project["id"]))
-        excluded_usernames.update(
-            str(member.get("member_username") or "").strip()
-            for member in direct_members
-            if str(member.get("member_username") or "").strip()
-        )
+        access_state = _collect_project_access_state(str(project["id"]))
     normalized_query = query.strip().lower()
 
     candidates: list[dict[str, Any]] = []
@@ -589,6 +661,7 @@ def search_project_share_candidates(owner: str, project_name: str, query: str, l
         username = str(profile.get("username") or "").strip()
         email = str(profile.get("email") or "").strip().lower()
         display_name = str(profile.get("full_name") or "").strip() or username
+        user_id = str(profile.get("id") or "").strip()
 
         if not username or username in excluded_usernames:
             continue
@@ -598,21 +671,34 @@ def search_project_share_candidates(owner: str, project_name: str, query: str, l
             if normalized_query not in searchable:
                 continue
 
+        direct_member_role = access_state["direct_roles_by_user_id"].get(user_id)
+        effective_role = access_state["effective_roles_by_user_id"].get(user_id)
+        access_via_teams = list(access_state["access_via_teams_by_user_id"].get(user_id) or [])
         candidates.append(
             {
+                "access_via_teams": access_via_teams,
                 "avatar_url": str(profile.get("avatar_url") or "").strip() or None,
                 "bio": str(profile.get("bio") or "").strip() or None,
                 "department": str(profile.get("department") or "").strip() or None,
+                "direct_member_role": direct_member_role,
                 "display_name": display_name,
                 "email": email or None,
-                "id": str(profile.get("id") or "").strip(),
+                "has_direct_access": direct_member_role is not None,
+                "id": user_id,
+                "member_role": effective_role,
                 "username": username,
             }
         )
-        if len(candidates) >= limit:
-            break
 
-    return candidates
+    candidates.sort(
+        key=lambda candidate: (
+            2
+            if candidate["has_direct_access"]
+            else (1 if candidate["access_via_teams"] else 0),
+            str(candidate["display_name"] or candidate["username"]).lower(),
+        )
+    )
+    return candidates[:limit]
 
 
 def list_project_teams(owner: str, project_name: str) -> list[dict[str, Any]]:
@@ -620,8 +706,13 @@ def list_project_teams(owner: str, project_name: str) -> list[dict[str, Any]]:
     project_id = str(project.get("id") or "").strip()
     if not project_id:
         raise ServiceError("No se pudo resolver el proyecto")
+    access_state = _collect_project_access_state(project_id)
+    overlap_by_team_id = access_state.get("direct_overlap_usernames_by_team_id") or {}
     return [
-        _build_project_team_response(item)
+        _build_project_team_response(
+            item,
+            direct_overlap_usernames=overlap_by_team_id.get(str(item.get("team_id") or "").strip(), []),
+        )
         for item in _list_project_teams_by_project_id(project_id)
         if isinstance(item, dict) and str(item.get("team_id") or "").strip()
     ]
@@ -644,6 +735,8 @@ def search_project_team_candidates(
         for team in _list_project_teams_by_project_id(project_id)
         if str(team.get("team_id") or "").strip()
     }
+    access_state = _collect_project_access_state(project_id)
+    direct_user_ids = set(access_state.get("direct_roles_by_user_id") or {})
     normalized_query = query.strip().lower()
 
     candidates: list[dict[str, Any]] = []
@@ -667,8 +760,22 @@ def search_project_team_candidates(
             if normalized_query not in searchable:
                 continue
 
+        direct_overlap_usernames: list[str] = []
+        try:
+            team_details = get_team_details(team_id, session_user_id, session_username, role)
+        except ServiceError:
+            team_details = {"members": []}
+        for member in team_details.get("members") or []:
+            member_id = str(member.get("id") or "").strip()
+            member_username = str(member.get("username") or "").strip()
+            if member_id and member_id in direct_user_ids and member_username:
+                direct_overlap_usernames.append(member_username)
+        direct_overlap_usernames = sorted(set(direct_overlap_usernames), key=str.lower)
+
         candidates.append(
             {
+                "direct_member_overlap_count": len(direct_overlap_usernames),
+                "direct_member_overlap_usernames": direct_overlap_usernames,
                 "entity_name": entity_name or None,
                 "id": team_id,
                 "linked_at": "",
@@ -711,6 +818,8 @@ def add_project_member(
             return False, "El propietario ya tiene acceso al proyecto"
 
         current_member = _get_project_member(str(project["id"]), candidate_id)
+        access_state = _collect_project_access_state(str(project["id"]))
+        access_via_teams = list(access_state.get("access_via_teams_by_user_id", {}).get(candidate_id) or [])
         previous_role = str(current_member.get("member_role") or "").strip().lower() if current_member else None
         if current_member:
             if previous_role == member_role:
@@ -757,6 +866,12 @@ def add_project_member(
             recipient_user_id=candidate_id,
             updated_existing_access=False,
         )
+        if access_via_teams:
+            teams_label = ", ".join(access_via_teams)
+            return (
+                True,
+                f"Acceso directo añadido correctamente. El usuario ya accedia mediante {teams_label}.",
+            )
         return True, "Proyecto compartido correctamente"
     except ServiceError as exc:
         return False, str(exc)
@@ -793,6 +908,18 @@ def add_project_team(
         if role != "admin" and str(team_summary.get("owner_username") or "").strip() != session_username:
             return False, "Solo puedes compartir equipos que gestionas"
 
+        access_state = _collect_project_access_state(project_id)
+        direct_user_ids = set(access_state.get("direct_roles_by_user_id") or {})
+        direct_overlap_count = 0
+        try:
+            team_details = get_team_details(team_id, session_user_id, session_username, role)
+        except ServiceError:
+            team_details = {"members": []}
+        for member in team_details.get("members") or []:
+            member_id = str(member.get("id") or "").strip()
+            if member_id and member_id in direct_user_ids:
+                direct_overlap_count += 1
+
         execute(
             """
             INSERT INTO internal.project_teams (project_id, team_id, member_role)
@@ -804,6 +931,12 @@ def add_project_team(
         )
         if linked_team:
             return True, "Permisos del equipo actualizados correctamente"
+        if direct_overlap_count > 0:
+            return (
+                True,
+                "Proyecto compartido con el equipo correctamente. "
+                f"{direct_overlap_count} miembro(s) ya tenian acceso directo.",
+            )
         return True, "Proyecto compartido con el equipo correctamente"
     except ServiceError as exc:
         return False, str(exc)
