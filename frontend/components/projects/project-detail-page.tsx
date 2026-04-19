@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  buildProjectFileUrl,
   buildProjectFilePreviewPath,
   getExecutionDeliverables,
   getExecutionPreviewableFiles,
@@ -29,6 +30,7 @@ import {
 } from "@/components/projects/project-detail-utils";
 import {
   parseProjectReportHtml,
+  resolveRelativeReportAssetPath,
   type ParsedProjectReport,
 } from "@/components/projects/project-report-utils";
 import { getProjectStatusMeta } from "@/components/projects/project-management-utils";
@@ -40,6 +42,7 @@ import {
   getProject,
   getProjectByRef,
   listProjectMembers,
+  listProjectTeams,
   listProjectMembersByRef,
   resolveProjectRouteRef,
 } from "@/lib/projects";
@@ -47,6 +50,7 @@ import type {
   FileContentResponse,
   ProjectDetails,
   ProjectMemberRecord,
+  ProjectSharedTeam,
   SessionResponse,
 } from "@/types/api";
 
@@ -70,6 +74,7 @@ export function ProjectDetailPage({
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
+  const [teams, setTeams] = useState<ProjectSharedTeam[]>([]);
   const [reportPreview, setReportPreview] = useState<PreviewState | null>(null);
   const [filePreview, setFilePreview] = useState<PreviewState | null>(null);
   const [activeReport, setActiveReport] = useState<ParsedProjectReport | null>(null);
@@ -84,6 +89,7 @@ export function ProjectDetailPage({
   async function loadProjectState(isCancelled: () => boolean = () => false) {
     setLoading(true);
     setError(null);
+    setTeams([]);
 
     try {
       const projectRequest =
@@ -108,6 +114,16 @@ export function ProjectDetailPage({
       setSession(sessionResponse);
       setProject(projectResponse);
       setMembers(membersResponse.members);
+      try {
+        const teamsResponse = await listProjectTeams(projectResponse.owner, projectResponse.name);
+        if (!isCancelled()) {
+          setTeams(teamsResponse.teams);
+        }
+      } catch {
+        if (!isCancelled()) {
+          setTeams([]);
+        }
+      }
     } catch (loadError) {
       if (isCancelled()) {
         return;
@@ -239,7 +255,16 @@ export function ProjectDetailPage({
         const fileContent = await apiFetch<FileContentResponse>(
           buildProjectFilePreviewPath(project.owner, project.name, htmlFile.path),
         );
-        setActiveReport(parseProjectReportHtml(fileContent.content));
+        setActiveReport(
+          parseProjectReportHtml(fileContent.content, {
+            resolveImageSrc: (src) =>
+              buildProjectFileUrl(
+                project.owner,
+                project.name,
+                resolveRelativeReportAssetPath(htmlFile.path, src),
+              ),
+          }),
+        );
       } catch {
         setActiveReport(null);
       }
@@ -350,7 +375,7 @@ export function ProjectDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <ProjectDetailHero accessRole={accessRole} canEdit={canEdit} project={project} />
+      <ProjectDetailHero accessRole={accessRole} canEdit={canEdit} project={project} teamCount={teams.length} />
 
       <ProjectQuickActions
         activeRun={project.active_run ?? null}
@@ -373,6 +398,7 @@ export function ProjectDetailPage({
           project={project}
           statusBadgeClassName={statusMeta.badgeClassName}
           statusLabel={statusMeta.label}
+          teams={teams}
         />
 
         <ProjectPrimaryReport

@@ -26,16 +26,27 @@ export function ProjectMemberRow({
   onRemove,
   onTransfer,
 }: ProjectMemberRowProps) {
+  const canManageDirectAccess = !member.is_owner && member.has_direct_access !== false;
+  const accessViaTeams = member.access_via_teams ?? [];
+
   return (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
       <ProjectAccessUserTrigger projectRole={member.member_role} user={member} />
       <div className="flex items-center gap-2">
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${getProjectMemberRoleBadgeClassName(member.member_role)}`}
-        >
-          {getProjectMemberRoleLabel(member.member_role)}
-        </span>
-        {!member.is_owner ? (
+        <div className="flex flex-col items-end gap-1">
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${getProjectMemberRoleBadgeClassName(member.member_role)}`}
+          >
+            {getProjectMemberRoleLabel(member.member_role)}
+          </span>
+          {accessViaTeams.length > 0 ? (
+            <p className="max-w-56 truncate text-right text-[11px] text-slate-500">
+              {member.has_direct_access ? "También por " : "Acceso por "}
+              {accessViaTeams.join(", ")}
+            </p>
+          ) : null}
+        </div>
+        {canManageDirectAccess ? (
           <RowActionsMenu
             actions={[
               {

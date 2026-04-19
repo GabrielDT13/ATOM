@@ -11,6 +11,7 @@ import {
   DetailMetaRow,
   DeliverableCard,
   ExecutionSelectorCard,
+  LinkedProjectTeamCard,
   PreviewPanel,
   SectionCard,
   SupportFileRow,
@@ -31,7 +32,7 @@ import { buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord } from "@/types/api";
+import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord, ProjectSharedTeam } from "@/types/api";
 
 export function ProjectDetailLoadingState() {
   return (
@@ -67,10 +68,12 @@ export function ProjectDetailHero({
   accessRole,
   canEdit,
   project,
+  teamCount,
 }: {
   accessRole: string;
   canEdit: boolean;
   project: ProjectDetails;
+  teamCount: number;
 }) {
   return (
     <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
@@ -91,9 +94,19 @@ export function ProjectDetailHero({
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
               @{project.owner}
             </span>
+            {project.entity_name ? (
+              <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                {project.entity_name}
+              </span>
+            ) : null}
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
               Acceso: {accessRole}
             </span>
+            {teamCount > 0 ? (
+              <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                {teamCount} equipo{teamCount === 1 ? "" : "s"} vinculado{teamCount === 1 ? "" : "s"}
+              </span>
+            ) : null}
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
               {project.file_count} archivos
             </span>
@@ -201,6 +214,7 @@ export function ProjectSidebar({
   project,
   statusBadgeClassName,
   statusLabel,
+  teams,
 }: {
   activeExecutionGroup: ProjectExecutionGroup | null;
   executionGroups: ProjectExecutionGroup[];
@@ -209,7 +223,41 @@ export function ProjectSidebar({
   project: ProjectDetails;
   statusBadgeClassName: string;
   statusLabel: string;
+  teams: ProjectSharedTeam[];
 }) {
+  const directMembers = members.filter((member) => member.has_direct_access !== false);
+  const ownerMembers = directMembers.filter((member) => member.is_owner);
+  const nonOwnerDirectMembers = directMembers.filter((member) => !member.is_owner);
+  const teamOnlyMembers = members.filter(
+    (member) => (member.access_via_teams?.length ?? 0) > 0 && member.has_direct_access === false,
+  );
+
+  function renderMemberGroup(
+    title: string,
+    description: string,
+    groupMembers: ProjectMemberRecord[],
+  ) {
+    if (groupMembers.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            {title}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        <div className="space-y-3">
+          {groupMembers.map((member) => (
+            <TeamMemberCard key={member.id || member.username} member={member} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <aside className="flex h-full flex-col gap-6">
       <SectionCard title="Metadatos">
@@ -224,8 +272,12 @@ export function ProjectSidebar({
           />
           <DetailMetaRow label="Creado" value={formatDate(project.created_at)} />
           <DetailMetaRow label="Actualizado" value={formatDate(project.updated_at)} />
+          <DetailMetaRow label="Entidad" value={project.entity_name ?? "Sin entidad"} />
           <DetailMetaRow label="Plantilla" value={project.template_file ?? "No disponible"} />
-          <DetailMetaRow label="Equipo" value={`${members.length} miembro(s)`} />
+          <DetailMetaRow label="Colaboradores" value={`${members.length} miembro(s)`} />
+          <DetailMetaRow label="Acceso directo" value={`${directMembers.length} usuario(s)`} />
+          <DetailMetaRow label="Vía equipos" value={`${teamOnlyMembers.length} usuario(s)`} />
+          <DetailMetaRow label="Equipos vinculados" value={`${teams.length} equipo(s)`} />
         </div>
       </SectionCard>
 
@@ -252,14 +304,41 @@ export function ProjectSidebar({
       </SectionCard>
 
       <SectionCard
+        description="Equipos completos que heredan acceso al proyecto y el rol con el que entran."
+        title="Equipos vinculados"
+      >
+        {teams.length > 0 ? (
+          <div className="space-y-3">
+            {teams.map((team) => (
+              <LinkedProjectTeamCard key={team.id} team={team} />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">Este proyecto no tiene equipos vinculados.</p>
+        )}
+      </SectionCard>
+
+      <SectionCard
         description="Personas con acceso actual al proyecto. Pulsa sobre un nombre para ver su ficha."
         title="Equipo del proyecto"
       >
         {members.length > 0 ? (
-          <div className="space-y-3">
-            {members.map((member) => (
-              <TeamMemberCard key={member.id || member.username} member={member} />
-            ))}
+          <div className="space-y-5">
+            {renderMemberGroup(
+              "Propietario",
+              "Responsable principal del proyecto.",
+              ownerMembers,
+            )}
+            {renderMemberGroup(
+              "Acceso directo",
+              "Usuarios añadidos manualmente al proyecto. Pueden además pertenecer a equipos vinculados.",
+              nonOwnerDirectMembers,
+            )}
+            {renderMemberGroup(
+              "Vía equipos",
+              "Usuarios que acceden solo por pertenecer a equipos vinculados al proyecto.",
+              teamOnlyMembers,
+            )}
           </div>
         ) : (
           <p className="text-sm text-slate-500">No se encontraron miembros para este proyecto.</p>

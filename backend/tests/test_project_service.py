@@ -20,7 +20,11 @@ def test_create_project_saves_template_and_additional_files(
     monkeypatch.setattr(
         project_service,
         "_upsert_project_record",
-        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+        lambda owner, project_name, entity_name=None: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+        },
     )
     success, message = asyncio.run(
         project_service.create_project(
@@ -38,6 +42,48 @@ def test_create_project_saves_template_and_additional_files(
     assert message == "Proyecto 'RNA Atlas' creado correctamente."
     assert (project_dir / "template.xls").read_bytes() == b"excel-content"
     assert (project_dir / "notes.csv").read_bytes() == b"id,value\n1,2\n"
+
+
+def test_create_project_can_link_a_managed_team(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    linked_teams: list[tuple[str, str, str, str, str]] = []
+
+    monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name, entity_name=None: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+        },
+    )
+    monkeypatch.setattr(
+        project_service,
+        "add_project_team",
+        lambda owner, project_name, team_id, *, session_user_id, session_username, role, member_role="viewer": (
+            linked_teams.append((owner, project_name, team_id, role, member_role)) or True,
+            "Proyecto compartido con el equipo correctamente",
+        ),
+    )
+
+    success, message = asyncio.run(
+        project_service.create_project(
+            "user-1",
+            "researcher",
+            "RNA Atlas",
+            _make_upload("study.xls", b"excel-content"),
+            [],
+            team_id="team-1",
+            actor_role="user",
+        )
+    )
+
+    assert success is True
+    assert message == "Proyecto 'RNA Atlas' creado correctamente."
+    assert linked_teams == [("researcher", "RNA Atlas", "team-1", "user", "editor")]
 
 
 def test_get_project_details_returns_structured_inventory(
@@ -474,16 +520,117 @@ def test_get_project_members_returns_owner_fallback_when_repository_fails(monkey
 
     assert members == [
         {
+            "access_via_teams": [],
             "avatar_url": None,
             "bio": None,
             "department": None,
+            "direct_member_role": "owner",
             "display_name": "researcher",
             "email": None,
+            "has_direct_access": True,
             "id": "local-owner::researcher",
             "is_owner": True,
             "member_role": "owner",
             "username": "researcher",
         }
+    ]
+
+
+def test_get_project_members_merges_direct_and_team_access(monkeypatch) -> None:
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_members_by_project_id",
+        lambda project_id: [
+            {
+                "member_id": "user-owner",
+                "member_role": "owner",
+                "member_username": "researcher",
+            },
+            {
+                "member_id": "user-direct",
+                "member_role": "viewer",
+                "member_username": "analyst",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_list_project_team_members_by_project_id",
+        lambda project_id: [
+            {
+                "member_id": "user-direct",
+                "member_username": "analyst",
+                "project_member_role": "editor",
+                "team_name": "Equipo Alpha",
+            },
+            {
+                "member_id": "user-team",
+                "member_username": "collab",
+                "project_member_role": "viewer",
+                "team_name": "Equipo Beta",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_fetch_profiles",
+        lambda: [
+            {"id": "user-owner", "username": "researcher", "full_name": "Research Owner"},
+            {"id": "user-direct", "username": "analyst", "full_name": "Direct Analyst"},
+            {"id": "user-team", "username": "collab", "full_name": "Team Collaborator"},
+        ],
+    )
+
+    members = project_service.get_project_members("researcher", "RNA Atlas")
+
+    assert members == [
+        {
+            "access_via_teams": [],
+            "avatar_url": None,
+            "bio": None,
+            "department": None,
+            "direct_member_role": "owner",
+            "display_name": "Research Owner",
+            "email": None,
+            "has_direct_access": True,
+            "id": "user-owner",
+            "is_owner": True,
+            "member_role": "owner",
+            "username": "researcher",
+        },
+        {
+            "access_via_teams": ["Equipo Alpha"],
+            "avatar_url": None,
+            "bio": None,
+            "department": None,
+            "direct_member_role": "viewer",
+            "display_name": "Direct Analyst",
+            "email": None,
+            "has_direct_access": True,
+            "id": "user-direct",
+            "is_owner": False,
+            "member_role": "editor",
+            "username": "analyst",
+        },
+        {
+            "access_via_teams": ["Equipo Beta"],
+            "avatar_url": None,
+            "bio": None,
+            "department": None,
+            "direct_member_role": None,
+            "display_name": "Team Collaborator",
+            "email": None,
+            "has_direct_access": False,
+            "id": "user-team",
+            "is_owner": False,
+            "member_role": "viewer",
+            "username": "collab",
+        },
     ]
 
 
@@ -498,6 +645,48 @@ def test_add_project_member_returns_controlled_error_when_repository_fails(monke
 
     assert success is False
     assert message == "db missing"
+
+
+def test_add_project_team_inserts_viewer_permission(monkeypatch) -> None:
+    executed: list[tuple[str, tuple[object, ...]]] = []
+
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {"id": "project-1", "name": project_name, "owner_username": owner},
+    )
+    monkeypatch.setattr(project_service, "_get_project_team", lambda project_id, team_id: None)
+    monkeypatch.setattr(
+        project_service,
+        "list_teams_for_user",
+        lambda session_user_id, session_username, role: [
+            {
+                "id": "team-1",
+                "name": "Equipo Alpha",
+                "owner_username": session_username,
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "execute",
+        lambda query, params=(): executed.append((query, params)),
+    )
+
+    success, message = project_service.add_project_team(
+        "researcher",
+        "RNA Atlas",
+        "team-1",
+        session_user_id="user-1",
+        session_username="researcher",
+        role="user",
+    )
+
+    assert success is True
+    assert message == "Proyecto compartido con el equipo correctamente"
+    assert len(executed) == 1
+    assert "INSERT INTO internal.project_teams" in executed[0][0]
+    assert executed[0][1] == ("project-1", "team-1", "viewer")
 
 
 def test_transfer_project_ownership_moves_directory_and_updates_repository(
@@ -572,3 +761,19 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
     assert "UPDATE internal.projects" in executed[0][0]
     assert "INSERT INTO internal.project_members" in executed[1][0]
     assert "INSERT INTO internal.project_members" in executed[2][0]
+
+
+def test_project_scripts_are_not_available_from_the_interface() -> None:
+    try:
+        project_service.read_project_file("researcher", "RNA Atlas/design_app_a/design_app_a.Rmd")
+    except ValueError as exc:
+        assert str(exc) == "Los scripts internos del análisis no están disponibles desde la interfaz."
+    else:
+        raise AssertionError("Se esperaba bloquear la lectura del script interno")
+
+    try:
+        project_service.get_download_path("researcher", "RNA Atlas/design_app_a/design_app_a.R")
+    except ValueError as exc:
+        assert str(exc) == "Los scripts internos del análisis no están disponibles desde la interfaz."
+    else:
+        raise AssertionError("Se esperaba bloquear la descarga del script interno")

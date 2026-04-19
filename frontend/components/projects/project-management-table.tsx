@@ -99,6 +99,11 @@ export function ProjectManagementTable({
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
                   @{project.owner}
                 </span>
+                {project.entity_name ? (
+                  <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">
+                    {project.entity_name}
+                  </span>
+                ) : null}
                 {project.templateFile ? (
                   <span className="truncate">Base: {project.templateFile}</span>
                 ) : (

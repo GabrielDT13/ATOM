@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import { DataFilesIcon, DownloadIcon, EyeIcon, FileCodeIcon, TemplateIcon } from "@/components/projects/project-management-icons";
+import { DataFilesIcon, DownloadIcon, EyeIcon, TemplateIcon } from "@/components/projects/project-management-icons";
 import { type ProjectExecutionGroup } from "@/components/projects/project-detail-utils";
 import {
   buildProjectFileUrl,
@@ -20,7 +20,7 @@ import { buttonStyles } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildProjectReportHref } from "@/lib/projects";
 import { cn } from "@/lib/utils";
-import type { ProjectFileEntry, ProjectMemberRecord } from "@/types/api";
+import type { ProjectFileEntry, ProjectMemberRecord, ProjectSharedTeam } from "@/types/api";
 import { UserAvatar, UserProfilePopover } from "@/components/users/user-profile-popover";
 
 function getProjectRoleBadgeClassName(memberRole: ProjectMemberRecord["member_role"], isOwner: boolean) {
@@ -182,6 +182,9 @@ export function PreviewPanel({
 }
 
 export function TeamMemberCard({ member }: { member: ProjectMemberRecord }) {
+  const accessViaTeams = member.access_via_teams ?? [];
+  const hasDirectAccess = member.has_direct_access !== false;
+
   return (
     <article className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -207,6 +210,50 @@ export function TeamMemberCard({ member }: { member: ProjectMemberRecord }) {
         </span>
       </div>
       {member.department ? <p className="mt-3 text-sm text-slate-600">{member.department}</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {member.is_owner ? (
+          <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+            Propietario
+          </span>
+        ) : null}
+        {!member.is_owner && hasDirectAccess ? (
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+            Acceso directo
+          </span>
+        ) : null}
+        {accessViaTeams.map((teamName) => (
+          <span
+            className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-sky-700"
+            key={`${member.id}-${teamName}`}
+          >
+            Equipo: {teamName}
+          </span>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+export function LinkedProjectTeamCard({ team }: { team: ProjectSharedTeam }) {
+  return (
+    <article className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-950">{team.name}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">
+            @{team.owner_username}
+            {team.entity_name ? ` · ${team.entity_name}` : ""}
+          </p>
+        </div>
+        <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">
+          {team.member_role}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+          {team.member_count} miembro{team.member_count === 1 ? "" : "s"}
+        </span>
+      </div>
     </article>
   );
 }
@@ -282,9 +329,7 @@ export function DeliverableCard({
     ? buildProjectReportHref(projectRef, file.path)
     : buildProjectFileUrl(owner, projectName, file.path);
   const icon =
-    extension === ".rmd" ? (
-      <FileCodeIcon className="h-5 w-5" />
-    ) : extension === ".xlsx" || extension === ".xls" ? (
+    extension === ".xlsx" || extension === ".xls" ? (
       <TemplateIcon className="h-5 w-5" />
     ) : (
       <DataFilesIcon className="h-5 w-5" />

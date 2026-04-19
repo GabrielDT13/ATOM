@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { listEntities } from "@/lib/entities";
 import {
   Dialog,
   DialogClose,
@@ -17,10 +18,16 @@ import {
   TemplateIcon,
 } from "@/components/projects/project-management-icons";
 import { ProjectAccessManager } from "@/components/projects/project-access-manager";
+import {
+  CreatableSelectField,
+  type CreatableSelectOption,
+} from "@/components/ui/creatable-select-field";
+import type { EntityRecord } from "@/types/api";
 import type { ProjectRecord } from "@/components/projects/project-management-utils";
 
 export type ProjectEditValues = {
   additionalFiles: File[];
+  entityName: string;
   name: string;
   templateFiles: File[];
 };
@@ -123,11 +130,21 @@ export function ProjectEditDialog({
   uploadProgress = 0,
   uploadState = "idle",
 }: ProjectEditDialogProps) {
+  const [entities, setEntities] = useState<EntityRecord[]>([]);
   const [name, setName] = useState("");
+  const [entityName, setEntityName] = useState("");
   const [templateFiles, setTemplateFiles] = useState<File[]>([]);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [confirmReplacementOpen, setConfirmReplacementOpen] = useState(false);
   const [resultsReplacementConfirmed, setResultsReplacementConfirmed] = useState(false);
+  const entityOptions: CreatableSelectOption[] = entities.map((entity) => ({
+    label: entity.name,
+    value: entity.name,
+  }));
+
+  useEffect(() => {
+    void listEntities().then(setEntities).catch(() => setEntities([]));
+  }, []);
 
   useEffect(() => {
     if (!open || !project) {
@@ -135,6 +152,7 @@ export function ProjectEditDialog({
     }
 
     setName(project.name);
+    setEntityName(project.entity_name ?? "");
     setTemplateFiles([]);
     setAdditionalFiles([]);
     setConfirmReplacementOpen(false);
@@ -144,6 +162,7 @@ export function ProjectEditDialog({
   async function submitChanges() {
     await onSubmit({
       additionalFiles,
+      entityName: entityName.trim(),
       name: name.trim(),
       templateFiles,
     });
@@ -183,6 +202,15 @@ export function ProjectEditDialog({
                 value={name}
               />
             </label>
+
+            <CreatableSelectField
+              allowCreate={false}
+              createPlaceholder="Escribe una nueva entidad"
+              label="Entidad vinculada"
+              onChange={setEntityName}
+              options={entityOptions}
+              value={entityName}
+            />
 
             {project ? <CurrentProjectInventory project={project} /> : null}
 

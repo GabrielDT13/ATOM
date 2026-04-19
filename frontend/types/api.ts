@@ -225,6 +225,7 @@ export type UserRecord = {
   first_name?: string | null;
   last_name?: string | null;
   department?: string | null;
+  entity_name?: string | null;
   display_name?: string | null;
 };
 
@@ -232,6 +233,22 @@ export type DepartmentRecord = {
   id: string;
   name: string;
   slug: string;
+};
+
+export type EntityRecord = {
+  created_at?: string | null;
+  id: string;
+  name: string;
+  project_count?: number;
+  slug: string;
+  team_count?: number;
+  user_count?: number;
+};
+
+export type EntityMutationResponse = {
+  success: boolean;
+  message: string;
+  entity: EntityRecord | null;
 };
 
 export type MutationResponse = {
@@ -258,6 +275,9 @@ export type ProjectSummary = {
   active_run?: AnalysisRun | null;
   additional_files: string[];
   created_at: string;
+  entity_id?: string | null;
+  entity_name?: string | null;
+  entity_slug?: string | null;
   file_count: number;
   files: string[];
   html_files: string[];
@@ -285,14 +305,74 @@ export type ProjectMutationResponse = {
   project: ProjectDetails | null;
 };
 
-export type ProjectMemberRole = "editor" | "owner" | "viewer";
+export type TeamMemberRole = "member" | "owner";
 
-export type ProjectMemberRecord = {
+export type TeamMember = {
   avatar_url?: string | null;
-  bio?: string | null;
   department?: string | null;
   display_name: string;
   email?: string | null;
+  entity_name?: string | null;
+  id: string;
+  is_owner: boolean;
+  member_role: TeamMemberRole;
+  username: string;
+};
+
+export type TeamSummary = {
+  created_at: string;
+  entity_id?: string | null;
+  entity_name?: string | null;
+  entity_slug?: string | null;
+  id: string;
+  member_count: number;
+  membership_role?: TeamMemberRole | null;
+  name: string;
+  owner_id: string;
+  owner_username: string;
+  slug: string;
+  updated_at: string;
+};
+
+export type TeamDetails = TeamSummary & {
+  members: TeamMember[];
+};
+
+export type TeamCollectionResponse = {
+  items: TeamSummary[];
+};
+
+export type TeamMutationResponse = {
+  success: boolean;
+  message: string;
+  team: TeamDetails | null;
+};
+
+export type TeamMemberCandidate = {
+  avatar_url?: string | null;
+  department?: string | null;
+  display_name: string;
+  email?: string | null;
+  entity_name?: string | null;
+  id: string;
+  username: string;
+};
+
+export type TeamMemberCandidatesResponse = {
+  users: TeamMemberCandidate[];
+};
+
+export type ProjectMemberRole = "editor" | "owner" | "viewer";
+
+export type ProjectMemberRecord = {
+  access_via_teams?: string[];
+  avatar_url?: string | null;
+  bio?: string | null;
+  department?: string | null;
+  direct_member_role?: ProjectMemberRole | null;
+  display_name: string;
+  email?: string | null;
+  has_direct_access?: boolean;
   id: string;
   is_owner: boolean;
   member_role: ProjectMemberRole;
@@ -321,6 +401,31 @@ export type ProjectMemberMutationResponse = {
   success: boolean;
   member: ProjectMemberRecord | null;
   message: string;
+};
+
+export type ProjectSharedTeam = {
+  entity_name?: string | null;
+  id: string;
+  linked_at: string;
+  member_count: number;
+  member_role: Extract<ProjectMemberRole, "editor" | "viewer">;
+  name: string;
+  owner_username: string;
+  slug: string;
+};
+
+export type ProjectTeamsResponse = {
+  teams: ProjectSharedTeam[];
+};
+
+export type ProjectTeamCandidatesResponse = {
+  teams: ProjectSharedTeam[];
+};
+
+export type ProjectTeamMutationResponse = {
+  success: boolean;
+  message: string;
+  team: ProjectSharedTeam | null;
 };
 
 export type FileContentResponse = {

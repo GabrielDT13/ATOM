@@ -1,11 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
+import { fetchSession } from "@/lib/api";
+import { listEntities } from "@/lib/entities";
 import { createProject } from "@/lib/projects";
+import { listTeams } from "@/lib/teams";
 import { useAppToast } from "@/hooks/use-app-toast";
+import type { EntityRecord, SessionResponse, TeamSummary } from "@/types/api";
 import { ProjectFileDropzone } from "@/components/projects/project-file-dropzone";
 import {
   DataFilesIcon,
@@ -13,18 +16,74 @@ import {
   TemplateIcon,
   UploadStackIcon,
 } from "@/components/projects/project-management-icons";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
+import {
+  CreatableSelectField,
+  type CreatableSelectOption,
+} from "@/components/ui/creatable-select-field";
 
 export function ProjectCreator() {
   const router = useRouter();
   const appToast = useAppToast();
+  const [session, setSession] = useState<SessionResponse | null>(null);
+  const [entities, setEntities] = useState<EntityRecord[]>([]);
+  const [teams, setTeams] = useState<TeamSummary[]>([]);
+  const [entityName, setEntityName] = useState("");
+  const [teamId, setTeamId] = useState("");
   const [projectName, setProjectName] = useState("");
   const [templateFiles, setTemplateFiles] = useState<File[]>([]);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadState, setUploadState] = useState<"complete" | "idle" | "uploading">("idle");
+  const entityOptions: CreatableSelectOption[] = entities.map((entity) => ({
+    label: entity.name,
+    value: entity.name,
+  }));
+  const manageableTeams = teams.filter((team) => {
+    if (session?.user?.role === "admin") {
+      return true;
+    }
+
+    return team.membership_role === "owner" || team.owner_username === session?.user?.username;
+  });
+  const availableTeams = manageableTeams.filter((team) => {
+    if (!entityName.trim()) {
+      return true;
+    }
+
+    return (team.entity_name ?? "").trim() === entityName.trim();
+  });
+  const teamOptions: CreatableSelectOption[] = availableTeams.map((team) => ({
+    label: team.entity_name ? `${team.name} · ${team.entity_name}` : team.name,
+    value: team.id,
+  }));
+
+  useEffect(() => {
+    void Promise.all([fetchSession(), listEntities(), listTeams()])
+      .then(([nextSession, entitiesPayload, teamsPayload]) => {
+        setSession(nextSession);
+        setEntities(entitiesPayload);
+        setTeams(teamsPayload.items);
+      })
+      .catch((loadError) =>
+        appToast.error(
+          "No se pudieron cargar los datos iniciales",
+          loadError instanceof Error ? loadError.message : undefined,
+        ),
+      );
+  }, [appToast]);
+
+  useEffect(() => {
+    if (!teamId) {
+      return;
+    }
+
+    if (!availableTeams.some((team) => team.id === teamId)) {
+      setTeamId("");
+    }
+  }, [availableTeams, teamId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,8 +108,10 @@ export function ProjectCreator() {
     try {
       const response = await createProject({
         additionalFiles,
+        entityName,
         name: normalizedProjectName,
         onProgress: setUploadProgress,
+        teamId,
         templateFile,
       });
 
@@ -128,6 +189,30 @@ export function ProjectCreator() {
                 value={projectName}
               />
             </label>
+
+            <CreatableSelectField
+              allowCreate={false}
+              createPlaceholder="Escribe una nueva entidad"
+              label="Entidad vinculada"
+              onChange={setEntityName}
+              options={entityOptions}
+              value={entityName}
+            />
+
+            <div className="flex flex-col gap-2">
+              <CreatableSelectField
+                allowCreate={false}
+                createPlaceholder="Escribe un equipo"
+                label="Añadir a un equipo"
+                onChange={setTeamId}
+                options={teamOptions}
+                value={teamId}
+              />
+              <p className="text-xs leading-5 text-slate-500">
+                Opcional. Solo se muestran equipos que gestionas. Si eliges una entidad, la lista
+                se filtra a los equipos de esa entidad.
+              </p>
+            </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
               <ProjectFileDropzone

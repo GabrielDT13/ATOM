@@ -13,6 +13,11 @@ export type ProjectDetailModel = {
   templateFile: ProjectFileEntry | null;
 };
 
+function isInternalAnalysisScript(file: ProjectFileEntry) {
+  const normalizedExtension = file.extension.toLowerCase();
+  return normalizedExtension === ".r" || normalizedExtension === ".rmd";
+}
+
 function getDirectoryName(file: ProjectFileEntry) {
   const separatorIndex = file.path.indexOf("/");
   return separatorIndex >= 0 ? file.path.slice(0, separatorIndex) : null;
@@ -42,6 +47,10 @@ export function buildProjectDetailModel(project: ProjectDetails): ProjectDetailM
 
   project.file_entries.forEach((entry) => {
     if (entry.kind === "template") {
+      return;
+    }
+
+    if (isInternalAnalysisScript(entry)) {
       return;
     }
 
@@ -89,4 +98,3 @@ export function buildProjectDetailModel(project: ProjectDetails): ProjectDetailM
     templateFile,
   };
 }
-

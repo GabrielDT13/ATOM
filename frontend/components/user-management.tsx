@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { apiFetch, fetchSession } from "@/lib/api";
+import { listEntities } from "@/lib/entities";
 import { useAppToast } from "@/hooks/use-app-toast";
 import type {
   DepartmentRecord,
+  EntityRecord,
   MutationResponse,
   ProjectMapResponse,
   SessionResponse,
@@ -30,6 +32,7 @@ type DialogState =
 
 export function UserManagement() {
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
+  const [entities, setEntities] = useState<EntityRecord[]>([]);
   const [projectsByOwner, setProjectsByOwner] = useState<Record<string, string[]>>({});
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [session, setSession] = useState<SessionResponse | null>();
@@ -82,6 +85,19 @@ export function UserManagement() {
     }
   }
 
+  async function loadEntities() {
+    try {
+      const payload = await listEntities();
+      setEntities(payload);
+    } catch (loadError) {
+      appToast.error(
+        "No se pudieron cargar las entidades",
+        loadError instanceof Error ? loadError.message : undefined,
+      );
+      setEntities([]);
+    }
+  }
+
   async function loadProjectOwnership() {
     try {
       const payload = await apiFetch<ProjectMapResponse>("/api/projects");
@@ -101,9 +117,11 @@ export function UserManagement() {
         setSession(nextSession);
         if (nextSession.user?.role === "admin") {
           void loadDepartments();
+          void loadEntities();
           void loadProjectOwnership();
         } else {
           setDepartments([]);
+          setEntities([]);
           setProjectsByOwner({});
         }
       })
@@ -131,6 +149,7 @@ export function UserManagement() {
         body: JSON.stringify({
           department: values.department || null,
           email: values.email,
+          entity_name: values.entityName,
           role: values.role,
           username: values.username,
         }),
@@ -141,7 +160,7 @@ export function UserManagement() {
       });
 
       if (response.success) {
-        await Promise.all([loadUsers(), loadDepartments(), loadProjectOwnership()]);
+        await Promise.all([loadUsers(), loadDepartments(), loadEntities(), loadProjectOwnership()]);
         closeDialog();
         const copied =
           response.temporary_password
@@ -183,6 +202,7 @@ export function UserManagement() {
           body: JSON.stringify({
             department: values.department || null,
             email: values.email,
+            entity_name: values.entityName,
             role: values.role,
             username: values.username,
           }),
@@ -194,7 +214,7 @@ export function UserManagement() {
       );
 
       if (response.success) {
-        await Promise.all([loadUsers(), loadDepartments(), loadProjectOwnership()]);
+        await Promise.all([loadUsers(), loadDepartments(), loadEntities(), loadProjectOwnership()]);
         closeDialog();
         appToast.success(response.message);
       } else {
@@ -312,6 +332,7 @@ export function UserManagement() {
 
       <UserFormDialog
         departmentOptions={departments}
+        entityOptions={entities}
         mode="create"
         onOpenChange={(open) => setDialogState({ mode: "create", open })}
         onSubmit={handleCreate}
@@ -321,6 +342,7 @@ export function UserManagement() {
 
       <UserFormDialog
         departmentOptions={departments}
+        entityOptions={entities}
         mode="edit"
         onOpenChange={(open) =>
           setDialogState({ mode: "edit", open, user: dialogState.mode === "edit" ? dialogState.user : null })

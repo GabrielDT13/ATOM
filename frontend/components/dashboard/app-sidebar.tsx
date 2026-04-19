@@ -10,6 +10,7 @@ import {
   ArrowRightIcon,
   CloseIcon,
   DashboardIcon,
+  DatabaseIcon,
   FileIcon,
   FolderIcon,
   LogoutIcon,
@@ -44,6 +45,14 @@ function getNavIcon(label: string) {
 
   if (normalized.includes("proyecto")) {
     return <FolderIcon className="h-5 w-5" />;
+  }
+
+  if (normalized.includes("equipo")) {
+    return <UsersIcon className="h-5 w-5" />;
+  }
+
+  if (normalized.includes("entidad")) {
+    return <DatabaseIcon className="h-5 w-5" />;
   }
 
   if (normalized.includes("perfil")) {

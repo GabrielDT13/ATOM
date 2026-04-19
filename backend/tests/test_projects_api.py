@@ -131,12 +131,25 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         lambda request: {"id": "user-1", "username": "researcher", "role": "user"},
     )
 
-    async def fake_create_project(actor_user_id, username, project_name, template_file, additional_files):
+    async def fake_create_project(
+        actor_user_id,
+        username,
+        project_name,
+        template_file,
+        additional_files,
+        *,
+        entity_name=None,
+        team_id=None,
+        actor_role="user",
+    ):
         captured["actor_user_id"] = actor_user_id
         captured["username"] = username
         captured["project_name"] = project_name
         captured["template_file"] = template_file.filename
         captured["additional_files"] = [upload.filename for upload in additional_files]
+        captured["entity_name"] = entity_name
+        captured["team_id"] = team_id
+        captured["actor_role"] = actor_role
         return True, "Proyecto creado correctamente"
 
     monkeypatch.setattr(project_routes, "create_project", fake_create_project)
@@ -220,6 +233,9 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         "project_name": "RNA Atlas",
         "template_file": "template.xlsx",
         "additional_files": ["notes.csv"],
+        "entity_name": None,
+        "team_id": None,
+        "actor_role": "user",
     }
 
 
@@ -350,11 +366,14 @@ def test_get_project_members_route_returns_members(client: TestClient, monkeypat
         "get_project_members",
         lambda owner, project_name: [
             {
+                "access_via_teams": [],
                 "avatar_url": "https://example.com/owner.png",
                 "bio": "Dirige el proyecto RNA Atlas.",
                 "department": "Bioinformatica",
+                "direct_member_role": "owner",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
+                "has_direct_access": True,
                 "id": "user-1",
                 "is_owner": True,
                 "member_role": "owner",
@@ -369,11 +388,14 @@ def test_get_project_members_route_returns_members(client: TestClient, monkeypat
     assert response.json() == {
         "members": [
             {
+                "access_via_teams": [],
                 "avatar_url": "https://example.com/owner.png",
                 "bio": "Dirige el proyecto RNA Atlas.",
                 "department": "Bioinformatica",
+                "direct_member_role": "owner",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
+                "has_direct_access": True,
                 "id": "user-1",
                 "is_owner": True,
                 "member_role": "owner",
@@ -451,11 +473,14 @@ def test_get_project_members_by_ref_route_returns_members(
         "get_project_members_by_ref",
         lambda project_ref: [
             {
+                "access_via_teams": [],
                 "avatar_url": None,
                 "bio": None,
                 "department": "Bioinformatica",
+                "direct_member_role": "owner",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
+                "has_direct_access": True,
                 "id": "user-1",
                 "is_owner": True,
                 "member_role": "owner",
@@ -485,11 +510,14 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
         "get_project_members",
         lambda owner, project_name: [
             {
+                "access_via_teams": [],
                 "avatar_url": None,
                 "bio": "Visualiza resultados y valida informes.",
                 "department": None,
+                "direct_member_role": "viewer",
                 "display_name": "Shared Viewer",
                 "email": "viewer@example.com",
+                "has_direct_access": True,
                 "id": "user-2",
                 "is_owner": False,
                 "member_role": "viewer",
@@ -506,11 +534,14 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
     assert response.status_code == 200
     assert response.json() == {
         "member": {
+            "access_via_teams": [],
             "avatar_url": None,
             "bio": "Visualiza resultados y valida informes.",
             "department": None,
+            "direct_member_role": "viewer",
             "display_name": "Shared Viewer",
             "email": "viewer@example.com",
+            "has_direct_access": True,
             "id": "user-2",
             "is_owner": False,
             "member_role": "viewer",
@@ -518,6 +549,101 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
         },
         "message": "Proyecto compartido correctamente",
         "success": True,
+    }
+
+
+def test_get_project_teams_route_returns_linked_teams(client: TestClient, monkeypatch) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(project_routes, "_require_project_view_access", lambda request, owner, project_name: None)
+    monkeypatch.setattr(
+        project_routes,
+        "list_project_teams",
+        lambda owner, project_name: [
+            {
+                "entity_name": "Universidad de Las Palmas de Gran Canaria",
+                "id": "team-1",
+                "linked_at": "2026-04-14T10:00:00+00:00",
+                "member_count": 3,
+                "member_role": "editor",
+                "name": "Equipo Alpha",
+                "owner_username": "researcher",
+                "slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+
+    response = client.get("/api/projects/researcher/RNA%20Atlas/teams")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "teams": [
+            {
+                "entity_name": "Universidad de Las Palmas de Gran Canaria",
+                "id": "team-1",
+                "linked_at": "2026-04-14T10:00:00+00:00",
+                "member_count": 3,
+                "member_role": "editor",
+                "name": "Equipo Alpha",
+                "owner_username": "researcher",
+                "slug": "researcher-equipo-alpha",
+            }
+        ]
+    }
+
+
+def test_put_project_team_route_adds_team(client: TestClient, monkeypatch) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "_require_project_owner",
+        lambda request, owner: {"id": "user-1", "username": owner, "role": "user"},
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "add_project_team",
+        lambda owner, project_name, team_id, session_user_id, session_username, role, member_role: (
+            True,
+            "Proyecto compartido con el equipo correctamente",
+        ),
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "list_project_teams",
+        lambda owner, project_name: [
+            {
+                "entity_name": None,
+                "id": "team-1",
+                "linked_at": "2026-04-14T10:00:00+00:00",
+                "member_count": 2,
+                "member_role": "viewer",
+                "name": "Equipo Alpha",
+                "owner_username": owner,
+                "slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+
+    response = client.put(
+        "/api/projects/researcher/RNA%20Atlas/teams/team-1",
+        json={"member_role": "viewer"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Proyecto compartido con el equipo correctamente",
+        "success": True,
+        "team": {
+            "entity_name": None,
+            "id": "team-1",
+            "linked_at": "2026-04-14T10:00:00+00:00",
+            "member_count": 2,
+            "member_role": "viewer",
+            "name": "Equipo Alpha",
+            "owner_username": "researcher",
+            "slug": "researcher-equipo-alpha",
+        },
     }
 
 

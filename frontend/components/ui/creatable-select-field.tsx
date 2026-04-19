@@ -11,6 +11,7 @@ export type CreatableSelectOption = {
 
 type CreatableSelectFieldProps = {
   addButtonLabel?: string;
+  allowCreate?: boolean;
   createPlaceholder?: string;
   label: string;
   onChange: (value: string) => void;
@@ -77,6 +78,7 @@ function ChevronUpIcon() {
 
 export function CreatableSelectField({
   addButtonLabel = "Añadir opción",
+  allowCreate = true,
   createPlaceholder = "Escribe una nueva opción",
   label,
   onChange,
@@ -145,19 +147,21 @@ export function CreatableSelectField({
           ))}
         </select>
 
-        <Button
-          aria-label={addButtonLabel}
-          className="w-12 px-0"
-          onClick={() => setIsCreating((current) => !current)}
-          size="lg"
-          type="button"
-          variant="secondary"
-        >
-          {isCreating ? <ChevronUpIcon /> : <PlusIcon />}
-        </Button>
+        {allowCreate ? (
+          <Button
+            aria-label={addButtonLabel}
+            className="w-12 px-0"
+            onClick={() => setIsCreating((current) => !current)}
+            size="lg"
+            type="button"
+            variant="secondary"
+          >
+            {isCreating ? <ChevronUpIcon /> : <PlusIcon />}
+          </Button>
+        ) : null}
       </div>
 
-      {isCreating ? (
+      {allowCreate && isCreating ? (
         <div className="flex gap-2">
           <input
             className="h-12 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"

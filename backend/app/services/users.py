@@ -41,7 +41,9 @@ def _normalize_optional_text(value: Any) -> str | None:
 
 
 def _build_user_response(profile: dict[str, Any]) -> dict[str, str | None]:
-    return build_session_user_from_profile(profile)
+    payload = build_session_user_from_profile(profile)
+    payload["entity_name"] = _normalize_optional_text(profile.get("entity_name"))
+    return payload
 
 
 def _generate_temporary_password(length: int = 16) -> str:
@@ -61,6 +63,7 @@ def _fetch_profiles(
       username,
       full_name,
       avatar_url,
+      entity_name,
       department,
       is_active,
       roles
@@ -169,6 +172,7 @@ def _create_auth_user(
     password: str,
     email: str,
     department: str | None,
+    entity_name: str | None = None,
 ) -> str:
     rows = execute_returning(
         """
@@ -185,12 +189,13 @@ def _create_auth_user(
           jsonb_build_object(
             'username', %s::text,
             'full_name', %s::text,
-            'department', COALESCE(%s::text, '')
+            'department', COALESCE(%s::text, ''),
+            'entity_name', COALESCE(%s::text, '')
           )
         )
         RETURNING id
         """,
-        (email, password, username, username, department),
+        (email, password, username, username, department, entity_name),
     )
     if not rows:
         raise ServiceError("No se pudo crear el usuario")
@@ -212,6 +217,7 @@ def _update_auth_user(
     full_name: str | None,
     avatar_url: str | None,
     department: str | None,
+    entity_name: str | None = None,
 ) -> None:
     rows = execute_returning(
         """
@@ -226,7 +232,8 @@ def _update_auth_user(
             'username', %s::text,
             'full_name', COALESCE(%s::text, ''),
             'avatar_url', COALESCE(%s::text, ''),
-            'department', COALESCE(%s::text, '')
+            'department', COALESCE(%s::text, ''),
+            'entity_name', COALESCE(%s::text, '')
           )
         WHERE id = %s
         RETURNING id
@@ -240,6 +247,7 @@ def _update_auth_user(
             full_name,
             avatar_url,
             department,
+            entity_name,
             user_id,
         ),
     )
@@ -383,6 +391,7 @@ def create_user(
     role: str,
     department: str | None,
     actor_user_id: str,
+    entity_name: str | None = None,
 ) -> tuple[bool, str, str | None]:
     try:
         normalized_username = _normalize_username(username)
@@ -398,12 +407,21 @@ def create_user(
     user_dir: Path | None = None
     temporary_password = _generate_temporary_password()
     try:
-        created_user_id = _create_auth_user(
-            normalized_username,
-            temporary_password,
-            normalized_email,
-            department,
-        )
+        if entity_name is None:
+            created_user_id = _create_auth_user(
+                normalized_username,
+                temporary_password,
+                normalized_email,
+                department,
+            )
+        else:
+            created_user_id = _create_auth_user(
+                normalized_username,
+                temporary_password,
+                normalized_email,
+                department,
+                entity_name,
+            )
         _apply_user_role(
             actor_user_id=actor_user_id,
             target_user_id=created_user_id,
@@ -448,6 +466,7 @@ def update_user(
     role: str,
     department: str | None,
     actor_user_id: str,
+    entity_name: str | None = None,
 ) -> tuple[bool, str, str]:
     try:
         normalized_current_username = _normalize_username(current_username)
@@ -470,8 +489,7 @@ def update_user(
         return False, uniqueness_error, normalized_current_username
 
     try:
-        _update_auth_user(
-            str(current_profile["id"]),
+        update_payload = dict(
             username=normalized_new_username,
             email=normalized_email,
             password=password,
@@ -479,6 +497,17 @@ def update_user(
             avatar_url=_normalize_optional_text(current_profile.get("avatar_url")),
             department=department,
         )
+        if entity_name is None:
+            _update_auth_user(
+                str(current_profile["id"]),
+                **update_payload,
+            )
+        else:
+            _update_auth_user(
+                str(current_profile["id"]),
+                **update_payload,
+                entity_name=entity_name,
+            )
         _apply_user_role(
             actor_user_id=actor_user_id,
             target_user_id=str(current_profile["id"]),

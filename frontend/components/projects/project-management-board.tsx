@@ -249,6 +249,11 @@ export function ProjectManagementBoard({
                   <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-slate-700">
                     Actualizado {formatDate(project.updated_at)}
                   </span>
+                  {project.entity_name ? (
+                    <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-sky-700">
+                      {project.entity_name}
+                    </span>
+                  ) : null}
                   {project.templateFile ? (
                     <span className="max-w-full truncate rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-slate-700">
                       {project.templateFile}

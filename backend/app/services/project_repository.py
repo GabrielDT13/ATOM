@@ -5,10 +5,31 @@ from uuid import UUID
 
 from backend.app.core.config import get_settings
 from backend.app.services.database import execute, fetch_all, fetch_one
+from backend.app.services.entities import ensure_entity
 from backend.app.services.errors import ServiceError
 from backend.app.services.project_inventory import normalize_project_name
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
+PROJECT_MEMBER_ROLE_RANK: dict[str, int] = {
+    "viewer": 1,
+    "editor": 2,
+    "owner": 3,
+}
+
+
+def _normalize_project_member_role(value: Any) -> ProjectMemberRole | None:
+    normalized = str(value or "").strip().lower()
+    if normalized in PROJECT_MEMBER_ROLE_RANK:
+        return normalized  # type: ignore[return-value]
+    return None
+
+
+def _pick_highest_project_role(roles: list[str]) -> ProjectMemberRole | None:
+    valid_roles = [role for role in roles if role in PROJECT_MEMBER_ROLE_RANK]
+    if not valid_roles:
+        return None
+    best_role = max(valid_roles, key=lambda role: PROJECT_MEMBER_ROLE_RANK[role])
+    return best_role  # type: ignore[return-value]
 
 
 def _fetch_profiles(
@@ -65,6 +86,9 @@ def _fetch_project_records(
       id,
       owner_id,
       owner_username,
+      entity_id,
+      entity_name,
+      entity_slug,
       name,
       slug,
       description,
@@ -144,13 +168,51 @@ def _list_owned_project_records(username: str) -> list[dict[str, Any]]:
 def _list_shared_project_records(user_id: str) -> list[dict[str, Any]]:
     payload = fetch_all(
         """
-        SELECT project_id, member_role
-        FROM public.vw_projects_with_users
-        WHERE member_id = %s
-          AND member_role <> 'owner'
-        ORDER BY project_name ASC
+        WITH direct_access AS (
+          SELECT
+            project_id,
+            CASE member_role
+              WHEN 'owner' THEN 3
+              WHEN 'editor' THEN 2
+              ELSE 1
+            END AS role_rank
+          FROM public.vw_projects_with_users
+          WHERE member_id = %s
+        ),
+        team_access AS (
+          SELECT
+            project_id,
+            CASE project_member_role
+              WHEN 'owner' THEN 3
+              WHEN 'editor' THEN 2
+              ELSE 1
+            END AS role_rank
+          FROM public.vw_project_team_members
+          WHERE member_id = %s
+        ),
+        effective_access AS (
+          SELECT
+            project_id,
+            max(role_rank) AS role_rank
+          FROM (
+            SELECT * FROM direct_access
+            UNION ALL
+            SELECT * FROM team_access
+          ) access_entries
+          GROUP BY project_id
+        )
+        SELECT
+          project_id,
+          CASE role_rank
+            WHEN 3 THEN 'owner'
+            WHEN 2 THEN 'editor'
+            ELSE 'viewer'
+          END AS member_role
+        FROM effective_access
+        WHERE role_rank < 3
+        ORDER BY project_id ASC
         """,
-        (user_id,),
+        (user_id, user_id),
     )
 
     projects: list[dict[str, Any]] = []
@@ -169,7 +231,63 @@ def _list_shared_project_records(user_id: str) -> list[dict[str, Any]]:
     return projects
 
 
-def _upsert_project_record(owner: str, project_name: str) -> dict[str, Any]:
+def _list_project_teams_by_project_id(project_id: str) -> list[dict[str, Any]]:
+    return fetch_all(
+        """
+        SELECT
+          project_id,
+          team_id,
+          team_name,
+          team_slug,
+          team_owner_id,
+          team_owner_username,
+          team_entity_id,
+          team_entity_name,
+          team_entity_slug,
+          team_member_count,
+          member_role,
+          linked_at
+        FROM public.vw_project_teams
+        WHERE project_id = %s
+        ORDER BY lower(team_name) ASC
+        """,
+        (project_id,),
+    )
+
+
+def _list_project_team_members_by_project_id(project_id: str) -> list[dict[str, Any]]:
+    return fetch_all(
+        """
+        SELECT
+          project_id,
+          team_id,
+          team_name,
+          team_slug,
+          team_owner_id,
+          team_owner_username,
+          project_member_role,
+          member_id,
+          member_username,
+          team_member_role,
+          project_team_created_at,
+          team_member_created_at
+        FROM public.vw_project_team_members
+        WHERE project_id = %s
+        ORDER BY lower(team_name) ASC, lower(member_username) ASC
+        """,
+        (project_id,),
+    )
+
+
+def _get_project_team(project_id: str, team_id: str) -> dict[str, Any] | None:
+    teams = _list_project_teams_by_project_id(project_id)
+    for team in teams:
+        if str(team.get("team_id") or "").strip() == team_id:
+            return team
+    return None
+
+
+def _upsert_project_record(owner: str, project_name: str, entity_name: str | None = None) -> dict[str, Any]:
     normalized_name = normalize_project_name(project_name)
     project_dir = get_settings().projects_dir / owner / normalized_name
     if not project_dir.exists() or not project_dir.is_dir():
@@ -194,12 +312,13 @@ def _upsert_project_record(owner: str, project_name: str) -> dict[str, Any]:
     slug = str((slug_row or {}).get("slug") or "").strip()
     if not slug:
         raise ServiceError("No se pudo calcular el slug del proyecto")
+    entity_id = ensure_entity(entity_name)
     execute(
         """
-        INSERT INTO internal.projects (owner_id, name, slug, description, status)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO internal.projects (owner_id, entity_id, name, slug, description, status)
+        VALUES (%s, %s, %s, %s, %s, %s)
         """,
-        (owner_id, normalized_name, slug, None, "active"),
+        (owner_id, entity_id, normalized_name, slug, None, "active"),
     )
     created = _get_project_record(owner, normalized_name)
     if not created:
@@ -238,6 +357,17 @@ def _rename_project_record(owner: str, current_name: str, new_name: str) -> None
         WHERE id = %s
         """,
         (new_name, slug, record["id"]),
+    )
+
+
+def _set_project_entity(project_id: str, entity_name: str | None) -> None:
+    execute(
+        """
+        UPDATE internal.projects
+        SET entity_id = %s
+        WHERE id = %s
+        """,
+        (ensure_entity(entity_name), project_id),
     )
 
 
@@ -288,14 +418,22 @@ def _get_project_access_role(
     if not project:
         return None
 
-    member = _get_project_member(str(project["id"]), user_id)
-    if not member:
-        return None
+    project_id = str(project["id"])
+    roles: list[str] = []
 
-    member_role = str(member.get("member_role") or "").strip().lower()
-    if member_role in {"editor", "owner", "viewer"}:
-        return member_role  # type: ignore[return-value]
-    return None
+    member = _get_project_member(project_id, user_id)
+    direct_role = _normalize_project_member_role(member.get("member_role") if member else None)
+    if direct_role:
+        roles.append(direct_role)
+
+    for team_member in _list_project_team_members_by_project_id(project_id):
+        if str(team_member.get("member_id") or "").strip() != user_id:
+            continue
+        team_role = _normalize_project_member_role(team_member.get("project_member_role"))
+        if team_role:
+            roles.append(team_role)
+
+    return _pick_highest_project_role(roles)
 
 
 def user_can_view_project(user_id: str, username: str, role: str, owner: str, project_name: str) -> bool:

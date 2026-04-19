@@ -40,6 +40,7 @@ describe("project-detail-helpers", () => {
 
   it("recognises previewable text files", () => {
     expect(isPreviewableTextFile(createFile({ extension: ".csv" }))).toBe(true);
+    expect(isPreviewableTextFile(createFile({ extension: ".rmd" }))).toBe(false);
     expect(isPreviewableTextFile(createFile({ extension: ".zip" }))).toBe(false);
   });
 
