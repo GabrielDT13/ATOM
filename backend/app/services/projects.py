@@ -35,12 +35,12 @@ from backend.app.services.project_inventory import (
 from backend.app.services.project_repository import (
     _delete_project_record,
     _fetch_profiles,
-    _get_project_team,
     _get_profile_by_username,
     _get_project_access_role,
     _get_project_member,
     _get_project_record,
     _get_project_record_by_ref,
+    _get_project_team,
     _list_all_project_records,
     _list_owned_project_records,
     _list_project_members_by_project_id,

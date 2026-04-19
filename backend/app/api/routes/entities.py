@@ -6,8 +6,8 @@ from backend.app.schemas.entities import (
     EntityMutationResponse,
     EntityResponse,
 )
-from backend.app.services.errors import ServiceError
 from backend.app.services.entities import create_entity, delete_entity, list_entities, update_entity
+from backend.app.services.errors import ServiceError
 from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix="/api/entities", tags=["entities"])
