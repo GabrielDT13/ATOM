@@ -64,6 +64,7 @@ export function filterProjects(
     const searchIndex = [
       project.name,
       project.owner,
+      project.entity_name ?? "",
       project.templateFile ?? "",
       ...project.additionalFiles,
       ...project.htmlFiles,

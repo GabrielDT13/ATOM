@@ -35,6 +35,7 @@ from backend.app.services.project_inventory import (
 from backend.app.services.project_repository import (
     _delete_project_record,
     _fetch_profiles,
+    _get_project_team,
     _get_profile_by_username,
     _get_project_access_role,
     _get_project_member,
@@ -43,14 +44,52 @@ from backend.app.services.project_repository import (
     _list_all_project_records,
     _list_owned_project_records,
     _list_project_members_by_project_id,
+    _list_project_team_members_by_project_id,
+    _list_project_teams_by_project_id,
     _list_shared_project_records,
     _rename_project_record,
+    _set_project_entity,
     _upsert_project_record,
 )
+from backend.app.services.teams import list_teams_for_user
 from fastapi import UploadFile
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
 ProjectEditableMemberRole = Literal["editor", "viewer"]
+PROJECT_MEMBER_ROLE_RANK: dict[str, int] = {
+    "viewer": 1,
+    "editor": 2,
+    "owner": 3,
+}
+INTERNAL_PROJECT_SCRIPT_EXTENSIONS = {".r", ".rmd"}
+
+
+def _normalize_project_member_role(value: object) -> ProjectMemberRole | None:
+    normalized = str(value or "").strip().lower()
+    if normalized in PROJECT_MEMBER_ROLE_RANK:
+        return normalized  # type: ignore[return-value]
+    return None
+
+
+def _pick_highest_project_role(roles: list[str]) -> ProjectMemberRole | None:
+    valid_roles = [role for role in roles if role in PROJECT_MEMBER_ROLE_RANK]
+    if not valid_roles:
+        return None
+    best_role = max(valid_roles, key=lambda role: PROJECT_MEMBER_ROLE_RANK[role])
+    return best_role  # type: ignore[return-value]
+
+
+def _build_project_team_response(row: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "entity_name": str(row.get("team_entity_name") or "").strip() or None,
+        "id": str(row.get("team_id") or "").strip(),
+        "linked_at": str(row.get("linked_at") or "").strip(),
+        "member_count": int(row.get("team_member_count") or 0),
+        "member_role": str(row.get("member_role") or "viewer").strip() or "viewer",
+        "name": str(row.get("team_name") or "").strip(),
+        "owner_username": str(row.get("team_owner_username") or "").strip(),
+        "slug": str(row.get("team_slug") or "").strip(),
+    }
 
 
 def _log_project_event(
@@ -268,6 +307,10 @@ async def create_project(
     project_name: str,
     template_file: UploadFile,
     additional_files: list[UploadFile],
+    *,
+    entity_name: str | None = None,
+    team_id: str | None = None,
+    actor_role: str = "user",
 ) -> tuple[bool, str]:
     try:
         normalized_name = normalize_project_name(project_name)
@@ -282,6 +325,7 @@ async def create_project(
 
     user_dir = ensure_user_dir(username)
     project_dir = user_dir / normalized_name
+    record_created = False
     if project_dir.exists():
         return False, f"El proyecto '{normalized_name}' ya existe"
 
@@ -294,7 +338,20 @@ async def create_project(
             if upload.filename:
                 safe_name = _normalize_upload_filename(upload.filename)
                 await _save_upload(project_dir / safe_name, upload)
-        _upsert_project_record(username, normalized_name)
+        _upsert_project_record(username, normalized_name, entity_name)
+        record_created = True
+        if team_id and team_id.strip():
+            linked, linked_message = add_project_team(
+                username,
+                normalized_name,
+                team_id.strip(),
+                session_user_id=str(actor_user_id or "").strip(),
+                session_username=username,
+                role=actor_role,
+                member_role="editor",
+            )
+            if not linked:
+                raise ServiceError(linked_message)
         _log_project_event(
             "project_created",
             actor_user_id=actor_user_id,
@@ -311,14 +368,29 @@ async def create_project(
     except ValueError as exc:
         if project_dir.exists():
             shutil.rmtree(project_dir)
+        if record_created:
+            try:
+                _delete_project_record(username, normalized_name)
+            except ServiceError:
+                pass
         return False, str(exc)
     except ServiceError as exc:
         if project_dir.exists():
             shutil.rmtree(project_dir)
+        if record_created:
+            try:
+                _delete_project_record(username, normalized_name)
+            except ServiceError:
+                pass
         return False, str(exc)
     except Exception as exc:
         if project_dir.exists():
             shutil.rmtree(project_dir)
+        if record_created:
+            try:
+                _delete_project_record(username, normalized_name)
+            except ServiceError:
+                pass
         return False, f"Error al crear proyecto: {exc}"
 
 def get_project_details(owner: str, project_name: str) -> dict[str, object]:
@@ -362,14 +434,21 @@ def user_can_edit_project(user_id: str, username: str, role: str, owner: str, pr
     return access_role in {"editor", "owner"}
 
 
+def _is_internal_project_script(file_path: str) -> bool:
+    return Path(file_path).suffix.lower() in INTERNAL_PROJECT_SCRIPT_EXTENSIONS
+
+
 def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
     fallback_owner_member = [
         {
+            "access_via_teams": [],
             "avatar_url": None,
             "bio": None,
             "department": None,
+            "direct_member_role": "owner",
             "display_name": owner,
             "email": None,
+            "has_direct_access": True,
             "id": f"local-owner::{owner}",
             "is_owner": True,
             "member_role": "owner",
@@ -383,10 +462,12 @@ def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
         return fallback_owner_member
 
     try:
-        members = _list_project_members_by_project_id(str(record["id"]))
+        project_id = str(record["id"])
+        direct_members = _list_project_members_by_project_id(project_id)
+        team_members = _list_project_team_members_by_project_id(project_id)
         member_ids = {
             str(member.get("member_id") or "").strip()
-            for member in members
+            for member in [*direct_members, *team_members]
             if str(member.get("member_id") or "").strip()
         }
         profiles = {
@@ -397,24 +478,69 @@ def get_project_members(owner: str, project_name: str) -> list[dict[str, Any]]:
     except ServiceError:
         return fallback_owner_member
 
-    payload: list[dict[str, Any]] = []
-    for member in members:
+    payload_by_member_id: dict[str, dict[str, Any]] = {}
+    for member in direct_members:
         member_id = str(member.get("member_id") or "").strip()
+        if not member_id:
+            continue
         profile = profiles.get(member_id, {})
         username = str(member.get("member_username") or profile.get("username") or "").strip()
-        payload.append(
-            {
+        direct_role = _normalize_project_member_role(member.get("member_role")) or "viewer"
+        payload_by_member_id[member_id] = {
+            "access_via_teams": [],
+            "avatar_url": str(profile.get("avatar_url") or "").strip() or None,
+            "bio": str(profile.get("bio") or "").strip() or None,
+            "department": str(profile.get("department") or "").strip() or None,
+            "direct_member_role": direct_role,
+            "display_name": str(profile.get("full_name") or "").strip() or username,
+            "email": str(profile.get("email") or "").strip().lower() or None,
+            "has_direct_access": True,
+            "id": member_id,
+            "is_owner": direct_role == "owner",
+            "member_role": direct_role,
+            "username": username,
+        }
+
+    for member in team_members:
+        member_id = str(member.get("member_id") or "").strip()
+        if not member_id:
+            continue
+        profile = profiles.get(member_id, {})
+        username = str(member.get("member_username") or profile.get("username") or "").strip()
+        team_name = str(member.get("team_name") or "").strip()
+        team_role = _normalize_project_member_role(member.get("project_member_role")) or "viewer"
+
+        current = payload_by_member_id.get(member_id)
+        if current is None:
+            payload_by_member_id[member_id] = {
+                "access_via_teams": [team_name] if team_name else [],
                 "avatar_url": str(profile.get("avatar_url") or "").strip() or None,
                 "bio": str(profile.get("bio") or "").strip() or None,
                 "department": str(profile.get("department") or "").strip() or None,
+                "direct_member_role": None,
                 "display_name": str(profile.get("full_name") or "").strip() or username,
                 "email": str(profile.get("email") or "").strip().lower() or None,
+                "has_direct_access": False,
                 "id": member_id,
-                "is_owner": str(member.get("member_role") or "").strip() == "owner",
-                "member_role": str(member.get("member_role") or "viewer").strip() or "viewer",
+                "is_owner": False,
+                "member_role": team_role,
                 "username": username,
             }
+            continue
+
+        access_via_teams = list(current.get("access_via_teams") or [])
+        if team_name and team_name not in access_via_teams:
+            access_via_teams.append(team_name)
+            access_via_teams.sort(key=str.lower)
+            current["access_via_teams"] = access_via_teams
+
+        effective_role = _pick_highest_project_role(
+            [str(current.get("member_role") or "").strip(), team_role]
         )
+        if effective_role:
+            current["member_role"] = effective_role
+
+    payload = list(payload_by_member_id.values())
 
     payload.sort(
         key=lambda member: (
@@ -440,11 +566,17 @@ def get_project_members_by_ref(project_ref: str) -> list[dict[str, Any]]:
 
 def search_project_share_candidates(owner: str, project_name: str, query: str, limit: int = 8) -> list[dict[str, Any]]:
     try:
-        _upsert_project_record(owner, project_name)
+        project = _upsert_project_record(owner, project_name)
     except ServiceError:
-        pass
-    existing_members = get_project_members(owner, project_name)
-    excluded_usernames = {member["username"] for member in existing_members}
+        project = None
+    excluded_usernames = {owner}
+    if project:
+        direct_members = _list_project_members_by_project_id(str(project["id"]))
+        excluded_usernames.update(
+            str(member.get("member_username") or "").strip()
+            for member in direct_members
+            if str(member.get("member_username") or "").strip()
+        )
     normalized_query = query.strip().lower()
 
     candidates: list[dict[str, Any]] = []
@@ -475,6 +607,76 @@ def search_project_share_candidates(owner: str, project_name: str, query: str, l
                 "email": email or None,
                 "id": str(profile.get("id") or "").strip(),
                 "username": username,
+            }
+        )
+        if len(candidates) >= limit:
+            break
+
+    return candidates
+
+
+def list_project_teams(owner: str, project_name: str) -> list[dict[str, Any]]:
+    project = _upsert_project_record(owner, project_name)
+    project_id = str(project.get("id") or "").strip()
+    if not project_id:
+        raise ServiceError("No se pudo resolver el proyecto")
+    return [
+        _build_project_team_response(item)
+        for item in _list_project_teams_by_project_id(project_id)
+        if isinstance(item, dict) and str(item.get("team_id") or "").strip()
+    ]
+
+
+def search_project_team_candidates(
+    owner: str,
+    project_name: str,
+    *,
+    session_user_id: str,
+    session_username: str,
+    role: str,
+    query: str,
+    limit: int = 8,
+) -> list[dict[str, Any]]:
+    project = _upsert_project_record(owner, project_name)
+    project_id = str(project.get("id") or "").strip()
+    linked_team_ids = {
+        str(team.get("team_id") or "").strip()
+        for team in _list_project_teams_by_project_id(project_id)
+        if str(team.get("team_id") or "").strip()
+    }
+    normalized_query = query.strip().lower()
+
+    candidates: list[dict[str, Any]] = []
+    try:
+        owned_teams = list_teams_for_user(session_user_id, session_username, role)
+    except ServiceError:
+        return []
+
+    for team in owned_teams:
+        team_id = str(team.get("id") or "").strip()
+        team_name = str(team.get("name") or "").strip()
+        team_owner_username = str(team.get("owner_username") or "").strip()
+        entity_name = str(team.get("entity_name") or "").strip()
+
+        if not team_id or team_id in linked_team_ids:
+            continue
+        if role != "admin" and team_owner_username != session_username:
+            continue
+        if normalized_query:
+            searchable = " ".join([team_name, team_owner_username, entity_name]).lower()
+            if normalized_query not in searchable:
+                continue
+
+        candidates.append(
+            {
+                "entity_name": entity_name or None,
+                "id": team_id,
+                "linked_at": "",
+                "member_count": int(team.get("member_count") or 0),
+                "member_role": "viewer",
+                "name": team_name,
+                "owner_username": team_owner_username,
+                "slug": str(team.get("slug") or "").strip(),
             }
         )
         if len(candidates) >= limit:
@@ -556,6 +758,53 @@ def add_project_member(
             updated_existing_access=False,
         )
         return True, "Proyecto compartido correctamente"
+    except ServiceError as exc:
+        return False, str(exc)
+
+
+def add_project_team(
+    owner: str,
+    project_name: str,
+    team_id: str,
+    *,
+    session_user_id: str,
+    session_username: str,
+    role: str,
+    member_role: ProjectEditableMemberRole = "viewer",
+) -> tuple[bool, str]:
+    try:
+        project = _upsert_project_record(owner, project_name)
+        project_id = str(project.get("id") or "").strip()
+        if not project_id:
+            return False, "No se pudo resolver el proyecto"
+
+        linked_team = _get_project_team(project_id, team_id)
+        if linked_team:
+            previous_role = str(linked_team.get("member_role") or "").strip().lower()
+            if previous_role == member_role:
+                return True, "El equipo ya contaba con ese nivel de acceso"
+        team_candidates = {
+            str(item.get("id") or "").strip(): item
+            for item in list_teams_for_user(session_user_id, session_username, role)
+        }
+        team_summary = team_candidates.get(team_id)
+        if not team_summary:
+            return False, "No se encontró el equipo seleccionado"
+        if role != "admin" and str(team_summary.get("owner_username") or "").strip() != session_username:
+            return False, "Solo puedes compartir equipos que gestionas"
+
+        execute(
+            """
+            INSERT INTO internal.project_teams (project_id, team_id, member_role)
+            VALUES (%s, %s, %s::internal.project_member_role)
+            ON CONFLICT (project_id, team_id) DO UPDATE
+            SET member_role = EXCLUDED.member_role
+            """,
+            (project_id, team_id, member_role),
+        )
+        if linked_team:
+            return True, "Permisos del equipo actualizados correctamente"
+        return True, "Proyecto compartido con el equipo correctamente"
     except ServiceError as exc:
         return False, str(exc)
 
@@ -648,6 +897,34 @@ def transfer_project_ownership(
         return False, str(exc), owner
 
 
+def remove_project_team(
+    owner: str,
+    project_name: str,
+    team_id: str,
+) -> tuple[bool, str]:
+    try:
+        project = _upsert_project_record(owner, project_name)
+        project_id = str(project.get("id") or "").strip()
+        if not project_id:
+            return False, "No se pudo resolver el proyecto"
+
+        current_team = _get_project_team(project_id, team_id)
+        if not current_team:
+            return False, "El equipo no tiene acceso a este proyecto"
+
+        execute(
+            """
+            DELETE FROM internal.project_teams
+            WHERE project_id = %s
+              AND team_id = %s
+            """,
+            (project_id, team_id),
+        )
+    except ServiceError as exc:
+        return False, str(exc)
+    return True, "Acceso del equipo eliminado correctamente"
+
+
 def remove_project_member(owner: str, project_name: str, username: str) -> tuple[bool, str]:
     try:
         project = _upsert_project_record(owner, project_name)
@@ -686,6 +963,7 @@ async def update_project(
     new_name: str | None,
     excel_file: UploadFile | None,
     additional_files: list[UploadFile],
+    entity_name: str | None = None,
 ) -> tuple[bool, str, str]:
     try:
         current_name = normalize_project_name(project_name)
@@ -720,6 +998,15 @@ async def update_project(
                 return False, str(exc), current_name
             project_dir = new_dir
             current_name = normalized_new_name
+
+    if entity_name is not None:
+        try:
+            project_record = _upsert_project_record(owner, current_name)
+            project_id = str(project_record.get("id") or "").strip()
+            if project_id:
+                _set_project_entity(project_id, entity_name)
+        except ServiceError as exc:
+            return False, str(exc), current_name
 
     uploaded_template = bool(excel_file and excel_file.filename)
     uploaded_additional_count = len([upload for upload in additional_files if upload.filename])
@@ -804,8 +1091,12 @@ def delete_project(
 
 
 def read_project_file(owner: str, file_path: str, max_lines: int | None = None) -> dict[str, object]:
+    if _is_internal_project_script(file_path):
+        raise ValueError("Los scripts internos del análisis no están disponibles desde la interfaz.")
     return _read_project_file(owner, file_path, max_lines)
 
 
 def get_download_path(owner: str, file_path: str) -> Path:
+    if _is_internal_project_script(file_path):
+        raise ValueError("Los scripts internos del análisis no están disponibles desde la interfaz.")
     return _get_download_path(owner, file_path)

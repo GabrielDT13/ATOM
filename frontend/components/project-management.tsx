@@ -110,16 +110,18 @@ export function ProjectManagement() {
     }
 
     const nextName = values.name.trim();
+    const nextEntityName = values.entityName.trim();
     const nextTemplate = values.templateFiles[0] ?? null;
     const hasAdditionalFiles = values.additionalFiles.length > 0;
     const hasNameChange = nextName !== editingProject.name;
+    const hasEntityChange = nextEntityName !== (editingProject.entity_name?.trim() ?? "");
 
     if (!nextName) {
       appToast.error("El nombre del proyecto es obligatorio");
       return;
     }
 
-    if (!hasNameChange && !nextTemplate && !hasAdditionalFiles) {
+    if (!hasNameChange && !hasEntityChange && !nextTemplate && !hasAdditionalFiles) {
       appToast.info("No hay cambios para guardar");
       return;
     }
@@ -131,6 +133,7 @@ export function ProjectManagement() {
     try {
       const response = await updateProject(editingProject.owner, editingProject.name, {
         additionalFiles: values.additionalFiles,
+        entityName: hasEntityChange ? nextEntityName : undefined,
         name: hasNameChange ? nextName : undefined,
         onProgress: setUploadProgress,
         templateFile: nextTemplate,
@@ -272,18 +275,26 @@ export function ProjectManagement() {
               </div>
             </div>
 
-            <Link
-              className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
-              href="/dashboard/create_project"
-            >
-              <PlusIcon />
-              Crear nuevo proyecto
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
+                href="/dashboard/teams"
+              >
+                Gestionar equipos
+              </Link>
+
+              <Link
+                className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
+                href="/dashboard/create_project"
+              >
+                <PlusIcon />
+                Crear nuevo proyecto
+              </Link>
+            </div>
           </div>
         </section>
 
         <ProjectManagementSummary loading={loading} projects={projects} />
-
         <ProjectManagementFilters
           onOwnerFilterChange={setOwnerFilter}
           onSearchChange={setSearch}

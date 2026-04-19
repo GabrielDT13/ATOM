@@ -106,7 +106,7 @@ export function ExecutionLogConsole({ logs }: { logs: AnalysisExecutionLogEntry[
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
             Detalle técnico
           </p>
-          <h3 className="mt-1 text-base font-semibold">Salida del R Markdown</h3>
+          <h3 className="mt-1 text-base font-semibold">Salida del proceso</h3>
         </div>
         <p className="text-xs text-slate-300">{logs.length} líneas recientes</p>
       </div>

@@ -37,7 +37,7 @@ export function buildProjectFilePreviewPath(owner: string, projectName: string, 
 }
 
 export function isPreviewableTextFile(file: ProjectFileEntry) {
-  return [".csv", ".htm", ".html", ".md", ".r", ".rmd", ".tsv", ".txt", ".yaml", ".yml"].includes(
+  return [".csv", ".htm", ".html", ".md", ".tsv", ".txt", ".yaml", ".yml"].includes(
     file.extension.toLowerCase(),
   );
 }
@@ -58,8 +58,6 @@ export function getArtifactLabel(extension: string) {
       return "Excel";
     case ".docx":
       return "Documento";
-    case ".rmd":
-      return "Script Rmd";
     default:
       return "Artefacto";
   }
@@ -77,8 +75,6 @@ export function getArtifactDescription(extension: string) {
       return "Consulta las tablas y resultados estructurados de esta ejecución.";
     case ".docx":
       return "Accede al documento generado para revisión o entrega.";
-    case ".rmd":
-      return "Revisa el cuaderno técnico que se utilizó para generar el análisis.";
     default:
       return "Abre el archivo principal generado por esta ejecución.";
   }
@@ -125,16 +121,14 @@ export function getDeliverablePriority(file: ProjectFileEntry) {
       return 2;
     case ".docx":
       return 3;
-    case ".rmd":
-      return 4;
     default:
-      return 5;
+      return 4;
   }
 }
 
 export function getExecutionDeliverables(group: ProjectExecutionGroup) {
   return group.files.filter((file) =>
-    [".docx", ".html", ".htm", ".rmd", ".xlsx", ".xls", ".zip"].includes(
+    [".docx", ".html", ".htm", ".xlsx", ".xls", ".zip"].includes(
       file.extension.toLowerCase(),
     ),
   );

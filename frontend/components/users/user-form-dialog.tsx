@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
-import type { DepartmentRecord, UserRecord } from "@/types/api";
+import type { DepartmentRecord, EntityRecord, UserRecord } from "@/types/api";
 import {
   Dialog,
   DialogClose,
@@ -19,12 +19,14 @@ import { DialogHero } from "@/components/ui/dialog-hero";
 export type UserFormValues = {
   department: string;
   email: string;
+  entityName: string;
   role: UserRecord["role"];
   username: string;
 };
 
 type UserFormDialogProps = {
   departmentOptions: DepartmentRecord[];
+  entityOptions: EntityRecord[];
   mode: "create" | "edit";
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: UserFormValues) => Promise<void> | void;
@@ -68,6 +70,7 @@ function InputField({
 
 export function UserFormDialog({
   departmentOptions,
+  entityOptions,
   mode,
   onOpenChange,
   onSubmit,
@@ -79,12 +82,17 @@ export function UserFormDialog({
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRecord["role"]>("user");
   const [department, setDepartment] = useState("");
+  const [entityName, setEntityName] = useState("");
   const normalizedDepartmentOptions: CreatableSelectOption[] = departmentOptions.map(
     (departmentOption) => ({
       label: departmentOption.name,
       value: departmentOption.name,
     }),
   );
+  const normalizedEntityOptions: CreatableSelectOption[] = entityOptions.map((entityOption) => ({
+    label: entityOption.name,
+    value: entityOption.name,
+  }));
 
   useEffect(() => {
     if (!open) {
@@ -95,6 +103,7 @@ export function UserFormDialog({
     setEmail(user?.email ?? "");
     setRole(user?.role ?? "user");
     setDepartment(user?.department ?? "");
+    setEntityName(user?.entity_name ?? "");
   }, [open, user]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -103,6 +112,7 @@ export function UserFormDialog({
     await onSubmit({
       department: department.trim(),
       email: email.trim(),
+      entityName: entityName.trim(),
       role,
       username: username.trim(),
     });
@@ -171,6 +181,15 @@ export function UserFormDialog({
                 value={department}
               />
             </div>
+
+            <CreatableSelectField
+              allowCreate={false}
+              createPlaceholder="Escribe una nueva entidad"
+              label="Entidad"
+              onChange={setEntityName}
+              options={normalizedEntityOptions}
+              value={entityName}
+            />
           </div>
 
           <DialogFooter className="mt-8">

@@ -12,10 +12,15 @@ from backend.app.schemas.projects import (
     ProjectMutationResponse,
     ProjectResponse,
     ProjectShareCandidatesResponse,
+    ProjectTeamCandidatesResponse,
+    ProjectTeamMutationRequest,
+    ProjectTeamMutationResponse,
+    ProjectTeamsResponse,
 )
 from backend.app.services.errors import ServiceError
 from backend.app.services.projects import (
     add_project_member,
+    add_project_team,
     create_project,
     delete_project,
     get_download_path,
@@ -23,11 +28,14 @@ from backend.app.services.projects import (
     get_project_details_by_ref,
     get_project_members,
     get_project_members_by_ref,
+    list_project_teams,
     list_projects_for_user,
     read_project_file,
     remove_project_member,
+    remove_project_team,
     resolve_project_reference,
     search_project_share_candidates,
+    search_project_team_candidates,
     transfer_project_ownership,
     update_project,
     user_can_edit_project,
@@ -104,16 +112,21 @@ async def get_project(owner: str, project_name: str, request: Request) -> Projec
 async def post_project(
     request: Request,
     project_name: str = Form(...),
+    entity_name: str | None = Form(default=None),
+    team_id: str | None = Form(default=None),
     template_file: UploadFile = File(...),
     additional_files: Annotated[list[UploadFile] | None, File()] = None,
 ) -> ProjectMutationResponse:
     current_user = get_current_user(request)
     success, message = await create_project(
         str(current_user["id"]),
-        current_user["username"],
+        str(current_user["username"]),
         project_name,
         template_file,
         additional_files or [],
+        entity_name=entity_name,
+        team_id=team_id,
+        actor_role=str(current_user["role"]),
     )
     project = None
     if success:
@@ -127,19 +140,32 @@ async def put_project(
     project_name: str,
     request: Request,
     new_name: str | None = Form(default=None),
+    entity_name: str | None = Form(default=None),
     excel_file: UploadFile | None = File(default=None),
     additional_files: Annotated[list[UploadFile] | None, File()] = None,
 ) -> ProjectMutationResponse:
     current_user = _require_project_edit_access(request, owner, project_name) or get_current_user(request)
-    success, message, effective_name = await update_project(
-        str(current_user["id"]),
-        str(current_user["username"]),
-        owner,
-        project_name,
-        new_name,
-        excel_file,
-        additional_files or [],
-    )
+    if entity_name is None:
+        success, message, effective_name = await update_project(
+            str(current_user["id"]),
+            str(current_user["username"]),
+            owner,
+            project_name,
+            new_name,
+            excel_file,
+            additional_files or [],
+        )
+    else:
+        success, message, effective_name = await update_project(
+            str(current_user["id"]),
+            str(current_user["username"]),
+            owner,
+            project_name,
+            new_name,
+            excel_file,
+            additional_files or [],
+            entity_name,
+        )
     project = None
     if success:
         project = ProjectResponse(**get_project_details(owner, effective_name))
@@ -203,6 +229,44 @@ async def get_project_share_candidates(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.get("/{owner}/{project_name}/teams", response_model=ProjectTeamsResponse)
+async def get_project_teams_route(
+    owner: str,
+    project_name: str,
+    request: Request,
+) -> ProjectTeamsResponse:
+    _require_project_view_access(request, owner, project_name)
+    try:
+        return ProjectTeamsResponse(teams=list_project_teams(owner, project_name))
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/{owner}/{project_name}/team-candidates", response_model=ProjectTeamCandidatesResponse)
+async def get_project_team_candidates(
+    owner: str,
+    project_name: str,
+    request: Request,
+    q: str = Query(default="", max_length=80),
+    limit: int = Query(default=8, ge=1, le=20),
+) -> ProjectTeamCandidatesResponse:
+    current_user = _require_project_owner(request, owner)
+    try:
+        return ProjectTeamCandidatesResponse(
+            teams=search_project_team_candidates(
+                owner,
+                project_name,
+                session_user_id=str(current_user["id"]),
+                session_username=str(current_user["username"]),
+                role=str(current_user["role"]),
+                query=q,
+                limit=limit,
+            )
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 @router.put("/{owner}/{project_name}/members/{username}", response_model=ProjectMemberMutationResponse)
 async def put_project_member(
     owner: str,
@@ -226,6 +290,40 @@ async def put_project_member(
         except ServiceError:
             member = None
     return ProjectMemberMutationResponse(success=success, message=message, member=member)
+
+
+@router.put("/{owner}/{project_name}/teams/{team_id}", response_model=ProjectTeamMutationResponse)
+async def put_project_team(
+    owner: str,
+    project_name: str,
+    team_id: str,
+    payload: ProjectTeamMutationRequest,
+    request: Request,
+) -> ProjectTeamMutationResponse:
+    current_user = _require_project_owner(request, owner)
+    try:
+        success, message = add_project_team(
+            owner,
+            project_name,
+            team_id,
+            session_user_id=str(current_user["id"]),
+            session_username=str(current_user["username"]),
+            role=str(current_user["role"]),
+            member_role=payload.member_role,
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    team = None
+    if success:
+        try:
+            team = next(
+                (item for item in list_project_teams(owner, project_name) if item["id"] == team_id),
+                None,
+            )
+        except ServiceError:
+            team = None
+    return ProjectTeamMutationResponse(success=success, message=message, team=team)
 
 
 @router.post(
@@ -264,6 +362,21 @@ async def delete_project_member(
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ProjectMemberMutationResponse(success=success, message=message, member=None)
+
+
+@router.delete("/{owner}/{project_name}/teams/{team_id}", response_model=ProjectTeamMutationResponse)
+async def delete_project_team(
+    owner: str,
+    project_name: str,
+    team_id: str,
+    request: Request,
+) -> ProjectTeamMutationResponse:
+    _require_project_owner(request, owner)
+    try:
+        success, message = remove_project_team(owner, project_name, team_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return ProjectTeamMutationResponse(success=success, message=message, team=None)
 
 
 @router.get("/{owner}/files/{file_path:path}", response_model=FileContentResponse)
