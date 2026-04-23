@@ -273,6 +273,7 @@ export function HeaderNotificationsPopover({
           <button
             aria-label="Notificaciones"
             className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary"
+            data-tour="header-notifications"
             type="button"
           >
             <span className="relative inline-flex h-5 w-5 items-center justify-center">

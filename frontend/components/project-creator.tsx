@@ -161,6 +161,7 @@ export function ProjectCreator() {
       <div className="grid gap-6">
         <form
           className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-sm"
+          data-tour="create-project-form"
           onSubmit={(event) => void handleSubmit(event)}
         >
           <div className="border-b border-slate-200 px-6 pb-6 pt-7 sm:px-8">

@@ -62,6 +62,7 @@ export function ProjectExplorer({
       />
 
       <aside
+        data-tour="project-explorer"
         className={`fixed inset-y-0 right-0 z-40 w-[22rem] transition-[transform,width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] xl:sticky xl:top-8 xl:z-10 xl:h-[calc(100vh-8rem)] xl:self-start ${
           isMobileOpen ? "translate-x-0" : "translate-x-full xl:translate-x-0"
         } ${isCollapsed ? "xl:w-24" : "xl:w-[24rem]"}`}

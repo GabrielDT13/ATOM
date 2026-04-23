@@ -46,7 +46,9 @@ describe("AppHeader", () => {
     });
     render(
       <AppHeader
+        onOpenHelp={() => undefined}
         onOpenSidebar={() => undefined}
+        supportEmail="support@atom.local"
         user={{
           department: "Bioinformatica",
           display_name: "User Demo",
