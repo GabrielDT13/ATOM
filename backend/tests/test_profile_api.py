@@ -174,6 +174,19 @@ def test_change_my_password_route_forwards_payload(client: TestClient, monkeypat
         "change_my_password",
         lambda **kwargs: captured_payload.update(kwargs) or (True, "Contraseña actualizada correctamente"),
     )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_session_user_by_id",
+        lambda user_id: {
+            "id": user_id,
+            "email": "doctor@example.com",
+            "username": "doctor",
+            "role": "user",
+            "display_name": "Dra. Ada",
+            "must_change_password": False,
+            "welcome_tour_seen": False,
+        },
+    )
 
     response = client.post(
         "/api/profile/me/password",
@@ -193,6 +206,104 @@ def test_change_my_password_route_forwards_payload(client: TestClient, monkeypat
         "access_token": "session-access-token",
         "current_password": "actual123",
         "new_password": "nueva123",
+    }
+
+
+def test_complete_required_password_change_route_forwards_payload(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import profile as profile_routes
+
+    def fake_get_current_user(request):
+        request.session["auth"] = {"access_token": "session-access-token"}
+        request.session["user"] = {"id": "11111111-1111-1111-1111-111111111111"}
+        return {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "email": "doctor@example.com",
+        }
+
+    captured_payload: dict[str, object] = {}
+    monkeypatch.setattr(profile_routes, "get_current_user", fake_get_current_user)
+    monkeypatch.setattr(
+        profile_routes,
+        "complete_required_password_change",
+        lambda **kwargs: captured_payload.update(kwargs) or (True, "Contraseña actualizada correctamente"),
+    )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_session_user_by_id",
+        lambda user_id: {
+            "id": user_id,
+            "email": "doctor@example.com",
+            "username": "doctor",
+            "role": "user",
+            "display_name": "Dra. Ada",
+            "must_change_password": False,
+            "welcome_tour_seen": False,
+        },
+    )
+
+    response = client.post(
+        "/api/profile/me/password/required",
+        json={
+            "new_password": "NuevaSegura123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "message": "Contraseña actualizada correctamente",
+        "profile": None,
+    }
+    assert captured_payload == {
+        "access_token": "session-access-token",
+        "new_password": "NuevaSegura123",
+    }
+
+
+def test_mark_welcome_tour_seen_route_updates_session(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import profile as profile_routes
+
+    def fake_get_current_user(request):
+        request.session["auth"] = {"access_token": "session-access-token"}
+        request.session["user"] = {"id": "11111111-1111-1111-1111-111111111111"}
+        return {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "email": "doctor@example.com",
+        }
+
+    monkeypatch.setattr(profile_routes, "get_current_user", fake_get_current_user)
+    monkeypatch.setattr(
+        profile_routes,
+        "mark_welcome_tour_seen",
+        lambda user_id: (True, "Guía de bienvenida actualizada"),
+    )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_session_user_by_id",
+        lambda user_id: {
+            "id": user_id,
+            "email": "doctor@example.com",
+            "username": "doctor",
+            "role": "user",
+            "display_name": "Dra. Ada",
+            "must_change_password": False,
+            "welcome_tour_seen": True,
+        },
+    )
+
+    response = client.post("/api/profile/me/welcome-tour/seen")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "message": "Guía de bienvenida actualizada",
+        "profile": None,
     }
 
 

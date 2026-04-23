@@ -122,7 +122,9 @@ def _fetch_preferences(user_id: str) -> dict[str, Any]:
           email_notifications,
           security_alerts,
           dark_mode,
-          interface_language
+          interface_language,
+          must_change_password,
+          welcome_tour_seen
         FROM public.vw_profile_preferences
         WHERE user_id = %s
         LIMIT 1
@@ -136,6 +138,8 @@ def _fetch_preferences(user_id: str) -> dict[str, Any]:
         "security_alerts": True,
         "dark_mode": False,
         "interface_language": "es",
+        "must_change_password": False,
+        "welcome_tour_seen": True,
     }
 
 
@@ -167,6 +171,45 @@ def _save_preferences(
         """,
         (user_id, email_notifications, security_alerts, dark_mode, interface_language),
     )
+
+
+def _set_must_change_password(user_id: str, value: bool) -> None:
+    execute(
+        """
+        INSERT INTO internal.profile_preferences (
+          user_id,
+          must_change_password
+        )
+        VALUES (%s, %s)
+        ON CONFLICT (user_id) DO UPDATE
+        SET
+          must_change_password = EXCLUDED.must_change_password,
+          updated_at = now()
+        """,
+        (user_id, value),
+    )
+
+
+def mark_welcome_tour_seen(user_id: str) -> tuple[bool, str]:
+    try:
+        execute(
+            """
+            INSERT INTO internal.profile_preferences (
+              user_id,
+              welcome_tour_seen
+            )
+            VALUES (%s, true)
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+              welcome_tour_seen = true,
+              updated_at = now()
+            """,
+            (user_id,),
+        )
+    except ServiceError as exc:
+        return False, str(exc)
+
+    return True, "Guía de bienvenida actualizada"
 
 
 def _fetch_owned_projects(user_id: str) -> list[dict[str, Any]]:
@@ -574,6 +617,7 @@ def change_my_password(
             """,
             (new_password, user_id),
         )
+        _set_must_change_password(user_id, False)
         profile = _fetch_profile_by_user_id(user_id)
         _log_profile_activity(
             user_id,
@@ -589,6 +633,44 @@ def change_my_password(
                 username=username,
                 login_url=build_absolute_frontend_url("/login"),
             )
+    except ServiceError as exc:
+        return False, str(exc)
+
+    return True, "Contraseña actualizada correctamente"
+
+
+def complete_required_password_change(
+    *,
+    access_token: str,
+    new_password: str,
+) -> tuple[bool, str]:
+    normalized_password = new_password.strip()
+    if len(normalized_password) < 8:
+        return False, "La contraseña debe tener al menos 8 caracteres"
+
+    try:
+        from backend.app.services.auth import validate_access_token
+
+        claims = validate_access_token(access_token)
+        user_id = str(claims.get("sub") or "").strip()
+        if not user_id:
+            raise ServiceError("No autorizado")
+
+        execute(
+            """
+            UPDATE auth.users
+            SET encrypted_password = crypt(%s, gen_salt('bf'))
+            WHERE id = %s
+            """,
+            (normalized_password, user_id),
+        )
+        _set_must_change_password(user_id, False)
+        _log_profile_activity(
+            user_id,
+            activity_type="password_changed",
+            title="Cambio de contraseña",
+            description="Se actualizó la contraseña inicial de la cuenta.",
+        )
     except ServiceError as exc:
         return False, str(exc)
 

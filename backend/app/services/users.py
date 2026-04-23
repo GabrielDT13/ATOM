@@ -50,6 +50,25 @@ def _generate_temporary_password(length: int = 16) -> str:
     return "".join(secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length))
 
 
+def _initialize_new_user_preferences(user_id: str) -> None:
+    execute(
+        """
+        INSERT INTO internal.profile_preferences (
+          user_id,
+          must_change_password,
+          welcome_tour_seen
+        )
+        VALUES (%s, true, false)
+        ON CONFLICT (user_id) DO UPDATE
+        SET
+          must_change_password = true,
+          welcome_tour_seen = false,
+          updated_at = now()
+        """,
+        (user_id,),
+    )
+
+
 def _fetch_profiles(
     *,
     filters: dict[str, str] | None = None,
@@ -427,6 +446,7 @@ def create_user(
             target_user_id=created_user_id,
             role=role,
         )
+        _initialize_new_user_preferences(created_user_id)
         user_dir = _create_user_projects_dir(normalized_username)
     except ServiceError as exc:
         if user_dir and user_dir.exists():

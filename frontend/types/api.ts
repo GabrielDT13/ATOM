@@ -7,6 +7,8 @@ export type SessionUser = {
   last_name?: string | null;
   department?: string | null;
   display_name?: string | null;
+  must_change_password?: boolean;
+  welcome_tour_seen?: boolean;
 };
 
 export type SessionResponse = {

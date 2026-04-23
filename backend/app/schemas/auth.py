@@ -58,6 +58,8 @@ class SessionUser(BaseModel):
     last_name: str | None = None
     department: str | None = None
     display_name: str | None = None
+    must_change_password: bool = False
+    welcome_tour_seen: bool = True
 
 
 class SessionResponse(BaseModel):

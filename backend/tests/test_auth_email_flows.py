@@ -119,6 +119,7 @@ def test_reset_password_with_token_updates_credentials_and_sends_confirmation(mo
         "send_password_changed_email",
         lambda **kwargs: captured_email.update(kwargs) or True,
     )
+    monkeypatch.setattr(auth_service, "clear_must_change_password", lambda user_id: None)
 
     auth_service.reset_password_with_token("valid-token", "NuevaPass123")
 
@@ -152,6 +153,7 @@ def test_create_user_sends_account_created_email(
         "_apply_user_role",
         lambda **kwargs: {"id": "44444444-4444-4444-4444-444444444444"},
     )
+    monkeypatch.setattr(user_service, "_initialize_new_user_preferences", lambda user_id: None)
     monkeypatch.setattr(user_service, "generate_password_action_token", lambda **kwargs: "setup-token")
     monkeypatch.setattr(
         user_service,
