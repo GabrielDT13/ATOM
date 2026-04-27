@@ -8,6 +8,7 @@ import type { SidebarLink } from "@/types/api";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  ChartLineIcon,
   CloseIcon,
   DashboardIcon,
   DatabaseIcon,
@@ -45,6 +46,10 @@ function getNavIcon(label: string) {
 
   if (normalized.includes("proyecto")) {
     return <FolderIcon className="h-5 w-5" />;
+  }
+
+  if (normalized.includes("informe") || normalized.includes("report")) {
+    return <ChartLineIcon className="h-5 w-5" />;
   }
 
   if (normalized.includes("equipo")) {

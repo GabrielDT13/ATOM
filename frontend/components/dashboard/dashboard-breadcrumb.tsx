@@ -13,6 +13,7 @@ const DASHBOARD_LABELS: Record<string, string> = {
   "project-execution": "Ejecución",
   "project-report": "Informe",
   projects: "Proyectos",
+  reports: "Informes",
   register: "Registrar usuario",
   users: "Usuarios",
 };
