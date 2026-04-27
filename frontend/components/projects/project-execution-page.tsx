@@ -29,6 +29,7 @@ import {
 } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 import type { ProjectDetails } from "@/types/api";
+import { buildProjectExecutionTarget } from "@/components/projects/project-execution-target";
 
 type ProjectExecutionPageProps =
   | {
@@ -54,6 +55,7 @@ export function ProjectExecutionPage({
   const appToast = useAppToast();
   const completionHandledRef = useRef(false);
   const [project, setProject] = useState<ProjectDetails | null>(null);
+  const [boundRunId, setBoundRunId] = useState<string | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
   const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
@@ -63,27 +65,30 @@ export function ProjectExecutionPage({
       : project
         ? `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`
         : null;
-  const analysisTarget = useMemo(() => {
-    if (!project) {
-      return null;
-    }
-
-    if (resolvedProjectRef) {
-      return {
+  const analysisTarget = useMemo(
+    () =>
+      buildProjectExecutionTarget({
         autoStart,
-        projectRef: resolvedProjectRef,
-        runId: project.active_run?.id ?? null,
-      } as const;
+        boundRunId,
+        project,
+        resolvedProjectRef,
+      }),
+    [autoStart, boundRunId, project, resolvedProjectRef],
+  );
+  const execution = useProjectAnalysisStream(analysisTarget);
+
+  useEffect(() => {
+    setBoundRunId(null);
+  }, [owner, projectName, projectRef]);
+
+  useEffect(() => {
+    const nextRunId = execution.run?.id?.trim() || project?.active_run?.id?.trim() || null;
+    if (!nextRunId) {
+      return;
     }
 
-    return {
-      autoStart,
-      owner: project.owner,
-      projectName: project.name,
-      runId: project.active_run?.id ?? null,
-    } as const;
-  }, [autoStart, project, resolvedProjectRef]);
-  const execution = useProjectAnalysisStream(analysisTarget);
+    setBoundRunId((current) => (current === nextRunId ? current : nextRunId));
+  }, [execution.run?.id, project?.active_run?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -132,13 +137,12 @@ export function ProjectExecutionPage({
       return;
     }
 
-    const boundRunId = execution.run?.id ?? project?.active_run?.id ?? null;
     if (!boundRunId) {
       return;
     }
 
     router.replace(executionPageHref, { scroll: false });
-  }, [autoStart, execution.run?.id, executionPageHref, project?.active_run?.id, router]);
+  }, [autoStart, boundRunId, executionPageHref, router]);
 
   const projectDetailHref =
     resolvedProjectRef
