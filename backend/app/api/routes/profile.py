@@ -4,11 +4,19 @@ from backend.app.dependencies.auth import get_current_user, get_request_access_t
 from backend.app.schemas.profile import (
     ProfileMutationResponse,
     ProfilePasswordChangeRequest,
+    ProfileRequiredPasswordChangeRequest,
     ProfileResponse,
     ProfileUpdateRequest,
 )
 from backend.app.services.auth import get_session_user_by_id
-from backend.app.services.profile import change_my_password, delete_my_account, get_my_profile, update_my_profile
+from backend.app.services.profile import (
+    change_my_password,
+    complete_required_password_change,
+    delete_my_account,
+    get_my_profile,
+    mark_welcome_tour_seen,
+    update_my_profile,
+)
 from fastapi import APIRouter, HTTPException, Request, status
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
@@ -56,7 +64,7 @@ async def change_my_password_route(
     payload: ProfilePasswordChangeRequest,
     request: Request,
 ) -> ProfileMutationResponse:
-    get_current_user(request)
+    current_user = get_current_user(request)
     access_token = get_request_access_token(request)
     if not access_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autorizado")
@@ -66,6 +74,36 @@ async def change_my_password_route(
         current_password=payload.current_password,
         new_password=payload.new_password,
     )
+    if success:
+        request.session["user"] = get_session_user_by_id(str(current_user["id"]))
+    return ProfileMutationResponse(success=success, message=message, profile=None)
+
+
+@router.post("/me/password/required", response_model=ProfileMutationResponse)
+async def complete_required_password_change_route(
+    payload: ProfileRequiredPasswordChangeRequest,
+    request: Request,
+) -> ProfileMutationResponse:
+    current_user = get_current_user(request)
+    access_token = get_request_access_token(request)
+    if not access_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No autorizado")
+
+    success, message = complete_required_password_change(
+        access_token=access_token,
+        new_password=payload.new_password,
+    )
+    if success:
+        request.session["user"] = get_session_user_by_id(str(current_user["id"]))
+    return ProfileMutationResponse(success=success, message=message, profile=None)
+
+
+@router.post("/me/welcome-tour/seen", response_model=ProfileMutationResponse)
+async def mark_welcome_tour_seen_route(request: Request) -> ProfileMutationResponse:
+    current_user = get_current_user(request)
+    success, message = mark_welcome_tour_seen(str(current_user["id"]))
+    if success:
+        request.session["user"] = get_session_user_by_id(str(current_user["id"]))
     return ProfileMutationResponse(success=success, message=message, profile=None)
 
 

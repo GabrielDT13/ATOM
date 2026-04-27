@@ -38,6 +38,7 @@ def test_create_user_persists_user_role_department_and_project_dir(
 
     monkeypatch.setattr(user_service, "_create_auth_user", fake_create_auth_user)
     monkeypatch.setattr(user_service, "_apply_user_role", fake_apply_user_role)
+    monkeypatch.setattr(user_service, "_initialize_new_user_preferences", lambda user_id: None)
 
     success, message, temporary_password = user_service.create_user(
         "researcher",
@@ -83,6 +84,7 @@ def test_create_user_rolls_back_auth_user_when_role_sync_fails(
         "_apply_user_role",
         lambda **kwargs: (_ for _ in ()).throw(ServiceError("No se pudo asignar el rol")),
     )
+    monkeypatch.setattr(user_service, "_initialize_new_user_preferences", lambda user_id: None)
     monkeypatch.setattr(
         user_service,
         "_delete_auth_user",

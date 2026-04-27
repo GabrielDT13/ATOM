@@ -301,6 +301,7 @@ def test_change_my_password_updates_postgres_credentials(monkeypatch) -> None:
         "execute",
         lambda query, params=(): executed_queries.append((query, params)),
     )
+    monkeypatch.setattr(profile_service, "_set_must_change_password", lambda user_id, value: None)
     monkeypatch.setattr(profile_service, "_log_profile_activity", lambda *args, **kwargs: None)
 
     success, message = profile_service.change_my_password(
@@ -329,6 +330,7 @@ def test_change_my_password_returns_validation_error(monkeypatch) -> None:
             else {"password_valid": False}
         ),
     )
+    monkeypatch.setattr(profile_service, "_set_must_change_password", lambda user_id, value: None)
 
     success, message = profile_service.change_my_password(
         access_token="access-token",
@@ -338,6 +340,56 @@ def test_change_my_password_returns_validation_error(monkeypatch) -> None:
 
     assert success is False
     assert message == "Email o contraseña incorrectos"
+
+
+def test_complete_required_password_change_updates_credentials(monkeypatch) -> None:
+    executed_queries: list[tuple[str, tuple[object, ...]]] = []
+    logged_activity: dict[str, str] = {}
+    password_flags: list[tuple[str, bool]] = []
+
+    monkeypatch.setattr(
+        "backend.app.services.auth.validate_access_token",
+        lambda access_token: {"sub": "11111111-1111-1111-1111-111111111111"},
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "execute",
+        lambda query, params=(): executed_queries.append((query, params)),
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_set_must_change_password",
+        lambda user_id, value: password_flags.append((user_id, value)),
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_log_profile_activity",
+        lambda user_id, *, activity_type, title, description: logged_activity.update(
+            {
+                "user_id": user_id,
+                "activity_type": activity_type,
+                "title": title,
+                "description": description,
+            }
+        ),
+    )
+
+    success, message = profile_service.complete_required_password_change(
+        access_token="access-token",
+        new_password="NuevaSegura123",
+    )
+
+    assert success is True
+    assert message == "Contraseña actualizada correctamente"
+    assert len(executed_queries) == 1
+    assert "UPDATE auth.users" in executed_queries[0][0]
+    assert password_flags == [("11111111-1111-1111-1111-111111111111", False)]
+    assert logged_activity == {
+        "user_id": "11111111-1111-1111-1111-111111111111",
+        "activity_type": "password_changed",
+        "title": "Cambio de contraseña",
+        "description": "Se actualizó la contraseña inicial de la cuenta.",
+    }
 
 
 def test_delete_my_account_deletes_local_directory_after_postgres_delete(monkeypatch) -> None:

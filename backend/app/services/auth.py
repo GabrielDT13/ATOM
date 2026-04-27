@@ -27,7 +27,7 @@ class AuthenticationError(RuntimeError):
 class AuthenticatedSession:
     access_token: str
     refresh_token: str | None
-    user: dict[str, str | None]
+    user: dict[str, Any]
 
 
 def _get_password_token_serializer() -> URLSafeTimedSerializer:
@@ -75,14 +75,18 @@ def _get_profile_by_user_id(user_id: str) -> dict[str, Any]:
     profile = fetch_one(
         """
         SELECT
-          id,
-          email,
-          username,
-          full_name,
-          department,
-          is_active,
-          roles
-        FROM public.vw_profiles
+          p.id,
+          p.email,
+          p.username,
+          p.full_name,
+          p.department,
+          p.is_active,
+          p.roles,
+          COALESCE(pref.must_change_password, false) AS must_change_password,
+          COALESCE(pref.welcome_tour_seen, true) AS welcome_tour_seen
+        FROM public.vw_profiles p
+        LEFT JOIN public.vw_profile_preferences pref
+          ON pref.user_id = p.id
         WHERE id = %s
         LIMIT 1
         """,
@@ -146,7 +150,7 @@ def _decode_password_action_token(token: str) -> dict[str, Any]:
     return payload
 
 
-def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | None]:
+def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, Any]:
     username = str(profile.get("username") or "").strip()
     email = str(profile.get("email") or "").strip().lower()
     profile_id = str(profile.get("id") or "").strip()
@@ -170,10 +174,29 @@ def build_session_user_from_profile(profile: dict[str, Any]) -> dict[str, str | 
         "last_name": None,
         "department": str(profile.get("department") or "").strip() or None,
         "display_name": full_name or username,
+        "must_change_password": bool(profile.get("must_change_password", False)),
+        "welcome_tour_seen": bool(profile.get("welcome_tour_seen", True)),
     }
 
 
-def get_session_user_by_id(user_id: str) -> dict[str, str | None]:
+def clear_must_change_password(user_id: str) -> None:
+    execute(
+        """
+        INSERT INTO internal.profile_preferences (
+          user_id,
+          must_change_password
+        )
+        VALUES (%s, false)
+        ON CONFLICT (user_id) DO UPDATE
+        SET
+          must_change_password = false,
+          updated_at = now()
+        """,
+        (user_id,),
+    )
+
+
+def get_session_user_by_id(user_id: str) -> dict[str, Any]:
     return build_session_user_from_profile(_get_profile_by_user_id(user_id))
 
 
@@ -306,6 +329,7 @@ def reset_password_with_token(token: str, new_password: str) -> None:
         """,
         (user_id,),
     )
+    clear_must_change_password(user_id)
     send_password_changed_email(
         to_email=profile_email,
         username=profile_username,
@@ -402,6 +426,6 @@ def validate_access_token(access_token: str) -> dict[str, Any]:
     return claims
 
 
-def get_session_user_from_access_token(access_token: str) -> dict[str, str | None]:
+def get_session_user_from_access_token(access_token: str) -> dict[str, Any]:
     claims = validate_access_token(access_token)
     return get_session_user_by_id(str(claims["sub"]))

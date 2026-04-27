@@ -3,10 +3,13 @@
 import type { SessionUser } from "@/types/api";
 
 import { MenuIcon, UserIcon } from "@/components/dashboard/dashboard-icons";
+import { HeaderHelpPopover } from "@/components/dashboard/header-help-popover";
 import { HeaderNotificationsPopover } from "@/components/dashboard/header-notifications-popover";
 
 type AppHeaderProps = {
+  onOpenHelp: () => void;
   onOpenSidebar: () => void;
+  supportEmail: string;
   user: SessionUser;
 };
 
@@ -27,7 +30,12 @@ function getUserSubtitle(user: SessionUser) {
     : "Usuario de la plataforma";
 }
 
-export function AppHeader({ onOpenSidebar, user }: AppHeaderProps) {
+export function AppHeader({
+  onOpenHelp,
+  onOpenSidebar,
+  supportEmail,
+  user,
+}: AppHeaderProps) {
   return (
     <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-8">
       <div className="flex items-center gap-3">
@@ -42,6 +50,7 @@ export function AppHeader({ onOpenSidebar, user }: AppHeaderProps) {
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">
+        <HeaderHelpPopover onStartTour={onOpenHelp} supportEmail={supportEmail} />
         <HeaderNotificationsPopover user={user} />
 
         <div className="h-8 w-px bg-slate-200" />

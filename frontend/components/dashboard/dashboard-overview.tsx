@@ -71,7 +71,10 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_32px_80px_rgba(15,23,42,0.28)] sm:px-8 lg:px-10">
+      <section
+        className="relative overflow-hidden rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_32px_80px_rgba(15,23,42,0.28)] sm:px-8 lg:px-10"
+        data-tour="dashboard-hero"
+      >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.28),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.24),_transparent_28%),linear-gradient(135deg,_#0f172a_0%,_#111827_45%,_#0b1120_100%)]" />
         <div className="absolute -left-16 top-10 h-40 w-40 rounded-full bg-sky-400/10 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
@@ -194,48 +197,50 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="page-hero-surface overflow-hidden rounded-[28px] border border-white/10 px-6 py-6 text-white shadow-[0_28px_70px_-50px_rgba(15,23,42,0.6)]">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Inicio rápido
+            <div className="max-w-2xl">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-300">
+                Manual integrado
               </p>
-              <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Cómo empezar con un proyecto
+              <h3 className="mt-2 text-2xl font-semibold tracking-tight text-white">
+                Plataforma lista para guiar al usuario desde la ayuda superior
               </h3>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Resumen del flujo recomendado para subir una plantilla, cargar
-                datos y revisar resultados desde la plataforma.
+              <p className="mt-3 text-sm leading-7 text-slate-300">
+                El recorrido interactivo sustituye guía fija del dashboard y se puede relanzar en
+                cualquier momento desde icono de ayuda.
               </p>
             </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/10 text-white">
               <CheckIcon className="h-5 w-5" />
             </div>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {dashboard.quick_start_steps.length ? dashboard.quick_start_steps.map((step) => (
-              <article
-                className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5"
-                key={step.step}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white">
-                    {step.step}
-                  </span>
-                  <h4 className="text-base font-semibold text-slate-950">
-                    {step.title}
-                  </h4>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-slate-500">
-                  {step.description}
-                </p>
-              </article>
-            )) : (
-              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center text-sm text-slate-500 md:col-span-3">
-                La guía de inicio aparecerá aquí cuando el resumen real del dashboard esté disponible.
-              </div>
-            )}
+          <div className="mt-6 grid gap-4 sm:grid-cols-3">
+            <div className="rounded-[24px] border border-white/10 bg-white/8 p-5 backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+                Primer acceso
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-100">
+                Cambio obligatorio de contraseña temporal antes de usar plataforma.
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-white/8 p-5 backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+                Tutorial
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-100">
+                Recorrido visual por dashboard, proyectos, creación y accesos rápidos.
+              </p>
+            </div>
+            <div className="rounded-[24px] border border-white/10 bg-white/8 p-5 backdrop-blur">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-300">
+                Soporte
+              </p>
+              <p className="mt-3 text-sm leading-6 text-slate-100">
+                Centro de ayuda en header para relanzar manual o pedir asistencia.
+              </p>
+            </div>
           </div>
         </div>
 

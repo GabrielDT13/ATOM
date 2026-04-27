@@ -64,6 +64,18 @@ class ProfilePasswordChangeRequest(BaseModel):
         return normalized
 
 
+class ProfileRequiredPasswordChangeRequest(BaseModel):
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 8:
+            raise ValueError("La contraseña debe tener al menos 8 caracteres")
+        return normalized
+
+
 class ProfileActivityResponse(BaseModel):
     kind: str
     title: str

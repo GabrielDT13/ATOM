@@ -131,7 +131,7 @@ export function AppSidebar({
               </button>
             </div>
 
-            <nav className="flex flex-col gap-2">
+            <nav className="flex flex-col gap-2" data-tour="sidebar-nav">
               {items.map((item) => {
                 const active = isCurrentPath(currentPathname, item.url);
 
