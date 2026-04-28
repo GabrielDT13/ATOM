@@ -15,8 +15,9 @@ node_modules/
 # Local testing samples
 samples/
 
-# Generated project workspaces (backend runtime data)
+# Generated backend runtime data
 /projects/
+/data/
 
 # Local environment files
 .env.local

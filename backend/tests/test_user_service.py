@@ -62,7 +62,7 @@ def test_create_user_persists_user_role_department_and_project_dir(
         "target_user_id": "44444444-4444-4444-4444-444444444444",
         "role": "admin",
     }
-    assert (isolated_app_env["projects_dir"] / "researcher").is_dir()
+    assert user_service.get_user_dir("researcher").is_dir()
 
 
 def test_create_user_rolls_back_auth_user_when_role_sync_fails(
@@ -103,7 +103,7 @@ def test_create_user_rolls_back_auth_user_when_role_sync_fails(
     assert message == "No se pudo asignar el rol"
     assert temporary_password is None
     assert deleted_user_ids == ["44444444-4444-4444-4444-444444444444"]
-    assert not (isolated_app_env["projects_dir"] / "researcher").exists()
+    assert not user_service.get_user_dir("researcher").exists()
 
 
 def test_create_auth_user_accepts_uuid_returned_by_postgres(monkeypatch) -> None:
@@ -129,7 +129,7 @@ def test_update_user_syncs_auth_role_department_and_project_dir(
 ) -> None:
     updated_payload: dict[str, str | None] = {}
     role_payload: dict[str, str] = {}
-    old_dir = isolated_app_env["projects_dir"] / "researcher"
+    old_dir = user_service.get_user_dir("researcher")
     old_dir.mkdir()
 
     monkeypatch.setattr(
@@ -204,7 +204,7 @@ def test_update_user_syncs_auth_role_department_and_project_dir(
         "role": "admin",
     }
     assert not old_dir.exists()
-    assert (isolated_app_env["projects_dir"] / "principal").is_dir()
+    assert user_service.get_user_dir("principal").is_dir()
 
 
 def test_delete_user_is_blocked_when_user_owns_projects(monkeypatch) -> None:
@@ -248,7 +248,7 @@ def test_delete_user_deletes_auth_user_and_projects_dir_when_no_owned_projects(
     monkeypatch,
 ) -> None:
     deleted_user_ids: list[str] = []
-    user_dir = isolated_app_env["projects_dir"] / "researcher"
+    user_dir = user_service.get_user_dir("researcher")
     user_dir.mkdir()
 
     monkeypatch.setattr(

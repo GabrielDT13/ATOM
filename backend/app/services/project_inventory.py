@@ -4,27 +4,20 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
 
-from backend.app.core.config import get_settings
-from backend.app.services.data import resolve_project_path
+from backend.app.services.database import fetch_one
+from backend.app.services.project_storage import (
+    get_legacy_owner_dir,
+    get_legacy_project_dir,
+    migrate_legacy_project_dir,
+)
 from fastapi import UploadFile
+from psycopg.errors import UndefinedTable
 
 ALLOWED_TEMPLATE_EXTENSIONS = {".xlsx", ".xls"}
 ProjectStatus = Literal["configured", "empty", "results"]
 ProjectFileKind = Literal["additional", "result", "template"]
-
-
-def ensure_user_dir(username: str) -> Path:
-    user_dir = _resolve_owner_dir(username)
-    user_dir.mkdir(parents=True, exist_ok=True)
-    return user_dir
-
-
 def _resolve_owner_dir(owner: str) -> Path:
-    projects_root = get_settings().projects_dir.resolve()
-    owner_dir = (projects_root / owner).resolve()
-    if owner_dir == projects_root or projects_root not in owner_dir.parents:
-        raise ValueError("Usuario no válido")
-    return owner_dir
+    return get_legacy_owner_dir(owner)
 
 
 def normalize_project_name(project_name: str) -> str:
@@ -166,20 +159,58 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
 
 
 async def _save_upload(target_path: Path, upload: UploadFile) -> None:
+    target_path.parent.mkdir(parents=True, exist_ok=True)
     with target_path.open("wb") as destination:
         while chunk := await upload.read(1024 * 1024):
             destination.write(chunk)
     await upload.close()
 
 
+def _find_project_storage_record(owner: str, project_name: str) -> dict[str, object] | None:
+    try:
+        return fetch_one(
+            """
+            SELECT id, owner_username, name
+            FROM public.vw_projects
+            WHERE owner_username = %s
+              AND name = %s
+            LIMIT 1
+            """,
+            (owner, project_name),
+        )
+    except UndefinedTable:
+        return None
+    except Exception:
+        # Keep filesystem-only fallback working even when DB is unavailable.
+        return None
+
+
 def get_project_dir(owner: str, project_name: str) -> Path:
-    owner_dir = _resolve_owner_dir(owner)
     normalized_name = normalize_project_name(project_name)
-    return (owner_dir / normalized_name).resolve()
+    record = _find_project_storage_record(owner, normalized_name)
+    project_id = str((record or {}).get("id") or "").strip()
+    if project_id:
+        return migrate_legacy_project_dir(project_id, owner=owner, project_name=normalized_name)
+    return get_legacy_project_dir(owner, normalized_name)
+
+
+def _resolve_project_file_path(owner: str, file_path: str) -> Path:
+    normalized_path = Path(str(file_path or "").strip().replace("\\", "/"))
+    path_parts = normalized_path.parts
+    if len(path_parts) < 2:
+        raise FileNotFoundError("Archivo no encontrado")
+
+    project_name = normalize_project_name(path_parts[0])
+    project_dir = get_project_dir(owner, project_name).resolve()
+    relative_file_path = Path(*path_parts[1:]).as_posix()
+    target_path = (project_dir / relative_file_path).resolve()
+    if project_dir != target_path and project_dir not in target_path.parents:
+        raise ValueError("Ruta fuera del directorio permitido")
+    return target_path
 
 
 def read_project_file(owner: str, file_path: str, max_lines: int | None = None) -> dict[str, object]:
-    target_path = resolve_project_path(owner, file_path)
+    target_path = _resolve_project_file_path(owner, file_path)
     if not target_path.exists() or not target_path.is_file():
         raise FileNotFoundError("Archivo no encontrado")
 
@@ -209,7 +240,7 @@ def read_project_file(owner: str, file_path: str, max_lines: int | None = None) 
 
 
 def get_download_path(owner: str, file_path: str) -> Path:
-    target_path = resolve_project_path(owner, file_path)
+    target_path = _resolve_project_file_path(owner, file_path)
     if not target_path.exists() or not target_path.is_file():
         raise FileNotFoundError("Archivo no encontrado")
     return target_path

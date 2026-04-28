@@ -59,10 +59,11 @@ def get_settings() -> Settings:
         if project_root_env
         else Path(__file__).resolve().parents[3]
     )
+    data_dir = _resolve_path("ATOM_DATA_DIR", "data", project_root)
     return Settings(
         project_root=project_root,
-        data_dir=_resolve_path("ATOM_DATA_DIR", "data", project_root),
-        projects_dir=_resolve_path("ATOM_PROJECTS_DIR", "projects", project_root),
+        data_dir=data_dir,
+        projects_dir=_resolve_path("ATOM_PROJECTS_DIR", str(data_dir / "projects"), project_root),
         r_scripts_dir=_resolve_path("ATOM_R_SCRIPTS_DIR", "r_scripts", project_root),
         public_examples_dir=_resolve_path(
             "ATOM_PUBLIC_EXAMPLES_DIR",
