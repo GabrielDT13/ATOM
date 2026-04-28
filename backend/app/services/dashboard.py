@@ -7,11 +7,11 @@ from backend.app.core.config import get_settings
 from backend.app.services.dashboard_activity import list_dashboard_events
 from backend.app.services.dashboard_examples import load_public_examples_catalog
 from backend.app.services.errors import ServiceError
+from backend.app.services.project_storage import list_legacy_owner_names, list_legacy_project_dirs
 from backend.app.services.projects import (
     _build_project_payload,
     list_projects_for_user,
 )
-from backend.app.services.project_storage import list_legacy_owner_names, list_legacy_project_dirs
 
 WORKFLOW_CATALOG: tuple[dict[str, object], ...] = (
     {
