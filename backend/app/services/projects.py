@@ -52,6 +52,7 @@ from backend.app.services.project_repository import (
     _upsert_project_record,
 )
 from backend.app.services.project_storage import (
+    cleanup_legacy_owner_dir,
     ensure_project_storage_dir,
     get_legacy_project_dir,
     list_legacy_owner_names,
@@ -1244,6 +1245,7 @@ def delete_project(
     if not project_dir.exists() or not project_dir.is_dir():
         return False, "Proyecto no encontrado."
     shutil.rmtree(project_dir)
+    cleanup_legacy_owner_dir(owner)
     try:
         _delete_project_record(owner, normalized_name)
     except ServiceError as exc:

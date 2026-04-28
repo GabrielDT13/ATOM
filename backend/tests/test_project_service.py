@@ -1065,6 +1065,40 @@ def test_transfer_project_ownership_updates_repository_without_moving_storage(
     assert "INSERT INTO internal.project_members" in executed[2][0]
 
 
+def test_delete_project_removes_empty_legacy_owner_dir(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+        },
+    )
+    monkeypatch.setattr(project_service, "_delete_project_record", lambda owner, project_name: None)
+
+    owner_dir = isolated_app_env["projects_dir"] / "researcher"
+    project_dir = owner_dir / "RNA Atlas"
+    project_dir.mkdir(parents=True)
+    (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
+
+    success, message = project_service.delete_project(
+        "user-1",
+        "researcher",
+        "researcher",
+        "RNA Atlas",
+    )
+
+    assert success is True
+    assert message == "Proyecto 'RNA Atlas' eliminado correctamente."
+    assert not project_dir.exists()
+    assert not owner_dir.exists()
+
+
 def test_project_scripts_are_not_available_from_the_interface() -> None:
     try:
         project_service.read_project_file("researcher", "RNA Atlas/design_app_a/design_app_a.Rmd")
