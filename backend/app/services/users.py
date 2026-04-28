@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-from backend.app.core.config import get_settings
 from backend.app.services.auth import build_session_user_from_profile, generate_password_action_token
 from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
 from backend.app.services.emailing import build_absolute_frontend_url, send_account_created_email
 from backend.app.services.errors import ServiceError
+from backend.app.services.project_storage import get_user_storage_dir
 
 _TEMP_PASSWORD_ALPHABET = "".join(
     character
@@ -396,7 +396,7 @@ def _delete_user_projects_dir(username: str) -> None:
     if not user_dir.exists():
         return
 
-    base_path = get_settings().projects_dir.resolve()
+    base_path = user_dir.parent.resolve()
     resolved_user_dir = user_dir.resolve()
     if base_path != resolved_user_dir and base_path not in resolved_user_dir.parents:
         raise ValueError("Ruta inválida: no se eliminó la carpeta del usuario por seguridad.")
@@ -577,4 +577,4 @@ def delete_user(username: str) -> tuple[bool, str]:
 
 def get_user_dir(username: str) -> Path:
     normalized_username = _normalize_username(username)
-    return get_settings().projects_dir / normalized_username
+    return get_user_storage_dir(normalized_username)

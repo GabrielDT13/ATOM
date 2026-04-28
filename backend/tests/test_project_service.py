@@ -4,7 +4,9 @@ import asyncio
 from io import BytesIO
 from pathlib import Path
 
+from backend.app.services import project_inventory as project_inventory_service
 from backend.app.services import projects as project_service
+from backend.app.services.project_storage import get_project_storage_dir
 from fastapi import UploadFile
 
 
@@ -19,7 +21,7 @@ def test_create_project_saves_template_and_additional_files(
     monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         project_service,
-        "_upsert_project_record",
+        "_create_project_record",
         lambda owner, project_name, entity_name=None: {
             "id": "project-1",
             "name": project_name,
@@ -36,12 +38,42 @@ def test_create_project_saves_template_and_additional_files(
         )
     )
 
-    project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    project_dir = get_project_storage_dir("project-1")
+    legacy_project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
 
     assert success is True
     assert message == "Proyecto 'RNA Atlas' creado correctamente."
+    assert project_dir == isolated_app_env["projects_dir"] / "by-id" / "pr" / "project-1"
+    assert not legacy_project_dir.exists()
     assert (project_dir / "template.xls").read_bytes() == b"excel-content"
     assert (project_dir / "notes.csv").read_bytes() == b"id,value\n1,2\n"
+
+
+def test_get_project_dir_migrates_legacy_folder_to_canonical_storage(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    legacy_project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    legacy_project_dir.mkdir(parents=True)
+    (legacy_project_dir / "template.xlsx").write_text("template", encoding="utf-8")
+
+    monkeypatch.setattr(
+        project_inventory_service,
+        "fetch_one",
+        lambda query, params=(): {
+            "id": "project-1",
+            "owner_username": "researcher",
+            "name": "RNA Atlas",
+        },
+    )
+
+    project_dir = project_service.get_project_dir("researcher", "RNA Atlas")
+
+    assert project_dir == get_project_storage_dir("project-1")
+    assert project_dir.exists()
+    assert (project_dir / "template.xlsx").read_text(encoding="utf-8") == "template"
+    assert not legacy_project_dir.exists()
+    assert not (isolated_app_env["projects_dir"] / "researcher").exists()
 
 
 def test_create_project_can_link_a_managed_team(
@@ -53,7 +85,7 @@ def test_create_project_can_link_a_managed_team(
     monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
     monkeypatch.setattr(
         project_service,
-        "_upsert_project_record",
+        "_create_project_record",
         lambda owner, project_name, entity_name=None: {
             "id": "project-1",
             "name": project_name,
@@ -90,7 +122,7 @@ def test_get_project_details_returns_structured_inventory(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
-    project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    project_dir = project_service.get_project_dir("researcher", "RNA Atlas")
     reports_dir = project_dir / "results"
     reports_dir.mkdir(parents=True)
     (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
@@ -140,11 +172,11 @@ def test_list_projects_for_admin_returns_project_map_and_items(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
-    atlas_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    atlas_dir = project_service.get_project_dir("researcher", "RNA Atlas")
     atlas_dir.mkdir(parents=True)
     (atlas_dir / "template.xlsx").write_text("template", encoding="utf-8")
 
-    cell_dir = isolated_app_env["projects_dir"] / "principal" / "Cell Map"
+    cell_dir = project_service.get_project_dir("principal", "Cell Map")
     cell_dir.mkdir(parents=True)
     (cell_dir / "notes.csv").write_text("notes", encoding="utf-8")
 
@@ -172,7 +204,7 @@ def test_list_projects_for_admin_includes_repository_records_without_local_folde
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
-    atlas_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    atlas_dir = project_service.get_project_dir("researcher", "RNA Atlas")
     atlas_dir.mkdir(parents=True)
     (atlas_dir / "template.xlsx").write_text("template", encoding="utf-8")
 
@@ -210,7 +242,7 @@ def test_list_projects_for_admin_falls_back_to_filesystem_timestamps_when_metada
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
-    seeded_dir = isolated_app_env["projects_dir"] / "admin" / "Admin Seed Project"
+    seeded_dir = project_service.get_project_dir("admin", "Admin Seed Project")
     seeded_dir.mkdir(parents=True)
 
     monkeypatch.setattr(project_service, "_list_shared_project_records", lambda user_id: [])
@@ -349,7 +381,7 @@ def test_get_project_details_by_ref_uses_repository_metadata(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
-    project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    project_dir = project_service.get_project_dir("researcher", "RNA Atlas")
     project_dir.mkdir(parents=True)
     (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
 
@@ -396,18 +428,28 @@ def test_get_project_members_by_ref_resolves_owner_and_name(monkeypatch) -> None
     assert members == [{"id": "user-1", "username": "researcher", "is_owner": True}]
 
 
-def test_update_project_renames_and_replaces_inputs_without_deleting_results(
+def test_update_project_keeps_stable_storage_and_replaces_inputs_without_deleting_results(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
-    project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    project_dir = project_service.get_project_dir("researcher", "RNA Atlas")
     results_dir = project_dir / "results"
     results_dir.mkdir(parents=True)
     (project_dir / "template.xlsx").write_text("old-template", encoding="utf-8")
     (project_dir / "old.csv").write_text("old", encoding="utf-8")
     (results_dir / "report.html").write_text("<html>ready</html>", encoding="utf-8")
 
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+        },
+    )
+    monkeypatch.setattr(project_service, "_get_project_record", lambda owner, project_name: None)
     monkeypatch.setattr(project_service, "_rename_project_record", lambda owner, current_name, new_name: None)
 
     success, message, effective_name = asyncio.run(
@@ -422,12 +464,13 @@ def test_update_project_renames_and_replaces_inputs_without_deleting_results(
         )
     )
 
-    updated_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas 2026"
+    updated_dir = get_project_storage_dir("project-1")
 
     assert success is True
     assert message == "Proyecto actualizado correctamente"
     assert effective_name == "RNA Atlas 2026"
     assert not project_dir.exists()
+    assert updated_dir.exists()
     assert (updated_dir / "template.xlsx").read_bytes() == b"new-template"
     assert (updated_dir / "fresh.csv").read_bytes() == b"fresh-data"
     assert not (updated_dir / "old.csv").exists()
@@ -947,11 +990,11 @@ def test_add_project_team_inserts_viewer_permission(monkeypatch) -> None:
     assert executed[0][1] == ("project-1", "team-1", "viewer")
 
 
-def test_transfer_project_ownership_moves_directory_and_updates_repository(
+def test_transfer_project_ownership_updates_repository_without_moving_storage(
     isolated_app_env: dict[str, Path],
     monkeypatch,
 ) -> None:
-    project_dir = isolated_app_env["projects_dir"] / "researcher" / "RNA Atlas"
+    project_dir = project_service.get_project_dir("researcher", "RNA Atlas")
     project_dir.mkdir(parents=True)
     (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
     executed: list[tuple[str, tuple[object, ...]]] = []
@@ -982,6 +1025,7 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
         "_get_project_member",
         lambda project_id, user_id: {"member_role": "editor", "member_id": user_id},
     )
+    monkeypatch.setattr(project_service, "_get_project_record", lambda owner, project_name: None)
 
     monkeypatch.setattr(
         project_service,
@@ -1003,7 +1047,7 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
     assert success is True
     assert message == "Propiedad del proyecto transferida correctamente"
     assert next_owner == "manager"
-    assert not project_dir.exists()
+    assert project_dir.exists()
     assert notifications == [
         {
             "actor_user_id": "user-owner",
@@ -1014,11 +1058,45 @@ def test_transfer_project_ownership_moves_directory_and_updates_repository(
             "recipient_user_id": "user-2",
         }
     ]
-    assert (isolated_app_env["projects_dir"] / "manager" / "RNA Atlas" / "template.xlsx").exists()
+    assert (project_dir / "template.xlsx").exists()
     assert len(executed) == 3
     assert "UPDATE internal.projects" in executed[0][0]
     assert "INSERT INTO internal.project_members" in executed[1][0]
     assert "INSERT INTO internal.project_members" in executed[2][0]
+
+
+def test_delete_project_removes_empty_legacy_owner_dir(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+        },
+    )
+    monkeypatch.setattr(project_service, "_delete_project_record", lambda owner, project_name: None)
+
+    owner_dir = isolated_app_env["projects_dir"] / "researcher"
+    project_dir = owner_dir / "RNA Atlas"
+    project_dir.mkdir(parents=True)
+    (project_dir / "template.xlsx").write_text("template", encoding="utf-8")
+
+    success, message = project_service.delete_project(
+        "user-1",
+        "researcher",
+        "researcher",
+        "RNA Atlas",
+    )
+
+    assert success is True
+    assert message == "Proyecto 'RNA Atlas' eliminado correctamente."
+    assert not project_dir.exists()
+    assert not owner_dir.exists()
 
 
 def test_project_scripts_are_not_available_from_the_interface() -> None:

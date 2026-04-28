@@ -179,7 +179,7 @@ def test_create_user_sends_account_created_email(
         "login_url": "http://localhost:3000/login",
         "setup_url": "http://localhost:3000/reset-password?token=setup-token",
     }
-    assert (isolated_app_env["projects_dir"] / "researcher").is_dir()
+    assert user_service.get_user_dir("researcher").is_dir()
 
 
 def test_notify_project_shared_sends_email_when_enabled(monkeypatch) -> None:

@@ -7,6 +7,7 @@ from backend.app.core.config import get_settings
 from backend.app.services.dashboard_activity import list_dashboard_events
 from backend.app.services.dashboard_examples import load_public_examples_catalog
 from backend.app.services.errors import ServiceError
+from backend.app.services.project_storage import list_legacy_owner_names, list_legacy_project_dirs
 from backend.app.services.projects import (
     _build_project_payload,
     list_projects_for_user,
@@ -88,27 +89,12 @@ def _parse_timestamp(value: Any) -> datetime | None:
 
 
 def _list_local_projects(session_username: str, role: str) -> list[dict[str, object]]:
-    settings = get_settings()
-    projects_root = settings.projects_dir
-    projects_root.mkdir(parents=True, exist_ok=True)
-
-    owners = (
-        sorted(directory.name for directory in projects_root.iterdir() if directory.is_dir())
-        if role == "admin"
-        else [session_username]
-    )
+    get_settings().projects_dir.mkdir(parents=True, exist_ok=True)
+    owners = list_legacy_owner_names() if role == "admin" else [session_username]
 
     items: list[dict[str, object]] = []
     for owner in owners:
-        owner_dir = projects_root / owner
-        if not owner_dir.exists():
-            continue
-
-        project_dirs = sorted(
-            [directory for directory in owner_dir.iterdir() if directory.is_dir()],
-            key=lambda directory: directory.name.lower(),
-        )
-        for project_dir in project_dirs:
+        for project_dir in list_legacy_project_dirs(owner):
             payload = _build_project_payload(owner, project_dir)
             payload["access_role"] = "owner" if owner == session_username else "viewer"
             items.append(payload)

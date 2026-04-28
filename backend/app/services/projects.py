@@ -22,7 +22,6 @@ from backend.app.services.project_inventory import (
     _save_upload,
     _template_storage_name,
     allowed_template_file,
-    ensure_user_dir,
     get_project_dir,
     normalize_project_name,
 )
@@ -33,6 +32,7 @@ from backend.app.services.project_inventory import (
     read_project_file as _read_project_file,
 )
 from backend.app.services.project_repository import (
+    _create_project_record,
     _delete_project_record,
     _fetch_profiles,
     _get_profile_by_username,
@@ -50,6 +50,15 @@ from backend.app.services.project_repository import (
     _rename_project_record,
     _set_project_entity,
     _upsert_project_record,
+)
+from backend.app.services.project_storage import (
+    cleanup_legacy_owner_dir,
+    ensure_project_storage_dir,
+    get_legacy_project_dir,
+    list_legacy_owner_names,
+    list_legacy_project_dirs,
+    locate_project_storage_dir,
+    migrate_legacy_project_dir,
 )
 from backend.app.services.teams import get_team_details, list_teams_for_user
 from fastapi import UploadFile
@@ -281,40 +290,35 @@ def list_sidebar_projects_for_user(
 
 
 def list_projects_for_user(session_user_id: str, session_username: str, role: str) -> dict[str, object]:
-    projects_root = get_settings().projects_dir
-    projects_root.mkdir(parents=True, exist_ok=True)
-
-    if role == "admin":
-        owners = sorted(directory.name for directory in projects_root.iterdir() if directory.is_dir())
-    else:
-        owners = [session_username]
+    get_settings().projects_dir.mkdir(parents=True, exist_ok=True)
+    owners = list_legacy_owner_names() if role == "admin" else [session_username]
 
     projects: dict[str, list[str]] = {}
     items: list[dict[str, object]] = []
     indexed_items: dict[str, dict[str, object]] = {}
     for owner in owners:
-        owner_dir = projects_root / owner
-        if owner_dir.exists():
-            project_dirs = sorted(
-                [directory for directory in owner_dir.iterdir() if directory.is_dir()],
-                key=lambda directory: directory.name.lower(),
-            )
-            projects[owner] = [directory.name for directory in project_dirs]
-            for project_dir in project_dirs:
+        legacy_project_dirs = list_legacy_project_dirs(owner)
+        projects[owner] = [directory.name for directory in legacy_project_dirs]
+        for legacy_project_dir in legacy_project_dirs:
+            try:
+                metadata: dict[str, Any] | None = _get_project_record(owner, legacy_project_dir.name)
+            except Exception:
+                metadata = None
+            if metadata is None:
                 try:
-                    metadata: dict[str, Any] | None = _get_project_record(owner, project_dir.name)
+                    metadata = _upsert_project_record(owner, legacy_project_dir.name)
                 except Exception:
                     metadata = None
-                if metadata is None:
-                    try:
-                        metadata = _upsert_project_record(owner, project_dir.name)
-                    except Exception:
-                        metadata = None
-                payload = _build_project_payload(owner, project_dir, metadata)
-                payload["access_role"] = "owner" if owner == session_username else "viewer"
-                indexed_items[f"{owner}::{project_dir.name}"] = payload
-        else:
-            projects[owner] = []
+
+            project_id = str((metadata or {}).get("id") or "").strip()
+            project_dir = (
+                migrate_legacy_project_dir(project_id, owner=owner, project_name=legacy_project_dir.name)
+                if project_id
+                else legacy_project_dir
+            )
+            payload = _build_project_payload(owner, project_dir, metadata)
+            payload["access_role"] = "owner" if owner == session_username else "viewer"
+            indexed_items[f"{owner}::{legacy_project_dir.name}"] = payload
 
     try:
         database_records = (
@@ -331,7 +335,12 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
         if not owner or not project_name:
             continue
 
-        project_dir = get_settings().projects_dir / owner / project_name
+        project_id = str(record.get("id") or "").strip()
+        project_dir = (
+            migrate_legacy_project_dir(project_id, owner=owner, project_name=project_name)
+            if project_id
+            else get_project_dir(owner, project_name)
+        )
         projects.setdefault(owner, [])
         if project_name not in projects[owner]:
             projects[owner].append(project_name)
@@ -351,7 +360,12 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
             if not owner or not project_name or owner == session_username:
                 continue
 
-            project_dir = get_settings().projects_dir / owner / project_name
+            project_id = str(record.get("id") or "").strip()
+            project_dir = (
+                migrate_legacy_project_dir(project_id, owner=owner, project_name=project_name)
+                if project_id
+                else get_project_dir(owner, project_name)
+            )
             projects.setdefault(owner, [])
             if project_name not in projects[owner]:
                 projects[owner].append(project_name)
@@ -394,14 +408,22 @@ async def create_project(
     if not allowed_template_file(template_file.filename):
         return False, "El archivo base debe ser un Excel permitido (.xls o .xlsx)"
 
-    user_dir = ensure_user_dir(username)
-    project_dir = user_dir / normalized_name
+    legacy_project_dir = get_legacy_project_dir(username, normalized_name)
     record_created = False
-    if project_dir.exists():
+    try:
+        existing_record = _get_project_record(username, normalized_name)
+    except Exception:
+        existing_record = None
+    if legacy_project_dir.exists() or existing_record:
         return False, f"El proyecto '{normalized_name}' ya existe"
 
-    project_dir.mkdir()
+    project_dir: Path | None = None
     try:
+        created_record = _create_project_record(username, normalized_name, entity_name)
+        record_created = True
+        project_id = str(created_record.get("id") or "").strip()
+        project_dir = ensure_project_storage_dir(project_id, owner=username, project_name=normalized_name)
+
         excel_name = _normalize_upload_filename(template_file.filename)
         await _save_upload(project_dir / _template_storage_name(excel_name), template_file)
 
@@ -409,8 +431,6 @@ async def create_project(
             if upload.filename:
                 safe_name = _normalize_upload_filename(upload.filename)
                 await _save_upload(project_dir / safe_name, upload)
-        _upsert_project_record(username, normalized_name, entity_name)
-        record_created = True
         if team_id and team_id.strip():
             linked, linked_message = add_project_team(
                 username,
@@ -437,7 +457,7 @@ async def create_project(
         )
         return True, f"Proyecto '{normalized_name}' creado correctamente."
     except ValueError as exc:
-        if project_dir.exists():
+        if project_dir and project_dir.exists():
             shutil.rmtree(project_dir)
         if record_created:
             try:
@@ -446,7 +466,7 @@ async def create_project(
                 pass
         return False, str(exc)
     except ServiceError as exc:
-        if project_dir.exists():
+        if project_dir and project_dir.exists():
             shutil.rmtree(project_dir)
         if record_created:
             try:
@@ -455,7 +475,7 @@ async def create_project(
                 pass
         return False, str(exc)
     except Exception as exc:
-        if project_dir.exists():
+        if project_dir and project_dir.exists():
             shutil.rmtree(project_dir)
         if record_created:
             try:
@@ -465,11 +485,19 @@ async def create_project(
         return False, f"Error al crear proyecto: {exc}"
 
 def get_project_details(owner: str, project_name: str) -> dict[str, object]:
-    project_dir = get_project_dir(owner, project_name)
     try:
         metadata = _get_project_record(owner, normalize_project_name(project_name))
-    except ServiceError:
+    except Exception:
         metadata = None
+    if metadata is None:
+        try:
+            metadata = _upsert_project_record(owner, normalize_project_name(project_name))
+        except (FileNotFoundError, ServiceError):
+            metadata = None
+        except Exception:
+            metadata = None
+
+    project_dir = get_project_dir(owner, project_name)
     if (not project_dir.exists() or not project_dir.is_dir()) and metadata is None:
         raise FileNotFoundError("Proyecto no encontrado")
 
@@ -491,7 +519,12 @@ def get_project_details_by_ref(project_ref: str) -> dict[str, object]:
     if not owner or not project_name:
         raise FileNotFoundError("Proyecto no encontrado")
 
-    project_dir = get_settings().projects_dir / owner / project_name
+    project_id = str(metadata.get("id") or "").strip()
+    project_dir = (
+        migrate_legacy_project_dir(project_id, owner=owner, project_name=project_name)
+        if project_id
+        else get_project_dir(owner, project_name)
+    )
     payload = _build_project_payload(owner, project_dir, metadata)
     return _attach_active_runs([payload])[0]
 
@@ -950,10 +983,6 @@ def transfer_project_ownership(
 ) -> tuple[bool, str, str]:
     try:
         normalized_name = normalize_project_name(project_name)
-        project_dir = get_project_dir(owner, normalized_name)
-        if not project_dir.exists() or not project_dir.is_dir():
-            return False, "Proyecto no encontrado", owner
-
         project = _upsert_project_record(owner, normalized_name)
         candidate = _get_profile_by_username(username)
         owner_profile = _get_profile_by_username(owner)
@@ -976,12 +1005,9 @@ def transfer_project_ownership(
         if not current_member:
             return False, "Solo puedes transferir el proyecto a un miembro existente", owner
 
-        next_owner_dir = ensure_user_dir(candidate_username)
-        next_project_dir = next_owner_dir / normalized_name
-        if next_project_dir.exists():
+        if _get_project_record(candidate_username, normalized_name):
             return False, "El nuevo propietario ya tiene un proyecto con ese nombre", owner
 
-        project_dir.rename(next_project_dir)
         try:
             previous_owner_id = str(project.get("owner_id") or "").strip()
             if not previous_owner_id:
@@ -1013,7 +1039,6 @@ def transfer_project_ownership(
                 (project["id"], candidate_id),
             )
         except ServiceError as exc:
-            next_project_dir.rename(project_dir)
             return False, str(exc), owner
 
         notify_project_ownership_transferred(
@@ -1026,6 +1051,8 @@ def transfer_project_ownership(
         )
 
         return True, "Propiedad del proyecto transferida correctamente", candidate_username
+    except FileNotFoundError:
+        return False, "Proyecto no encontrado", owner
     except (ServiceError, ValueError) as exc:
         return False, str(exc), owner
 
@@ -1100,7 +1127,15 @@ async def update_project(
 ) -> tuple[bool, str, str]:
     try:
         current_name = normalize_project_name(project_name)
-        project_dir = get_project_dir(owner, current_name)
+        project_record = _upsert_project_record(owner, current_name)
+        project_id = str(project_record.get("id") or "").strip()
+        project_dir = (
+            migrate_legacy_project_dir(project_id, owner=owner, project_name=current_name)
+            if project_id
+            else get_project_dir(owner, current_name)
+        )
+    except FileNotFoundError:
+        return False, "Proyecto no encontrado", project_name
     except ValueError as exc:
         return False, str(exc), project_name
 
@@ -1120,21 +1155,16 @@ async def update_project(
         except ValueError as exc:
             return False, str(exc), current_name
         if normalized_new_name != current_name:
-            new_dir = get_project_dir(owner, normalized_new_name)
-            if new_dir.exists():
+            if _get_project_record(owner, normalized_new_name):
                 return False, "Ya existe un proyecto con ese nombre", current_name
-            project_dir.rename(new_dir)
             try:
                 _rename_project_record(owner, current_name, normalized_new_name)
             except ServiceError as exc:
-                new_dir.rename(project_dir)
                 return False, str(exc), current_name
-            project_dir = new_dir
             current_name = normalized_new_name
 
     if entity_name is not None:
         try:
-            project_record = _upsert_project_record(owner, current_name)
             project_id = str(project_record.get("id") or "").strip()
             if project_id:
                 _set_project_entity(project_id, entity_name)
@@ -1200,13 +1230,22 @@ def delete_project(
 ) -> tuple[bool, str]:
     try:
         normalized_name = normalize_project_name(project_name)
-        project_dir = get_project_dir(owner, normalized_name)
+        project = _upsert_project_record(owner, normalized_name)
+    except FileNotFoundError:
+        return False, "Proyecto no encontrado."
     except ValueError as exc:
         return False, str(exc)
 
+    project_id = str(project.get("id") or "").strip()
+    project_dir = (
+        locate_project_storage_dir(project_id, owner=owner, project_name=normalized_name)
+        if project_id
+        else get_project_dir(owner, normalized_name)
+    )
     if not project_dir.exists() or not project_dir.is_dir():
         return False, "Proyecto no encontrado."
     shutil.rmtree(project_dir)
+    cleanup_legacy_owner_dir(owner)
     try:
         _delete_project_record(owner, normalized_name)
     except ServiceError as exc:

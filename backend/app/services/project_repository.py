@@ -3,11 +3,11 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from backend.app.core.config import get_settings
 from backend.app.services.database import execute, fetch_all, fetch_one
 from backend.app.services.entities import ensure_entity
 from backend.app.services.errors import ServiceError
 from backend.app.services.project_inventory import normalize_project_name
+from backend.app.services.project_storage import get_legacy_project_dir
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
 PROJECT_MEMBER_ROLE_RANK: dict[str, int] = {
@@ -287,12 +287,8 @@ def _get_project_team(project_id: str, team_id: str) -> dict[str, Any] | None:
     return None
 
 
-def _upsert_project_record(owner: str, project_name: str, entity_name: str | None = None) -> dict[str, Any]:
+def _create_project_record(owner: str, project_name: str, entity_name: str | None = None) -> dict[str, Any]:
     normalized_name = normalize_project_name(project_name)
-    project_dir = get_settings().projects_dir / owner / normalized_name
-    if not project_dir.exists() or not project_dir.is_dir():
-        raise FileNotFoundError("Proyecto no encontrado")
-
     existing = _get_project_record(owner, normalized_name)
     if existing:
         return existing
@@ -333,6 +329,19 @@ def _upsert_project_record(owner: str, project_name: str, entity_name: str | Non
         (created["id"], owner_id),
     )
     return created
+
+
+def _upsert_project_record(owner: str, project_name: str, entity_name: str | None = None) -> dict[str, Any]:
+    normalized_name = normalize_project_name(project_name)
+    existing = _get_project_record(owner, normalized_name)
+    if existing:
+        return existing
+
+    project_dir = get_legacy_project_dir(owner, normalized_name)
+    if not project_dir.exists() or not project_dir.is_dir():
+        raise FileNotFoundError("Proyecto no encontrado")
+
+    return _create_project_record(owner, normalized_name, entity_name)
 
 
 def _rename_project_record(owner: str, current_name: str, new_name: str) -> None:
