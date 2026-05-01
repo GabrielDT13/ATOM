@@ -29,6 +29,7 @@ def test_get_my_profile_route_returns_profile(client: TestClient, monkeypatch) -
                 "security_alerts": True,
                 "dark_mode": False,
                 "interface_language": "es",
+                "interface_language_auto": True,
             },
             "summary": {
                 "active_projects": 2,
@@ -54,6 +55,59 @@ def test_get_my_profile_route_returns_profile(client: TestClient, monkeypatch) -
 
     assert response.status_code == 200
     assert response.json()["username"] == "doctor"
+
+
+def test_get_public_profile_route_returns_public_profile(client: TestClient, monkeypatch) -> None:
+    from backend.app.api.routes import profile as profile_routes
+
+    monkeypatch.setattr(
+        profile_routes,
+        "get_current_user",
+        lambda request: {"id": "viewer-1", "username": "viewer", "role": "user"},
+    )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_public_profile",
+        lambda username: {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "username": username,
+            "display_name": "Dra. Ada",
+            "role": "user",
+            "department": "Genómica",
+            "bio": "Perfil público",
+            "joined_at": "2026-03-01T10:00:00+00:00",
+            "updated_at": "2026-03-10T12:00:00+00:00",
+            "summary": {
+                "public_projects": 2,
+                "results_ready": 1,
+                "member_connections": 3,
+            },
+            "activity": [
+                {
+                    "kind": "project_updated",
+                    "title": "Proyecto público actualizado",
+                    "description": "Se actualizaron los datos visibles de Atlas.",
+                    "created_at": "2026-03-10T12:00:00+00:00",
+                }
+            ],
+            "public_projects": [
+                {
+                    "id": "project-1",
+                    "name": "Atlas",
+                    "slug": "doctor-atlas",
+                    "status": "results",
+                    "updated_at": "2026-03-10T12:00:00+00:00",
+                    "member_count": 3,
+                }
+            ],
+        },
+    )
+
+    response = client.get("/api/profile/public/doctor")
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "doctor"
+    assert response.json()["public_projects"][0]["slug"] == "doctor-atlas"
 
 
 def test_update_my_profile_route_forwards_payload_and_refreshes_session(
@@ -93,6 +147,7 @@ def test_update_my_profile_route_forwards_payload_and_refreshes_session(
                     "security_alerts": True,
                     "dark_mode": True,
                     "interface_language": "es",
+                    "interface_language_auto": False,
                 },
                 "summary": {
                     "active_projects": 2,
@@ -134,6 +189,7 @@ def test_update_my_profile_route_forwards_payload_and_refreshes_session(
                 "security_alerts": True,
                 "dark_mode": True,
                 "interface_language": "es",
+                "interface_language_auto": False,
             },
         },
     )
@@ -153,6 +209,7 @@ def test_update_my_profile_route_forwards_payload_and_refreshes_session(
             "security_alerts": True,
             "dark_mode": True,
             "interface_language": "es",
+            "interface_language_auto": False,
         },
     }
 

@@ -20,6 +20,7 @@ export type ProfileViewModel = {
   displayName: string;
   email: string;
   interfaceLanguage: "es" | "en";
+  interfaceLanguageAuto: boolean;
   joinedLabel: string;
   lastUpdatedLabel: string;
   metrics: ProfileStatItem[];
@@ -191,6 +192,7 @@ export function buildProfileModel(
     email,
     emailNotificationsEnabled: profile?.preferences.email_notifications ?? true,
     interfaceLanguage: profile?.preferences.interface_language ?? "es",
+    interfaceLanguageAuto: profile?.preferences.interface_language_auto ?? true,
     joinedLabel,
     lastUpdatedLabel,
     metrics,

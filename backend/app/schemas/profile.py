@@ -8,6 +8,7 @@ class ProfilePreferencesPayload(BaseModel):
     security_alerts: bool = True
     dark_mode: bool = False
     interface_language: str = "es"
+    interface_language_auto: bool = True
 
     @field_validator("interface_language")
     @classmethod
@@ -110,6 +111,12 @@ class ProfileSummaryResponse(BaseModel):
     pending_reviews: int
 
 
+class PublicProfileSummaryResponse(BaseModel):
+    public_projects: int
+    results_ready: int
+    member_connections: int
+
+
 class ProfileResponse(BaseModel):
     id: str
     email: str
@@ -124,6 +131,29 @@ class ProfileResponse(BaseModel):
     summary: ProfileSummaryResponse
     activity: list[ProfileActivityResponse]
     projects_preview: ProfileProjectsPreviewResponse
+
+
+class PublicProfileProjectResponse(BaseModel):
+    id: str
+    name: str
+    slug: str | None = None
+    status: str
+    updated_at: str
+    member_count: int
+
+
+class PublicProfileResponse(BaseModel):
+    id: str
+    username: str
+    display_name: str
+    role: str
+    department: str | None = None
+    bio: str | None = None
+    joined_at: str
+    updated_at: str
+    summary: PublicProfileSummaryResponse
+    activity: list[ProfileActivityResponse]
+    public_projects: list[PublicProfileProjectResponse]
 
 
 class ProfileMutationResponse(BaseModel):

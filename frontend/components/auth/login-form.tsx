@@ -14,6 +14,7 @@ import {
   LockIcon,
   MailIcon,
 } from "@/components/auth/auth-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { apiFetch } from "@/lib/api";
 import type { SessionResponse } from "@/types/api";
@@ -21,6 +22,7 @@ import type { SessionResponse } from "@/types/api";
 export function LoginForm() {
   const router = useRouter();
   const toast = useAppToast();
+  const { locale } = useLocale();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -40,19 +42,24 @@ export function LoginForm() {
 
     toast.promise(loginRequest, {
       loading: {
-        title: "Comprobando credenciales",
-        description: "Estamos verificando tu acceso.",
+        title: locale === "es" ? "Comprobando credenciales" : "Checking credentials",
+        description: locale === "es" ? "Estamos verificando tu acceso." : "We are verifying your access.",
       },
       success: {
-        title: "Sesión iniciada",
-        description: "Accediendo al panel.",
+        title: locale === "es" ? "Sesión iniciada" : "Signed in",
+        description: locale === "es" ? "Accediendo al panel." : "Opening dashboard.",
       },
       error: {
         title: (submitError) =>
           submitError instanceof Error
             ? submitError.message
-            : "No se pudo iniciar sesión",
-        description: "Revisa el email y la contraseña e inténtalo otra vez.",
+            : locale === "es"
+              ? "No se pudo iniciar sesión"
+              : "Could not sign in",
+        description:
+          locale === "es"
+            ? "Revisa el email y la contraseña e inténtalo otra vez."
+            : "Check email and password, then try again.",
       },
     });
 
@@ -76,10 +83,10 @@ export function LoginForm() {
           <AuthInputField
             autoComplete="email"
             id="login-email"
-            label="Email"
+            label={locale === "es" ? "Email" : "Email"}
             leadingIcon={<MailIcon />}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="Introduce tu email"
+            placeholder={locale === "es" ? "Introduce tu email" : "Enter your email"}
             required
             type="email"
             value={email}
@@ -88,14 +95,14 @@ export function LoginForm() {
           <AuthInputField
             autoComplete="current-password"
             id="login-password"
-            label="Contraseña"
+            label={locale === "es" ? "Contraseña" : "Password"}
             leadingIcon={<LockIcon />}
             onChange={(event) => setPassword(event.target.value)}
-            placeholder="Introduce tu contraseña"
+            placeholder={locale === "es" ? "Introduce tu contraseña" : "Enter your password"}
             required
             trailingSlot={
               <button
-                aria-label="Mostrar u ocultar contraseña"
+                aria-label={locale === "es" ? "Mostrar u ocultar contraseña" : "Show or hide password"}
                 className="inline-flex h-11 w-11 items-center justify-center text-slate-400 transition-colors hover:text-slate-600 focus:outline-none"
                 onClick={() => setShowPassword((current) => !current)}
                 type="button"
@@ -112,7 +119,7 @@ export function LoginForm() {
               className="text-sm font-medium text-primary transition-colors hover:text-blue-700"
               href="/forgot-password"
             >
-              He olvidado mi contraseña
+              {locale === "es" ? "He olvidado mi contraseña" : "I forgot my password"}
             </Link>
           </div>
 
@@ -121,7 +128,7 @@ export function LoginForm() {
             disabled={loading}
             type="submit"
           >
-            <span>{loading ? "Accediendo..." : "Acceder"}</span>
+            <span>{loading ? (locale === "es" ? "Accediendo..." : "Signing in...") : locale === "es" ? "Acceder" : "Sign in"}</span>
             <ArrowRightIcon className="ml-2 h-5 w-5" />
           </button>
         </form>

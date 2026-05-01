@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { BellIcon, CheckIcon } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,19 +35,19 @@ const EMPTY_NOTIFICATIONS: NotificationCollectionResponse = {
   unread_count: 0,
 };
 
-function formatRelativeTime(dateValue?: string | null) {
+function formatRelativeTime(dateValue: string | null | undefined, locale: "en" | "es") {
   if (!dateValue) {
-    return "Ahora";
+    return locale === "es" ? "Ahora" : "Now";
   }
 
   const parsedDate = new Date(dateValue);
   if (Number.isNaN(parsedDate.getTime())) {
-    return "Ahora";
+    return locale === "es" ? "Ahora" : "Now";
   }
 
   const diffMilliseconds = parsedDate.getTime() - Date.now();
   const diffMinutes = Math.round(diffMilliseconds / 60000);
-  const relativeFormatter = new Intl.RelativeTimeFormat("es-ES", { numeric: "auto" });
+  const relativeFormatter = new Intl.RelativeTimeFormat(locale === "es" ? "es-ES" : "en-US", { numeric: "auto" });
 
   if (Math.abs(diffMinutes) < 60) {
     return relativeFormatter.format(diffMinutes, "minute");
@@ -62,13 +63,30 @@ function formatRelativeTime(dateValue?: string | null) {
     return relativeFormatter.format(diffDays, "day");
   }
 
-  return new Intl.DateTimeFormat("es-ES", {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(parsedDate);
 }
 
-function getNotificationTypeLabel(notification: NotificationRecord) {
+function getNotificationTypeLabel(notification: NotificationRecord, locale: "en" | "es") {
+  if (locale === "en") {
+    switch (notification.type) {
+      case "analysis_completed":
+        return "Analysis";
+      case "analysis_failed":
+        return "Issue";
+      case "project_access_changed":
+        return "Permissions";
+      case "project_ownership_transferred":
+        return "Ownership";
+      case "project_shared":
+        return "Project";
+      default:
+        return "Notification";
+    }
+  }
+
   switch (notification.type) {
     case "analysis_completed":
       return "Análisis";
@@ -85,8 +103,26 @@ function getNotificationTypeLabel(notification: NotificationRecord) {
   }
 }
 
-function getNotificationSummary(notification: NotificationRecord) {
+function getNotificationSummary(notification: NotificationRecord, locale: "en" | "es") {
   const projectName = notification.project_name?.trim() || "El proyecto";
+
+  if (locale === "en") {
+    const projectNameEn = notification.project_name?.trim() || "Project";
+    switch (notification.type) {
+      case "analysis_completed":
+        return `${projectNameEn} finished successfully.`;
+      case "analysis_failed":
+        return `${projectNameEn} finished with issues.`;
+      case "project_access_changed":
+        return `Your permissions changed in ${projectNameEn}.`;
+      case "project_ownership_transferred":
+        return `You now manage ${projectNameEn}.`;
+      case "project_shared":
+        return `${projectNameEn} was shared with you.`;
+      default:
+        return notification.title;
+    }
+  }
 
   switch (notification.type) {
     case "analysis_completed":
@@ -134,6 +170,43 @@ function applyReadState(
 export function HeaderNotificationsPopover({
   user,
 }: HeaderNotificationsPopoverProps) {
+  const { locale } = useLocale();
+  const copy =
+    locale === "es"
+      ? {
+          aria: "Notificaciones",
+          title: "Notificaciones",
+          pending: (count: number) => `${count} pendiente(s) de revisar`,
+          emptyPending: "No tienes avisos pendientes",
+          markAll: "Marcar todas",
+          loading: "Cargando notificaciones...",
+          markRead: (title: string) => `Marcar como leída: ${title}`,
+          viewMore: "Ver más",
+          open: "Abrir",
+          emptyTitle: "No hay notificaciones todavía.",
+          emptyDescription: "Aquí verás avisos cuando se comparta un proyecto contigo o termine una ejecución.",
+          detail: "Detalle",
+          project: "Proyecto",
+          source: "Origen",
+          unavailable: "No disponible",
+        }
+      : {
+          aria: "Notifications",
+          title: "Notifications",
+          pending: (count: number) => `${count} pending`,
+          emptyPending: "No pending notifications",
+          markAll: "Mark all",
+          loading: "Loading notifications...",
+          markRead: (title: string) => `Mark as read: ${title}`,
+          viewMore: "View more",
+          open: "Open",
+          emptyTitle: "No notifications yet.",
+          emptyDescription: "You will see alerts here when a project is shared with you or an execution finishes.",
+          detail: "Detail",
+          project: "Project",
+          source: "Source",
+          unavailable: "Unavailable",
+        };
   const [collection, setCollection] =
     useState<NotificationCollectionResponse>(EMPTY_NOTIFICATIONS);
   const [loading, setLoading] = useState(true);
@@ -271,7 +344,7 @@ export function HeaderNotificationsPopover({
       <Popover onOpenChange={handleOpenChange} open={open}>
         <PopoverTrigger asChild>
           <button
-            aria-label="Notificaciones"
+            aria-label={copy.aria}
             className="relative flex h-10 w-10 items-center justify-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-primary"
             data-tour="header-notifications"
             type="button"
@@ -294,11 +367,11 @@ export function HeaderNotificationsPopover({
           <div className="flex flex-col">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
               <div>
-                <p className="text-sm font-semibold text-slate-950">Notificaciones</p>
+                <p className="text-sm font-semibold text-slate-950">{copy.title}</p>
                 <p className="mt-1 text-xs text-slate-500">
                   {collection.unread_count > 0
-                    ? `${collection.unread_count} pendiente(s) de revisar`
-                    : "No tienes avisos pendientes"}
+                    ? copy.pending(collection.unread_count)
+                    : copy.emptyPending}
                 </p>
               </div>
 
@@ -308,14 +381,14 @@ export function HeaderNotificationsPopover({
                 size="sm"
                 variant="ghost"
               >
-                Marcar todas
+                {copy.markAll}
               </Button>
             </div>
 
             <div className="max-h-[24rem] overflow-y-auto p-3">
               {loading ? (
                 <div className="px-2 py-6 text-center text-sm text-slate-500">
-                  Cargando notificaciones...
+                  {copy.loading}
                 </div>
               ) : unreadItems.length > 0 ? (
                 <div className="flex flex-col gap-2">
@@ -343,10 +416,10 @@ export function HeaderNotificationsPopover({
                                     : "bg-slate-100 text-slate-500",
                                 )}
                               >
-                                {getNotificationTypeLabel(notification)}
+                                {getNotificationTypeLabel(notification, locale)}
                               </span>
                               <span className="text-xs text-slate-400">
-                                {formatRelativeTime(notification.created_at)}
+                                {formatRelativeTime(notification.created_at, locale)}
                               </span>
                             </div>
 
@@ -354,13 +427,13 @@ export function HeaderNotificationsPopover({
                               {notification.title}
                             </p>
                             <p className="mt-1 line-clamp-1 text-sm text-slate-600">
-                              {getNotificationSummary(notification)}
+                              {getNotificationSummary(notification, locale)}
                             </p>
                           </div>
 
                           {unread ? (
                             <button
-                              aria-label={`Marcar como leída: ${notification.title}`}
+                              aria-label={copy.markRead(notification.title)}
                               className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-white text-primary transition hover:border-sky-300 hover:bg-sky-50"
                               onClick={() => void handleMarkAsRead(notification.id)}
                               type="button"
@@ -381,7 +454,7 @@ export function HeaderNotificationsPopover({
                               onClick={() => void handleOpenNotificationDetails(notification)}
                               type="button"
                             >
-                              Ver más
+                              {copy.viewMore}
                             </button>
                             {notification.action_url ? (
                               <a
@@ -393,7 +466,7 @@ export function HeaderNotificationsPopover({
                                   }
                                 }}
                               >
-                                {notification.action_label || "Abrir"}
+                                {notification.action_label || copy.open}
                               </a>
                             ) : null}
                           </div>
@@ -405,10 +478,10 @@ export function HeaderNotificationsPopover({
               ) : (
                 <div className="px-4 py-10 text-center">
                   <p className="text-sm font-medium text-slate-700">
-                    No hay notificaciones todavía.
+                    {copy.emptyTitle}
                   </p>
                   <p className="mt-2 text-xs leading-5 text-slate-500">
-                    Aquí verás avisos cuando se comparta un proyecto contigo o termine una ejecución.
+                    {copy.emptyDescription}
                   </p>
                 </div>
               )}
@@ -432,17 +505,17 @@ export function HeaderNotificationsPopover({
                 <DialogHeader className="pr-10">
                   <div className="flex items-center gap-2">
                     <span className="inline-flex rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary shadow-sm">
-                      {getNotificationTypeLabel(selectedNotification)}
+                      {getNotificationTypeLabel(selectedNotification, locale)}
                     </span>
                     <span className="text-xs text-slate-400">
-                      {formatRelativeTime(selectedNotification.created_at)}
+                      {formatRelativeTime(selectedNotification.created_at, locale)}
                     </span>
                   </div>
                   <DialogTitle className="mt-3 text-slate-950">
                     {selectedNotification.title}
                   </DialogTitle>
                   <DialogDescription className="text-slate-500">
-                    {getNotificationSummary(selectedNotification)}
+                    {getNotificationSummary(selectedNotification, locale)}
                   </DialogDescription>
                 </DialogHeader>
               </div>
@@ -450,7 +523,7 @@ export function HeaderNotificationsPopover({
               <div className="space-y-4 px-6 py-6 sm:px-8">
                 <div className="rounded-[22px] border border-slate-200 bg-white px-4 py-4">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                    Detalle
+                    {copy.detail}
                   </p>
                   <p className="mt-2 text-sm leading-7 text-slate-700">
                     {selectedNotification.message}
@@ -460,15 +533,15 @@ export function HeaderNotificationsPopover({
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      Proyecto
+                      {copy.project}
                     </p>
                     <p className="mt-2 text-sm font-medium text-slate-800">
-                      {selectedNotification.project_name || "No disponible"}
+                      {selectedNotification.project_name || copy.unavailable}
                     </p>
                   </div>
                   <div className="rounded-[20px] border border-slate-200 bg-slate-50 px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      Origen
+                      {copy.source}
                     </p>
                     <p className="mt-2 text-sm font-medium text-slate-800">
                       {selectedNotification.actor_display_name ||
@@ -485,7 +558,7 @@ export function HeaderNotificationsPopover({
                     className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[0_16px_32px_-20px_rgba(13,127,242,0.85)] transition hover:bg-primary-dark"
                     href={selectedNotification.action_url}
                   >
-                    {selectedNotification.action_label || "Abrir"}
+                    {selectedNotification.action_label || copy.open}
                   </a>
                 ) : null}
               </DialogFooter>

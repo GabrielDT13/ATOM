@@ -53,6 +53,7 @@ def test_get_my_profile_builds_response_from_profile_preferences_and_activity(mo
                 "security_alerts": False,
                 "dark_mode": True,
                 "interface_language": "es",
+                "interface_language_auto": False,
             },
             activity=[
                 {
@@ -75,6 +76,7 @@ def test_get_my_profile_builds_response_from_profile_preferences_and_activity(mo
         "security_alerts": False,
         "dark_mode": True,
         "interface_language": "es",
+        "interface_language_auto": False,
     }
     assert payload["summary"] == {
         "active_projects": 3,
@@ -146,6 +148,7 @@ def test_get_my_profile_uses_defaults_when_preferences_are_missing(monkeypatch) 
         "security_alerts": True,
         "dark_mode": False,
         "interface_language": "es",
+        "interface_language_auto": True,
     }
     assert payload["summary"] == {
         "active_projects": 0,
@@ -153,6 +156,94 @@ def test_get_my_profile_uses_defaults_when_preferences_are_missing(monkeypatch) 
         "pending_reviews": 0,
     }
     assert payload["activity"] == []
+
+
+def test_get_public_profile_returns_only_public_data(monkeypatch) -> None:
+    monkeypatch.setattr(
+        profile_service,
+        "_fetch_profile_by_username",
+        lambda username: {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "username": username,
+            "full_name": "Dra. Ada",
+            "department": "Bioinformática",
+            "bio": "Perfil público",
+            "is_active": True,
+            "created_at": "2026-03-01T10:00:00+00:00",
+            "updated_at": "2026-03-10T12:00:00+00:00",
+            "roles": ["user"],
+        },
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_fetch_public_owned_projects",
+        lambda user_id: [
+            {
+                "id": "project-1",
+                "name": "Atlas",
+                "slug": "doctor-atlas",
+                "status": "results",
+                "updated_at": "2026-03-12T08:00:00+00:00",
+                "member_count": 3,
+            },
+            {
+                "id": "project-2",
+                "name": "Draft",
+                "slug": "doctor-draft",
+                "status": "configured",
+                "updated_at": "2026-03-11T08:00:00+00:00",
+                "member_count": 1,
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_fetch_profile_activity",
+        lambda user_id, limit=6: [
+            {
+                "activity_type": "profile_updated",
+                "title": "Perfil actualizado",
+                "description": "Se actualizó la biografía.",
+                "created_at": "2026-03-13T09:00:00+00:00",
+            },
+            {
+                "activity_type": "password_changed",
+                "title": "Cambio de contraseña",
+                "description": "No debe aparecer.",
+                "created_at": "2026-03-14T09:00:00+00:00",
+            },
+        ],
+    )
+
+    payload = profile_service.get_public_profile("doctor")
+
+    assert payload["username"] == "doctor"
+    assert payload["display_name"] == "Dra. Ada"
+    assert payload["summary"] == {
+        "public_projects": 2,
+        "results_ready": 1,
+        "member_connections": 2,
+    }
+    assert payload["public_projects"] == [
+        {
+            "id": "project-1",
+            "name": "Atlas",
+            "slug": "doctor-atlas",
+            "status": "results",
+            "updated_at": "2026-03-12T08:00:00+00:00",
+            "member_count": 3,
+        },
+        {
+            "id": "project-2",
+            "name": "Draft",
+            "slug": "doctor-draft",
+            "status": "configured",
+            "updated_at": "2026-03-11T08:00:00+00:00",
+            "member_count": 1,
+        },
+    ]
+    assert payload["activity"][0]["title"] == "Perfil actualizado"
+    assert all(item["kind"] != "password_changed" for item in payload["activity"])
 
 
 def test_update_my_profile_updates_profile_preferences_and_activity(monkeypatch) -> None:
@@ -205,6 +296,7 @@ def test_update_my_profile_updates_profile_preferences_and_activity(monkeypatch)
                 "security_alerts": True,
                 "dark_mode": True,
                 "interface_language": "es",
+                "interface_language_auto": False,
             },
             "summary": {
                 "active_projects": 2,
@@ -232,6 +324,7 @@ def test_update_my_profile_updates_profile_preferences_and_activity(monkeypatch)
             "security_alerts": True,
             "dark_mode": True,
             "interface_language": "es",
+            "interface_language_auto": False,
         },
     )
 
@@ -246,6 +339,7 @@ def test_update_my_profile_updates_profile_preferences_and_activity(monkeypatch)
         "security_alerts": True,
         "dark_mode": True,
         "interface_language": "es",
+        "interface_language_auto": False,
     }
     assert logged_activity == {
         "user_id": "11111111-1111-1111-1111-111111111111",
@@ -272,6 +366,7 @@ def test_update_my_profile_rejects_invalid_interface_language(monkeypatch) -> No
             "security_alerts": True,
             "dark_mode": False,
             "interface_language": "fr",
+            "interface_language_auto": True,
         },
     )
 

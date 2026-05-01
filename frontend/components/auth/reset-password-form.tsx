@@ -13,6 +13,7 @@ import {
   EyeOffIcon,
   LockIcon,
 } from "@/components/auth/auth-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { apiFetch } from "@/lib/api";
 import type { AuthMessageResponse } from "@/types/api";
@@ -21,6 +22,7 @@ export function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useAppToast();
+  const { locale } = useLocale();
   const token = useMemo(() => searchParams.get("token")?.trim() ?? "", [searchParams]);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -32,15 +34,28 @@ export function ResetPasswordForm() {
     event.preventDefault();
 
     if (!token) {
-      toast.error("Enlace no válido", "Falta el token de recuperación.");
+      toast.error(
+        locale === "es" ? "Enlace no válido" : "Invalid link",
+        locale === "es" ? "Falta el token de recuperación." : "Missing recovery token.",
+      );
       return;
     }
     if (newPassword.trim().length < 8) {
-      toast.error("Contraseña no válida", "La nueva contraseña debe tener al menos 8 caracteres.");
+      toast.error(
+        locale === "es" ? "Contraseña no válida" : "Invalid password",
+        locale === "es"
+          ? "La nueva contraseña debe tener al menos 8 caracteres."
+          : "New password must be at least 8 characters long.",
+      );
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Contraseñas distintas", "La confirmación no coincide con la nueva contraseña.");
+      toast.error(
+        locale === "es" ? "Contraseñas distintas" : "Passwords do not match",
+        locale === "es"
+          ? "La confirmación no coincide con la nueva contraseña."
+          : "Confirmation does not match new password.",
+      );
       return;
     }
 
@@ -58,17 +73,24 @@ export function ResetPasswordForm() {
 
     toast.promise(request, {
       loading: {
-        title: "Actualizando contraseña",
-        description: "Estamos guardando la nueva contraseña.",
+        title: locale === "es" ? "Actualizando contraseña" : "Updating password",
+        description: locale === "es" ? "Estamos guardando la nueva contraseña." : "We are saving new password.",
       },
       success: {
-        title: "Contraseña actualizada",
-        description: "Ya puedes iniciar sesión con la nueva contraseña.",
+        title: locale === "es" ? "Contraseña actualizada" : "Password updated",
+        description: locale === "es" ? "Ya puedes iniciar sesión con la nueva contraseña." : "You can now sign in with new password.",
       },
       error: {
         title: (submitError) =>
-          submitError instanceof Error ? submitError.message : "No se pudo actualizar la contraseña",
-        description: "Solicita un nuevo enlace si este ya no es válido.",
+          submitError instanceof Error
+            ? submitError.message
+            : locale === "es"
+              ? "No se pudo actualizar la contraseña"
+              : "Could not update password",
+        description:
+          locale === "es"
+            ? "Solicita un nuevo enlace si este ya no es válido."
+            : "Request new link if this one is no longer valid.",
       },
     });
 
@@ -87,17 +109,17 @@ export function ResetPasswordForm() {
         <AuthBrand />
 
         <div className="space-y-2 text-center">
-          <h2 className="text-2xl font-bold text-slate-950">Nueva contraseña</h2>
+          <h2 className="text-2xl font-bold text-slate-950">{locale === "es" ? "Nueva contraseña" : "New password"}</h2>
           <p className="text-sm leading-6 text-slate-500">
-            Define una nueva contraseña para tu cuenta de ATOM.
+            {locale === "es" ? "Define una nueva contraseña para tu cuenta de ATOM." : "Set new password for your ATOM account."}
           </p>
         </div>
 
         {!token ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-4 text-sm leading-6 text-amber-900">
-            El enlace no es válido o está incompleto. Solicita uno nuevo desde{" "}
+            {locale === "es" ? "El enlace no es válido o está incompleto. Solicita uno nuevo desde " : "Link is invalid or incomplete. Request new one from "}
             <Link className="font-semibold underline" href="/forgot-password">
-              recuperar acceso
+              {locale === "es" ? "recuperar acceso" : "recover access"}
             </Link>
             .
           </div>
@@ -106,14 +128,14 @@ export function ResetPasswordForm() {
             <AuthInputField
               autoComplete="new-password"
               id="reset-password-new"
-              label="Nueva contraseña"
+              label={locale === "es" ? "Nueva contraseña" : "New password"}
               leadingIcon={<LockIcon />}
               onChange={(event) => setNewPassword(event.target.value)}
-              placeholder="Mínimo 8 caracteres"
+              placeholder={locale === "es" ? "Mínimo 8 caracteres" : "Minimum 8 characters"}
               required
               trailingSlot={
                 <button
-                  aria-label="Mostrar u ocultar contraseña"
+                  aria-label={locale === "es" ? "Mostrar u ocultar contraseña" : "Show or hide password"}
                   className="inline-flex h-11 w-11 items-center justify-center text-slate-400 transition-colors hover:text-slate-600 focus:outline-none"
                   onClick={() => setShowPassword((current) => !current)}
                   type="button"
@@ -128,14 +150,14 @@ export function ResetPasswordForm() {
             <AuthInputField
               autoComplete="new-password"
               id="reset-password-confirm"
-              label="Confirmar contraseña"
+              label={locale === "es" ? "Confirmar contraseña" : "Confirm password"}
               leadingIcon={<LockIcon />}
               onChange={(event) => setConfirmPassword(event.target.value)}
-              placeholder="Repite la contraseña"
+              placeholder={locale === "es" ? "Repite la contraseña" : "Repeat password"}
               required
               trailingSlot={
                 <button
-                  aria-label="Mostrar u ocultar confirmación"
+                  aria-label={locale === "es" ? "Mostrar u ocultar confirmación" : "Show or hide confirmation"}
                   className="inline-flex h-11 w-11 items-center justify-center text-slate-400 transition-colors hover:text-slate-600 focus:outline-none"
                   onClick={() => setShowConfirmPassword((current) => !current)}
                   type="button"
@@ -152,7 +174,7 @@ export function ResetPasswordForm() {
               disabled={loading}
               type="submit"
             >
-              <span>{loading ? "Guardando..." : "Guardar contraseña"}</span>
+              <span>{loading ? (locale === "es" ? "Guardando..." : "Saving...") : locale === "es" ? "Guardar contraseña" : "Save password"}</span>
               <ArrowRightIcon className="ml-2 h-5 w-5" />
             </button>
           </form>

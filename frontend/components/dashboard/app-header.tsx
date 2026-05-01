@@ -2,6 +2,7 @@
 
 import type { SessionUser } from "@/types/api";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { MenuIcon, UserIcon } from "@/components/dashboard/dashboard-icons";
 import { HeaderHelpPopover } from "@/components/dashboard/header-help-popover";
 import { HeaderNotificationsPopover } from "@/components/dashboard/header-notifications-popover";
@@ -36,11 +37,14 @@ export function AppHeader({
   supportEmail,
   user,
 }: AppHeaderProps) {
+  const { locale } = useLocale();
+  const menuLabel = locale === "es" ? "Abrir menú lateral" : "Open side menu";
+
   return (
     <header className="flex h-20 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-8">
       <div className="flex items-center gap-3">
         <button
-          aria-label="Abrir menú lateral"
+          aria-label={menuLabel}
           className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-100 hover:text-primary lg:hidden"
           onClick={onOpenSidebar}
           type="button"
@@ -58,7 +62,15 @@ export function AppHeader({
         <div className="flex items-center gap-3">
           <div className="text-right">
             <p className="text-sm font-bold text-slate-900">{getUserHeading(user)}</p>
-            <p className="text-xs text-slate-500">{getUserSubtitle(user)}</p>
+            <p className="text-xs text-slate-500">
+              {locale === "es"
+                ? getUserSubtitle(user)
+                : user.department
+                  ? user.department
+                  : user.role === "admin"
+                    ? "System administrator"
+                    : "Platform user"}
+            </p>
           </div>
 
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-slate-600">
