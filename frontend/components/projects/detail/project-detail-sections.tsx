@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   buildProjectFileUrl,
   formatDate,
@@ -26,11 +28,14 @@ import {
   ProjectStackIcon,
   RefreshIcon,
 } from "@/components/projects/project-management-icons";
+import { PublicProjectShareButton } from "@/components/projects/public-project-share-button";
+import { getProjectVisibilityMeta } from "@/components/projects/project-management-utils";
 import type { ProjectExecutionGroup } from "@/components/projects/project-detail-utils";
 import type { ParsedProjectReport } from "@/components/projects/project-report-utils";
 import { buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buildPublicProfileHref } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord, ProjectSharedTeam } from "@/types/api";
 
@@ -68,13 +73,17 @@ export function ProjectDetailHero({
   accessRole,
   canEdit,
   project,
+  projectRef,
   teamCount,
 }: {
   accessRole: string;
   canEdit: boolean;
   project: ProjectDetails;
+  projectRef: string | null;
   teamCount: number;
 }) {
+  const visibilityMeta = getProjectVisibilityMeta(project.visibility);
+
   return (
     <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
@@ -91,9 +100,12 @@ export function ProjectDetailHero({
             principales desde un único lugar.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+            <Link
+              className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/14"
+              href={buildPublicProfileHref(project.owner)}
+            >
               @{project.owner}
-            </span>
+            </Link>
             {project.entity_name ? (
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
                 {project.entity_name}
@@ -101,6 +113,9 @@ export function ProjectDetailHero({
             ) : null}
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
               Acceso: {accessRole}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              Visibilidad: {visibilityMeta.label}
             </span>
             {teamCount > 0 ? (
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
@@ -117,6 +132,12 @@ export function ProjectDetailHero({
           <ButtonLink href="/dashboard/projects" size="lg" tone="on-dark" variant="secondary">
             Volver al listado
           </ButtonLink>
+          <PublicProjectShareButton
+            project={project}
+            projectRef={projectRef}
+            tone="on-dark"
+            variant="ghost"
+          />
           {canEdit ? (
             <ButtonLink
               href={`/dashboard/edit_project/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`}

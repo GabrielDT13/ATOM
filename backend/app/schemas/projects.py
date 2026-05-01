@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
 ProjectEditableMemberRole = Literal["editor", "viewer"]
+ProjectVisibility = Literal["private", "public"]
 
 
 class ProjectFileResponse(BaseModel):
@@ -35,6 +36,7 @@ class ProjectSummaryResponse(BaseModel):
     status: str
     template_file: str | None
     updated_at: str
+    visibility: ProjectVisibility = "private"
 
 
 class ProjectResponse(ProjectSummaryResponse):

@@ -38,6 +38,7 @@ import {
   CreatableSelectField,
   type CreatableSelectOption,
 } from "@/components/ui/creatable-select-field";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export type TeamFormState = {
   entityName: string;
@@ -136,7 +137,14 @@ export function TeamDialog({
           <CreatableSelectField
             allowCreate={false}
             createPlaceholder="Escribe una nueva entidad"
-            label="Entidad del equipo"
+            label={(
+              <span className="inline-flex items-center gap-1">
+                Entidad del equipo
+                <InfoTooltip
+                  content="Entidad ayuda a agrupar equipos y luego filtrar proyectos o comparticiones relacionadas."
+                />
+              </span>
+            )}
             onChange={onChangeEntityName}
             options={entityOptions}
             value={formState.entityName}
@@ -159,7 +167,12 @@ export function TeamDialog({
           <section className="rounded-[28px] border border-slate-200 bg-white p-5">
             <div className="flex flex-col gap-4">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Miembros del equipo</p>
+                <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
+                  Miembros del equipo
+                  <InfoTooltip
+                    content="Propietario siempre queda dentro. Miembros extra heredan acceso cuando equipo se vincula a proyecto."
+                  />
+                </p>
                 <p className="mt-1 text-sm text-slate-500">
                   Cada usuario puede pertenecer como máximo a 5 equipos.
                 </p>
@@ -178,7 +191,12 @@ export function TeamDialog({
               </div>
 
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-semibold text-slate-700">Buscar usuarios</span>
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                  Buscar usuarios
+                  <InfoTooltip
+                    content="Busqueda excluye propietario y miembros ya añadidos para evitar duplicados."
+                  />
+                </span>
                 <input
                   className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
                   onChange={(event) => onChangeSearch(event.target.value)}

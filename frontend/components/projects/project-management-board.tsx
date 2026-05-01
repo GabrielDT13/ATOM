@@ -9,15 +9,16 @@ import { formatDate } from "@/components/projects/detail/project-detail-helpers"
 import {
   EyeIcon,
   PencilIcon,
-  ProjectStackIcon,
   TrashIcon,
 } from "@/components/projects/project-management-icons";
 import {
+  getProjectVisibilityMeta,
   getProjectPreviewFiles,
   getProjectStatusMeta,
   type ProjectRecord,
 } from "@/components/projects/project-management-utils";
 import { buttonStyles } from "@/components/ui/button";
+import { BoardHeroArt } from "@/components/ui/board-hero-art";
 import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -32,6 +33,7 @@ type ProjectManagementBoardProps = {
 };
 
 const PROJECT_BOARD_SKELETON_COUNT = 6;
+const PROJECT_BOARD_HERO_IMAGE = "/images/project-hero-molecule.jpg";
 
 function ProjectStatusBadge({ project }: { project: ProjectRecord }) {
   const meta = getProjectStatusMeta(project.status, project.activeRun);
@@ -100,24 +102,7 @@ function ProjectBoardSkeleton() {
   return (
     <article className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div className="space-y-5 p-5">
-        <div className="rounded-[24px] bg-slate-50 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-4">
-              <Skeleton className="h-12 w-12 rounded-2xl" />
-              <div className="min-w-0 space-y-2">
-                <Skeleton className="h-7 w-24 rounded-full" />
-                <Skeleton className="h-5 w-40" />
-                <Skeleton className="h-4 w-24" />
-              </div>
-            </div>
-            <Skeleton className="h-10 w-10 rounded-2xl" />
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Skeleton className="h-8 w-32 rounded-full" />
-            <Skeleton className="h-8 w-40 rounded-full" />
-          </div>
-        </div>
+        <Skeleton className="h-48 rounded-[24px]" />
 
         <div className="grid gap-3 sm:grid-cols-3">
           {Array.from({ length: 3 }, (_, index) => (
@@ -187,6 +172,7 @@ export function ProjectManagementBoard({
     <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {projects.map((project) => {
         const statusMeta = getProjectStatusMeta(project.status, project.activeRun);
+        const visibilityMeta = getProjectVisibilityMeta(project.visibility);
         const actions: RowActionItem[] = [
           {
             icon: <EyeIcon className="h-4 w-4" />,
@@ -219,47 +205,38 @@ export function ProjectManagementBoard({
             key={project.id}
           >
             <div className="flex flex-col gap-5 p-5">
-              <div
-                className={cn(
-                  "rounded-[24px] border border-slate-200 bg-gradient-to-br p-4",
-                  statusMeta.panelClassName,
-                )}
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex min-w-0 items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white/80 text-slate-900 shadow-sm">
-                      <ProjectStackIcon className="h-5 w-5" />
-                    </div>
-                    <div className="min-w-0">
-                      <ProjectStatusBadge project={project} />
-                      <Link
-                        className="mt-3 block truncate text-lg font-semibold tracking-tight text-slate-950 transition hover:text-primary"
-                        href={buildProjectDetailHref(project.routeRef)}
-                      >
-                        {project.name}
-                      </Link>
-                      <p className="mt-1 text-sm text-slate-600">@{project.owner}</p>
-                    </div>
+              <BoardHeroArt
+                accentClassName={statusMeta.panelClassName}
+                eyebrow={statusMeta.label}
+                imagePath={PROJECT_BOARD_HERO_IMAGE}
+                subtitle={`@${project.owner}${project.entity_name ? ` · ${project.entity_name}` : ""}`}
+                title={project.name}
+              />
+
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <ProjectStatusBadge project={project} />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+                      Actualizado {formatDate(project.updated_at)}
+                    </span>
+                    <span
+                      className={cn(
+                        "rounded-full border px-3 py-1 text-sm font-medium",
+                        visibilityMeta.badgeClassName,
+                      )}
+                    >
+                      {visibilityMeta.label}
+                    </span>
+                    {project.templateFile ? (
+                      <span className="max-w-full truncate rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
+                        {project.templateFile}
+                      </span>
+                    ) : null}
                   </div>
-
-                  <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${project.name}`} />
                 </div>
 
-                <div className="mt-5 flex flex-wrap gap-2">
-                  <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-slate-700">
-                    Actualizado {formatDate(project.updated_at)}
-                  </span>
-                  {project.entity_name ? (
-                    <span className="rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-sky-700">
-                      {project.entity_name}
-                    </span>
-                  ) : null}
-                  {project.templateFile ? (
-                    <span className="max-w-full truncate rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-slate-700">
-                      {project.templateFile}
-                    </span>
-                  ) : null}
-                </div>
+                <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${project.name}`} />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">

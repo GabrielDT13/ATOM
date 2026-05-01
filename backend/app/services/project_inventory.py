@@ -127,6 +127,7 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
     resolved_entity_name = str(metadata.get("entity_name") or "").strip() if metadata else ""
     resolved_entity_slug = str(metadata.get("entity_slug") or "").strip() if metadata else ""
     resolved_slug = str(metadata.get("slug") or "").strip() if metadata else ""
+    resolved_visibility = str(metadata.get("visibility") or "").strip().lower() if metadata else ""
 
     return {
         "access_role": resolved_access_role or None,
@@ -155,6 +156,7 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
         "status": _project_status(files, html_files),
         "template_file": template_file,
         "updated_at": updated_at,
+        "visibility": resolved_visibility if resolved_visibility in {"private", "public"} else "private",
     }
 
 

@@ -23,6 +23,7 @@ function createProjectDetails(fileEntries: ProjectDetails["file_entries"]): Proj
     status: "results",
     template_file: "template.xlsx",
     updated_at: "2026-03-16T10:00:00Z",
+    visibility: "private",
   };
 }
 

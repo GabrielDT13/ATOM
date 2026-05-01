@@ -14,6 +14,7 @@ import { ProjectTeamRow } from "@/components/projects/project-team-row";
 import { ProjectTeamSharePopover } from "@/components/projects/project-team-share-popover";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -378,7 +379,12 @@ export function ProjectAccessManager({
     <section className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Acceso al proyecto</p>
+          <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
+            Acceso al proyecto
+            <InfoTooltip
+              content="Acceso puede venir por usuario o por equipo. Rol efectivo siempre gana por nivel mas alto."
+            />
+          </p>
           <p className="mt-1 text-sm leading-6 text-slate-500">
             Combina acceso directo por usuario y acceso heredado desde equipos.
           </p>
@@ -432,7 +438,12 @@ export function ProjectAccessManager({
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
         <section className="rounded-[24px] border border-slate-200 bg-white p-4">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Personas con acceso</p>
+            <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
+              Personas con acceso
+              <InfoTooltip
+                content="Lista muestra rol efectivo final. Si usuario tiene acceso directo y por equipo, se usa rol mas alto."
+              />
+            </p>
             <p className="mt-1 text-sm text-slate-500">
               Se muestra el rol efectivo de cada usuario, aunque llegue por equipo.
             </p>
@@ -482,7 +493,12 @@ export function ProjectAccessManager({
 
         <section className="rounded-[24px] border border-slate-200 bg-white p-4">
           <div>
-            <p className="text-sm font-semibold text-slate-900">Equipos vinculados</p>
+            <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
+              Equipos vinculados
+              <InfoTooltip
+                content="Vincular equipo da acceso a miembros actuales. Si equipo cambia luego, acceso heredado cambia tambien."
+              />
+            </p>
             <p className="mt-1 text-sm text-slate-500">
               Cada equipo añade acceso a todos sus miembros actuales.
             </p>

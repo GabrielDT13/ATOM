@@ -4,9 +4,9 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
-import { buildApiUrl, encodePathSegments } from "@/lib/api";
+import { buildApiUrl, encodePathSegments, fetchSession } from "@/lib/api";
 import { getProject, updateProject } from "@/lib/projects";
-import type { ProjectDetails } from "@/types/api";
+import type { ProjectDetails, ProjectVisibility, SessionResponse } from "@/types/api";
 import { ProjectFileDropzone } from "@/components/projects/project-file-dropzone";
 import {
   TemplateIcon,
@@ -15,6 +15,7 @@ import {
 import { Button, buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function ProjectEditor() {
@@ -23,7 +24,9 @@ export function ProjectEditor() {
   const owner = decodeURIComponent(params.owner);
   const projectName = decodeURIComponent(params.projectName);
   const [details, setDetails] = useState<ProjectDetails | null>(null);
+  const [session, setSession] = useState<SessionResponse | null>(null);
   const [nextName, setNextName] = useState(projectName);
+  const [visibility, setVisibility] = useState<ProjectVisibility>("private");
   const [excelFile, setExcelFile] = useState<File | null>(null);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [message, setMessage] = useState<string | null>(null);
@@ -46,6 +49,7 @@ export function ProjectEditor() {
       const payload = await getProject(owner, projectName);
       setDetails(payload);
       setNextName(payload.name);
+      setVisibility(payload.visibility);
     } catch (loadError) {
       setMessage(
         loadError instanceof Error
@@ -56,8 +60,15 @@ export function ProjectEditor() {
   }
 
   useEffect(() => {
+    void fetchSession()
+      .then((payload) => setSession(payload))
+      .catch(() => setSession(null));
     void loadProject();
   }, [owner, projectName]);
+
+  const canManageVisibility = Boolean(
+    session?.user?.role === "admin" || session?.user?.username === owner,
+  );
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -73,6 +84,7 @@ export function ProjectEditor() {
         name: nextName !== projectName ? nextName : undefined,
         onProgress: hasUploads ? setUploadProgress : undefined,
         templateFile: excelFile,
+        visibility: canManageVisibility && details && visibility !== details.visibility ? visibility : undefined,
       });
       setMessage(response.message);
       if (response.project) {
@@ -137,6 +149,28 @@ export function ProjectEditor() {
               value={nextName}
             />
           </FormField>
+
+          {canManageVisibility ? (
+            <FormField
+              label={(
+                <span className="inline-flex items-center gap-1">
+                  Visibilidad
+                  <InfoTooltip
+                    content="Privado: solo acceso compartido. Público: visible para cualquier usuario autenticado."
+                  />
+                </span>
+              )}
+            >
+              <select
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                onChange={(event) => setVisibility(event.target.value as ProjectVisibility)}
+                value={visibility}
+              >
+                <option value="private">Privado</option>
+                <option value="public">Público</option>
+              </select>
+            </FormField>
+          ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <ProjectFileDropzone

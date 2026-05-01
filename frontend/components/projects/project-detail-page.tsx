@@ -394,7 +394,13 @@ export function ProjectDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <ProjectDetailHero accessRole={accessRole} canEdit={canEdit} project={project} teamCount={teams.length} />
+      <ProjectDetailHero
+        accessRole={accessRole}
+        canEdit={canEdit}
+        project={project}
+        projectRef={resolvedProjectRef}
+        teamCount={teams.length}
+      />
 
       <ProjectQuickActions
         activeRun={project.active_run ?? null}

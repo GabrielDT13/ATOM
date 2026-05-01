@@ -22,10 +22,11 @@ def test_create_project_saves_template_and_additional_files(
     monkeypatch.setattr(
         project_service,
         "_create_project_record",
-        lambda owner, project_name, entity_name=None: {
+        lambda owner, project_name, entity_name=None, visibility="private": {
             "id": "project-1",
             "name": project_name,
             "owner_username": owner,
+            "visibility": visibility,
         },
     )
     success, message = asyncio.run(
@@ -86,10 +87,11 @@ def test_create_project_can_link_a_managed_team(
     monkeypatch.setattr(
         project_service,
         "_create_project_record",
-        lambda owner, project_name, entity_name=None: {
+        lambda owner, project_name, entity_name=None, visibility="private": {
             "id": "project-1",
             "name": project_name,
             "owner_username": owner,
+            "visibility": visibility,
         },
     )
     monkeypatch.setattr(
@@ -141,6 +143,7 @@ def test_get_project_details_returns_structured_inventory(
     assert payload["file_count"] == 3
     assert payload["status"] == "results"
     assert payload["files"] == ["inputs.tsv", "results/index.html", "template.xlsx"]
+    assert payload["visibility"] == "private"
     assert payload["file_entries"] == [
         {
             "extension": ".tsv",
@@ -302,6 +305,42 @@ def test_list_projects_for_user_includes_owned_repository_records_without_local_
     assert seeded_project["owner"] == "userdemo"
     assert seeded_project["access_role"] == "owner"
     assert seeded_project["file_count"] == 0
+
+
+def test_list_public_projects_for_user_returns_public_items_with_viewer_access(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        project_service,
+        "_list_public_project_records",
+        lambda: [
+            {
+                "created_at": "2026-03-04T10:00:00+00:00",
+                "id": "project-1",
+                "name": "Workspace Seed",
+                "owner_username": "userdemo",
+                "updated_at": "2026-03-05T10:00:00+00:00",
+                "visibility": "public",
+            }
+        ],
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_get_project_access_role",
+        lambda user_id, username, role, owner, project_name: "viewer",
+    )
+
+    payload = project_service.list_public_projects_for_user(
+        "33333333-3333-3333-3333-333333333333",
+        "visitor",
+        "user",
+    )
+
+    assert payload["projects"]["userdemo"] == ["Workspace Seed"]
+    seeded_project = next(item for item in payload["items"] if item["name"] == "Workspace Seed")
+    assert seeded_project["owner"] == "userdemo"
+    assert seeded_project["access_role"] == "viewer"
+    assert seeded_project["visibility"] == "public"
 
 
 def test_list_sidebar_projects_for_user_builds_project_links(
@@ -475,6 +514,50 @@ def test_update_project_keeps_stable_storage_and_replaces_inputs_without_deletin
     assert (updated_dir / "fresh.csv").read_bytes() == b"fresh-data"
     assert not (updated_dir / "old.csv").exists()
     assert (updated_dir / "results" / "report.html").read_text(encoding="utf-8") == "<html>ready</html>"
+
+
+def test_update_project_can_change_visibility(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    applied_visibility: list[tuple[str, str]] = []
+
+    monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
+    project_dir = project_service.get_project_dir("researcher", "RNA Atlas")
+    project_dir.mkdir(parents=True)
+
+    monkeypatch.setattr(
+        project_service,
+        "_upsert_project_record",
+        lambda owner, project_name: {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+        },
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_set_project_visibility",
+        lambda project_id, visibility: applied_visibility.append((project_id, visibility)),
+    )
+
+    success, message, effective_name = asyncio.run(
+        project_service.update_project(
+            "user-1",
+            "researcher",
+            "researcher",
+            "RNA Atlas",
+            None,
+            None,
+            [],
+            visibility="public",
+        )
+    )
+
+    assert success is True
+    assert message == "Proyecto actualizado correctamente"
+    assert effective_name == "RNA Atlas"
+    assert applied_visibility == [("project-1", "public")]
 
 
 def test_add_project_member_inserts_viewer_permission(monkeypatch) -> None:

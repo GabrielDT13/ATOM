@@ -27,6 +27,7 @@ function buildProjectSummary(overrides: Partial<ProjectSummary>): ProjectSummary
     status: "configured",
     template_file: null,
     updated_at: "2026-04-02T08:00:00.000Z",
+    visibility: "private",
     ...overrides,
   };
 }

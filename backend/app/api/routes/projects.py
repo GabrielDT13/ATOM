@@ -29,6 +29,7 @@ from backend.app.services.projects import (
     get_project_members,
     get_project_members_by_ref,
     list_project_teams,
+    list_public_projects_for_user,
     list_projects_for_user,
     read_project_file,
     remove_project_member,
@@ -83,6 +84,18 @@ async def get_projects(request: Request) -> ProjectCollectionResponse:
     )
 
 
+@router.get("/public", response_model=ProjectCollectionResponse, response_model_exclude_none=True)
+async def get_public_projects(request: Request) -> ProjectCollectionResponse:
+    current_user = get_current_user(request)
+    return ProjectCollectionResponse(
+        **list_public_projects_for_user(
+            str(current_user["id"]),
+            str(current_user["username"]),
+            str(current_user["role"]),
+        )
+    )
+
+
 @router.get("/by-ref/{project_ref}", response_model=ProjectResponse, response_model_exclude_none=True)
 async def get_project_by_ref(project_ref: str, request: Request) -> ProjectResponse:
     project = _resolve_project_for_ref(project_ref)
@@ -114,6 +127,7 @@ async def post_project(
     project_name: str = Form(...),
     entity_name: str | None = Form(default=None),
     team_id: str | None = Form(default=None),
+    visibility: str = Form(default="private"),
     template_file: UploadFile = File(...),
     additional_files: Annotated[list[UploadFile] | None, File()] = None,
 ) -> ProjectMutationResponse:
@@ -126,6 +140,7 @@ async def post_project(
         additional_files or [],
         entity_name=entity_name,
         team_id=team_id,
+        visibility=visibility,
         actor_role=str(current_user["role"]),
     )
     project = None
@@ -141,10 +156,17 @@ async def put_project(
     request: Request,
     new_name: str | None = Form(default=None),
     entity_name: str | None = Form(default=None),
+    visibility: str | None = Form(default=None),
     excel_file: UploadFile | None = File(default=None),
     additional_files: Annotated[list[UploadFile] | None, File()] = None,
 ) -> ProjectMutationResponse:
     current_user = _require_project_edit_access(request, owner, project_name) or get_current_user(request)
+    if (
+        visibility is not None
+        and str(current_user.get("role") or "").strip() != "admin"
+        and str(current_user.get("username") or "").strip() != owner
+    ):
+        raise HTTPException(status_code=403, detail="Solo el propietario puede cambiar la visibilidad del proyecto")
     if entity_name is None:
         success, message, effective_name = await update_project(
             str(current_user["id"]),
@@ -154,6 +176,7 @@ async def put_project(
             new_name,
             excel_file,
             additional_files or [],
+            visibility=visibility,
         )
     else:
         success, message, effective_name = await update_project(
@@ -165,6 +188,7 @@ async def put_project(
             excel_file,
             additional_files or [],
             entity_name,
+            visibility,
         )
     project = None
     if success:

@@ -26,6 +26,7 @@ export type ProfilePreferences = {
   security_alerts: boolean;
   dark_mode: boolean;
   interface_language: "es" | "en";
+  interface_language_auto: boolean;
 };
 
 export type ProfileActivityRecord = {
@@ -82,6 +83,35 @@ export type ProfileMutationResponse = {
   success: boolean;
   message: string;
   profile: ProfileRecord | null;
+};
+
+export type PublicProfileSummary = {
+  public_projects: number;
+  results_ready: number;
+  member_connections: number;
+};
+
+export type PublicProfileProject = {
+  id: string;
+  name: string;
+  slug?: string | null;
+  status: ProjectStatus;
+  updated_at: string;
+  member_count: number;
+};
+
+export type PublicProfileRecord = {
+  id: string;
+  username: string;
+  display_name: string;
+  role: "admin" | "user";
+  department?: string | null;
+  bio?: string | null;
+  joined_at: string;
+  updated_at: string;
+  summary: PublicProfileSummary;
+  activity: ProfileActivityRecord[];
+  public_projects: PublicProfileProject[];
 };
 
 export type AnalysisRunStatus =
@@ -261,6 +291,7 @@ export type MutationResponse = {
 };
 
 export type ProjectStatus = "configured" | "empty" | "results";
+export type ProjectVisibility = "private" | "public";
 
 export type ProjectFileKind = "additional" | "result" | "template";
 
@@ -290,6 +321,7 @@ export type ProjectSummary = {
   status: ProjectStatus;
   template_file: string | null;
   updated_at: string;
+  visibility: ProjectVisibility;
 };
 
 export type ProjectMapResponse = {

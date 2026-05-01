@@ -8,7 +8,7 @@ import { listEntities } from "@/lib/entities";
 import { createProject } from "@/lib/projects";
 import { listTeams } from "@/lib/teams";
 import { useAppToast } from "@/hooks/use-app-toast";
-import type { EntityRecord, SessionResponse, TeamSummary } from "@/types/api";
+import type { EntityRecord, ProjectVisibility, SessionResponse, TeamSummary } from "@/types/api";
 import { ProjectFileDropzone } from "@/components/projects/project-file-dropzone";
 import {
   DataFilesIcon,
@@ -22,6 +22,7 @@ import {
   CreatableSelectField,
   type CreatableSelectOption,
 } from "@/components/ui/creatable-select-field";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export function ProjectCreator() {
   const router = useRouter();
@@ -32,6 +33,7 @@ export function ProjectCreator() {
   const [entityName, setEntityName] = useState("");
   const [teamId, setTeamId] = useState("");
   const [projectName, setProjectName] = useState("");
+  const [visibility, setVisibility] = useState<ProjectVisibility>("private");
   const [templateFiles, setTemplateFiles] = useState<File[]>([]);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -113,6 +115,7 @@ export function ProjectCreator() {
         onProgress: setUploadProgress,
         teamId,
         templateFile,
+        visibility,
       });
 
       if (response.success) {
@@ -204,7 +207,14 @@ export function ProjectCreator() {
               <CreatableSelectField
                 allowCreate={false}
                 createPlaceholder="Escribe un equipo"
-                label="Añadir a un equipo"
+                label={
+                  <span className="inline-flex items-center gap-1">
+                    Añadir a un equipo
+                    <InfoTooltip
+                      content="Comparte proyecto desde inicio con equipo que gestionas. Lista se filtra por entidad si eliges una."
+                    />
+                  </span>
+                }
                 onChange={setTeamId}
                 options={teamOptions}
                 value={teamId}
@@ -214,6 +224,23 @@ export function ProjectCreator() {
                 se filtra a los equipos de esa entidad.
               </p>
             </div>
+
+            <label className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                Visibilidad
+                <InfoTooltip
+                  content="Privado: solo propietario, miembros y equipos compartidos. Público: cualquier usuario autenticado puede verlo desde catálogo público."
+                />
+              </span>
+              <select
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                onChange={(event) => setVisibility(event.target.value as ProjectVisibility)}
+                value={visibility}
+              >
+                <option value="private">Privado</option>
+                <option value="public">Público</option>
+              </select>
+            </label>
 
             <div className="grid gap-4 lg:grid-cols-2">
               <ProjectFileDropzone

@@ -115,13 +115,23 @@ export function ProjectManagement() {
     const hasAdditionalFiles = values.additionalFiles.length > 0;
     const hasNameChange = nextName !== editingProject.name;
     const hasEntityChange = nextEntityName !== (editingProject.entity_name?.trim() ?? "");
+    const hasVisibilityChange = values.visibility !== editingProject.visibility;
+    const canManageVisibility = Boolean(
+      isAdmin || editingProject.accessRole === "owner",
+    );
 
     if (!nextName) {
       appToast.error("El nombre del proyecto es obligatorio");
       return;
     }
 
-    if (!hasNameChange && !hasEntityChange && !nextTemplate && !hasAdditionalFiles) {
+    if (
+      !hasNameChange
+      && !hasEntityChange
+      && !nextTemplate
+      && !hasAdditionalFiles
+      && !(canManageVisibility && hasVisibilityChange)
+    ) {
       appToast.info("No hay cambios para guardar");
       return;
     }
@@ -137,6 +147,7 @@ export function ProjectManagement() {
         name: hasNameChange ? nextName : undefined,
         onProgress: setUploadProgress,
         templateFile: nextTemplate,
+        visibility: canManageVisibility && hasVisibilityChange ? values.visibility : undefined,
       });
 
       if (response.success) {
@@ -336,6 +347,7 @@ export function ProjectManagement() {
 
       <ProjectEditDialog
         canShare={editingProject ? canShareProject(editingProject) : false}
+        canManageVisibility={editingProject ? Boolean(isAdmin || editingProject.accessRole === "owner") : false}
         onOpenChange={(open) => {
           if (!open) {
             setEditingProject(null);
