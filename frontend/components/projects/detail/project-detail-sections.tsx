@@ -94,13 +94,6 @@ export function ProjectDetailHero({
               <ProjectStackIcon />
               Proyecto
             </div>
-            {project.entity_name || project.entity_logo_url ? (
-              <EntityLogo
-                className="h-14 w-14 bg-white/95"
-                logoUrl={project.entity_logo_url}
-                name={project.entity_name ?? project.name}
-              />
-            ) : null}
           </div>
           <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {project.name}
@@ -138,7 +131,16 @@ export function ProjectDetailHero({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col items-start gap-4 xl:items-end">
+          {project.entity_name || project.entity_logo_url ? (
+            <EntityLogo
+              className="h-20 w-20 bg-white/95 shadow-lg shadow-slate-950/20 sm:h-24 sm:w-24"
+              logoUrl={project.entity_logo_url}
+              name={project.entity_name ?? project.name}
+            />
+          ) : null}
+
+          <div className="flex flex-wrap gap-3 xl:justify-end">
           <ButtonLink href="/dashboard/projects" size="lg" tone="on-dark" variant="secondary">
             Volver al listado
           </ButtonLink>
@@ -159,6 +161,7 @@ export function ProjectDetailHero({
               Editar proyecto
             </ButtonLink>
           ) : null}
+          </div>
         </div>
       </div>
     </section>

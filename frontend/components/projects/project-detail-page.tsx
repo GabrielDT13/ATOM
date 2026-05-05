@@ -29,6 +29,7 @@ import {
   buildProjectDetailModel,
 } from "@/components/projects/project-detail-utils";
 import {
+  isReportAssetPassthroughPath,
   parseProjectReportHtml,
   resolveRelativeReportAssetPath,
   type ParsedProjectReport,
@@ -275,13 +276,19 @@ export function ProjectDetailPage({
         );
         setActiveReport(
           parseProjectReportHtml(fileContent.content, {
-            resolveImageSrc: (src) =>
-              buildProjectFileUrl(
+            resolveImageSrc: (src) => {
+              const resolvedSrc = resolveRelativeReportAssetPath(htmlFile.path, src);
+              if (isReportAssetPassthroughPath(resolvedSrc)) {
+                return resolvedSrc;
+              }
+
+              return buildProjectFileUrl(
                 project.owner,
                 project.name,
-                resolveRelativeReportAssetPath(htmlFile.path, src),
+                resolvedSrc,
                 project.updated_at ?? null,
-              ),
+              );
+            },
           }),
         );
       } catch {

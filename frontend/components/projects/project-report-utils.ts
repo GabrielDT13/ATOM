@@ -154,16 +154,21 @@ function isDecorativeImage(src: string, context: string) {
   );
 }
 
-export function resolveRelativeReportAssetPath(reportPath: string, assetPath: string) {
+export function isReportAssetPassthroughPath(assetPath: string) {
   const normalizedAssetPath = assetPath.trim();
-  if (
+  return (
     !normalizedAssetPath ||
     normalizedAssetPath.startsWith("data:") ||
     normalizedAssetPath.startsWith("blob:") ||
     normalizedAssetPath.startsWith("http://") ||
     normalizedAssetPath.startsWith("https://") ||
     normalizedAssetPath.startsWith("//")
-  ) {
+  );
+}
+
+export function resolveRelativeReportAssetPath(reportPath: string, assetPath: string) {
+  const normalizedAssetPath = assetPath.trim();
+  if (isReportAssetPassthroughPath(normalizedAssetPath)) {
     return normalizedAssetPath;
   }
 
