@@ -8,9 +8,9 @@ SELECT
   pp.security_alerts,
   pp.dark_mode,
   pp.interface_language,
-  pp.interface_language_auto,
+  pp.created_at,
+  pp.updated_at,
   pp.must_change_password,
   pp.welcome_tour_seen,
-  pp.created_at,
-  pp.updated_at
+  pp.interface_language_auto
 FROM internal.profile_preferences pp;

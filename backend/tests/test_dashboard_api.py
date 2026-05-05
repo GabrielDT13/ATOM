@@ -339,6 +339,64 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
     assert overview["recent_activity"][0]["analysis_type"] == "rna-seq"
 
 
+def test_get_dashboard_overview_keeps_activity_empty_without_real_events(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    from backend.app.services import dashboard as dashboard_service
+
+    monkeypatch.setattr(
+        dashboard_service,
+        "list_projects_for_user",
+        lambda session_user_id, session_username, role: {
+            "items": [
+                {
+                    "access_role": "owner",
+                    "additional_files": ["counts.txt"],
+                    "created_at": "2026-02-05T10:00:00+00:00",
+                    "file_count": 3,
+                    "files": [
+                        "counts.txt",
+                        "report/index.html",
+                        "template.xlsx",
+                    ],
+                    "html_files": ["report/index.html"],
+                    "name": "RNA Atlas",
+                    "owner": "researcher",
+                    "status": "results",
+                    "template_file": "template.xlsx",
+                    "updated_at": "2026-03-10T10:00:00+00:00",
+                }
+            ]
+        },
+    )
+    monkeypatch.setattr(dashboard_service, "list_dashboard_events", lambda limit=100: [])
+    monkeypatch.setattr(
+        dashboard_service,
+        "load_public_examples_catalog",
+        lambda: {"example_library": [], "quick_start_steps": []},
+    )
+    monkeypatch.setattr(dashboard_service, "_build_workflows", lambda projects: [])
+
+    overview = dashboard_service.get_dashboard_overview(
+        session_user_id="user-1",
+        session_username="researcher",
+        role="user",
+    )
+
+    assert overview["activity_summary"] == {
+        "analyses_completed": 0,
+        "analyses_failed": 0,
+        "analyses_started": 0,
+        "last_event_at": None,
+        "project_events": 0,
+        "total_events": 0,
+    }
+    assert all(point["total_events"] == 0 for point in overview["activity_timeline"])
+    assert all(point["completed_analyses"] == 0 for point in overview["activity_timeline"])
+    assert overview["recent_activity"] == []
+
+
 def test_public_examples_catalog_uses_manifest_and_filters_missing_files(
     isolated_app_env: dict[str, Path],
 ) -> None:
