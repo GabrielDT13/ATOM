@@ -24,6 +24,7 @@ class ProjectSummaryResponse(BaseModel):
     additional_files: list[str]
     created_at: str
     entity_id: str | None = None
+    entity_logo_url: str | None = None
     entity_name: str | None = None
     entity_slug: str | None = None
     file_count: int

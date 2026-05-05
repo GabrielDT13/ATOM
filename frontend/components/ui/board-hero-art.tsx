@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 
 type BoardHeroArtProps = {
   accentClassName: string;
+  corner?: ReactNode;
   eyebrow?: ReactNode;
   imagePath?: string;
   subtitle?: string | null;
@@ -14,6 +15,7 @@ type BoardHeroArtProps = {
 
 export function BoardHeroArt({
   accentClassName,
+  corner,
   eyebrow,
   imagePath,
   subtitle,
@@ -36,6 +38,7 @@ export function BoardHeroArt({
       }}
     >
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.28),transparent_32%)]" />
+      {corner ? <div className="absolute right-4 top-4 z-10">{corner}</div> : null}
       <div className="relative flex min-h-[12rem] flex-col justify-end gap-2 p-5">
         {eyebrow ? (
           <div className="w-fit rounded-full border border-white/20 bg-white/15 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white backdrop-blur-sm">

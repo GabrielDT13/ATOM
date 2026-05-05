@@ -3,7 +3,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
 import { PencilIcon, TrashIcon } from "@/components/projects/project-management-icons";
 import { formatDate } from "@/components/projects/detail/project-detail-helpers";
-import { DatabaseIcon } from "@/components/dashboard/dashboard-icons";
+import { EntityLogo } from "@/components/ui/entity-logo";
 import type { EntityRecord } from "@/types/api";
 
 type EntityManagementTableProps = {
@@ -23,9 +23,7 @@ export function EntityManagementTable({
     {
       cell: (entity) => (
         <div className="flex items-center gap-4">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700">
-            <DatabaseIcon className="h-5 w-5" />
-          </div>
+          <EntityLogo className="h-11 w-11 shrink-0" logoUrl={entity.logo_url} name={entity.name} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900">{entity.name}</p>
             <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">

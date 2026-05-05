@@ -34,6 +34,7 @@ import type { ProjectExecutionGroup } from "@/components/projects/project-detail
 import type { ParsedProjectReport } from "@/components/projects/project-report-utils";
 import { buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
+import { EntityLogo } from "@/components/ui/entity-logo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { buildPublicProfileHref } from "@/lib/profile";
 import { cn } from "@/lib/utils";
@@ -88,9 +89,18 @@ export function ProjectDetailHero({
     <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
-          <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
-            <ProjectStackIcon />
-            Proyecto
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
+              <ProjectStackIcon />
+              Proyecto
+            </div>
+            {project.entity_name || project.entity_logo_url ? (
+              <EntityLogo
+                className="h-14 w-14 bg-white/95"
+                logoUrl={project.entity_logo_url}
+                name={project.entity_name ?? project.name}
+              />
+            ) : null}
           </div>
           <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {project.name}

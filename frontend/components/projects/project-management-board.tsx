@@ -19,6 +19,7 @@ import {
 } from "@/components/projects/project-management-utils";
 import { buttonStyles } from "@/components/ui/button";
 import { BoardHeroArt } from "@/components/ui/board-hero-art";
+import { EntityLogo } from "@/components/ui/entity-logo";
 import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -207,6 +208,15 @@ export function ProjectManagementBoard({
             <div className="flex flex-col gap-5 p-5">
               <BoardHeroArt
                 accentClassName={statusMeta.panelClassName}
+                corner={
+                  project.entity_name || project.entity_logo_url ? (
+                    <EntityLogo
+                      className="h-14 w-14 bg-white/95"
+                      logoUrl={project.entity_logo_url}
+                      name={project.entity_name ?? project.name}
+                    />
+                  ) : null
+                }
                 eyebrow={statusMeta.label}
                 imagePath={PROJECT_BOARD_HERO_IMAGE}
                 subtitle={`@${project.owner}${project.entity_name ? ` · ${project.entity_name}` : ""}`}

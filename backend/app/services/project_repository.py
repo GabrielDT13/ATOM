@@ -4,7 +4,7 @@ from typing import Any, Literal
 from uuid import UUID
 
 from backend.app.services.database import execute, fetch_all, fetch_one
-from backend.app.services.entities import ensure_entity
+from backend.app.services.entities import build_entity_logo_url, ensure_entity
 from backend.app.services.errors import ServiceError
 from backend.app.services.project_inventory import normalize_project_name
 from backend.app.services.project_storage import get_legacy_project_dir
@@ -97,6 +97,7 @@ def _fetch_project_records(
       entity_id,
       entity_name,
       entity_slug,
+      entity_logo_path,
       name,
       slug,
       description,
@@ -132,7 +133,16 @@ def _fetch_project_records(
     if limit is not None:
         query += " LIMIT %s"
         params.append(limit)
-    return fetch_all(query, tuple(params))
+    rows = fetch_all(query, tuple(params))
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        entity_id = str(row.get("entity_id") or "").strip()
+        entity_logo_path = str(row.get("entity_logo_path") or "").strip()
+        row["entity_logo_url"] = (
+            build_entity_logo_url(entity_id) if entity_id and entity_logo_path else None
+        )
+    return rows
 
 
 def _get_project_record(owner: str, project_name: str) -> dict[str, Any] | None:

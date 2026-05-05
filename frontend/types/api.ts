@@ -270,6 +270,7 @@ export type DepartmentRecord = {
 export type EntityRecord = {
   created_at?: string | null;
   id: string;
+  logo_url?: string | null;
   name: string;
   project_count?: number;
   slug: string;
@@ -309,6 +310,7 @@ export type ProjectSummary = {
   additional_files: string[];
   created_at: string;
   entity_id?: string | null;
+  entity_logo_url?: string | null;
   entity_name?: string | null;
   entity_slug?: string | null;
   file_count: number;

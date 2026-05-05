@@ -12,6 +12,7 @@ import {
 } from "@/components/projects/project-management-icons";
 import { BoardHeroArt } from "@/components/ui/board-hero-art";
 import { buttonStyles } from "@/components/ui/button";
+import { EntityLogo } from "@/components/ui/entity-logo";
 import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -157,6 +158,15 @@ export function ReportManagementBoard({
             <div className="flex flex-col gap-5 p-5">
               <BoardHeroArt
                 accentClassName="bg-gradient-to-br from-emerald-100 via-white to-sky-50"
+                corner={
+                  report.entity_name || report.entity_logo_url ? (
+                    <EntityLogo
+                      className="h-14 w-14 bg-white/95"
+                      logoUrl={report.entity_logo_url}
+                      name={report.entity_name ?? report.name}
+                    />
+                  ) : null
+                }
                 eyebrow={`${report.reportCount} informe${report.reportCount === 1 ? "" : "s"} listo${report.reportCount === 1 ? "" : "s"}`}
                 imagePath={REPORT_BOARD_HERO_IMAGE}
                 subtitle={`@${report.owner}${report.entity_name ? ` · ${report.entity_name}` : ""}`}

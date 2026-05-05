@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS internal.entities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL UNIQUE,
   slug text NOT NULL UNIQUE,
+  logo_path text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -609,7 +610,8 @@ CREATE OR REPLACE VIEW public.vw_entities AS
 SELECT
   e.id,
   e.name,
-  e.slug
+  e.slug,
+  e.logo_path
 FROM internal.entities e;
 
 CREATE OR REPLACE VIEW public.vw_profiles AS
@@ -656,7 +658,8 @@ SELECT
   p.entity_id,
   e.name AS entity_name,
   e.slug AS entity_slug,
-  p.visibility
+  p.visibility,
+  e.logo_path AS entity_logo_path
 FROM internal.projects p
 JOIN internal.profiles owner_profile
   ON owner_profile.id = p.owner_id
@@ -798,11 +801,11 @@ SELECT
   pp.security_alerts,
   pp.dark_mode,
   pp.interface_language,
-  pp.interface_language_auto,
+  pp.created_at,
+  pp.updated_at,
   pp.must_change_password,
   pp.welcome_tour_seen,
-  pp.created_at,
-  pp.updated_at
+  pp.interface_language_auto
 FROM internal.profile_preferences pp;
 
 CREATE OR REPLACE VIEW public.vw_profile_activity AS

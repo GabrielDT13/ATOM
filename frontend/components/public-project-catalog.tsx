@@ -14,7 +14,9 @@ import { ProjectStackIcon } from "@/components/projects/project-management-icons
 import { PublicProjectShareButton } from "@/components/projects/public-project-share-button";
 import { useLocale } from "@/components/providers/locale-provider";
 import { ButtonLink } from "@/components/ui/button-link";
+import { BoardHeroArt } from "@/components/ui/board-hero-art";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
+import { EntityLogo } from "@/components/ui/entity-logo";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { buildPublicProfileHref } from "@/lib/profile";
 
@@ -24,6 +26,8 @@ const STATUS_OPTIONS = [
   { label: { en: "Pending", es: "Pendientes" }, value: "configured" },
   { label: { en: "With results", es: "Con resultados" }, value: "results" },
 ] as const;
+
+const PUBLIC_PROJECT_BOARD_HERO_IMAGE = "/images/project-hero-molecule.jpg";
 
 export function PublicProjectCatalog() {
   const appToast = useAppToast();
@@ -167,36 +171,54 @@ export function PublicProjectCatalog() {
 
             return (
               <article
-                className="overflow-hidden rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm"
+                className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm"
                 key={project.id}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap gap-2">
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badgeClassName}`}>
-                        {statusMeta.label}
-                      </span>
-                      <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${visibilityMeta.badgeClassName}`}>
-                        {visibilityMeta.label}
-                      </span>
+                <BoardHeroArt
+                  accentClassName="rounded-none border-0 border-b"
+                  corner={
+                    project.entity_name || project.entity_logo_url ? (
+                      <EntityLogo
+                        className="h-14 w-14 bg-white/95"
+                        logoUrl={project.entity_logo_url}
+                        name={project.entity_name ?? project.name}
+                      />
+                    ) : null
+                  }
+                  eyebrow={locale === "es" ? "Proyecto público" : "Public project"}
+                  imagePath={PUBLIC_PROJECT_BOARD_HERO_IMAGE}
+                  subtitle={project.entity_name ?? statusMeta.description}
+                  title={project.name}
+                />
+
+                <div className="p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap gap-2">
+                        <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.badgeClassName}`}>
+                          {statusMeta.label}
+                        </span>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${visibilityMeta.badgeClassName}`}>
+                          {visibilityMeta.label}
+                        </span>
+                      </div>
+
+                      <Link
+                        className="mt-4 block truncate text-lg font-semibold text-slate-950 transition hover:text-primary"
+                        href={buildProjectDetailHref(project.routeRef)}
+                      >
+                        {project.name}
+                      </Link>
+                      <Link
+                        className="mt-1 inline-flex text-sm text-slate-500 transition hover:text-primary"
+                        href={buildPublicProfileHref(project.owner)}
+                      >
+                        @{project.owner}
+                      </Link>
                     </div>
-
-                    <Link
-                      className="mt-4 block truncate text-lg font-semibold text-slate-950 transition hover:text-primary"
-                      href={buildProjectDetailHref(project.routeRef)}
-                    >
-                      {project.name}
-                    </Link>
-                    <Link
-                      className="mt-1 inline-flex text-sm text-slate-500 transition hover:text-primary"
-                      href={buildPublicProfileHref(project.owner)}
-                    >
-                      @{project.owner}
-                    </Link>
                   </div>
-                </div>
 
-                <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-600">
+                  <div className="mt-5 flex flex-wrap gap-2 text-xs text-slate-600">
                   {project.entity_name ? (
                     <span className="rounded-full bg-sky-50 px-3 py-1 font-medium text-sky-700">
                       {project.entity_name}
@@ -214,16 +236,17 @@ export function PublicProjectCatalog() {
                       ? `informe${project.htmlFiles.length === 1 ? "" : "s"}`
                       : `report${project.htmlFiles.length === 1 ? "" : "s"}`}
                   </span>
-                </div>
+                  </div>
 
-                <p className="mt-5 text-sm leading-6 text-slate-500">{visibilityMeta.helperText}</p>
+                  <p className="mt-5 text-sm leading-6 text-slate-500">{visibilityMeta.helperText}</p>
 
-                <div className="mt-5">
-                  <div className="flex flex-wrap gap-3">
-                    <ButtonLink href={buildProjectDetailHref(project.routeRef)} variant="primary">
-                      {locale === "es" ? "Abrir proyecto" : "Open project"}
-                    </ButtonLink>
-                    <PublicProjectShareButton project={project} projectRef={project.routeRef} />
+                  <div className="mt-5">
+                    <div className="flex flex-wrap gap-3">
+                      <ButtonLink href={buildProjectDetailHref(project.routeRef)} variant="primary">
+                        {locale === "es" ? "Abrir proyecto" : "Open project"}
+                      </ButtonLink>
+                      <PublicProjectShareButton project={project} projectRef={project.routeRef} />
+                    </div>
                   </div>
                 </div>
               </article>
