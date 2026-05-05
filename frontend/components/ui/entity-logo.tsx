@@ -1,6 +1,5 @@
 "use client";
 
-import { DatabaseIcon } from "@/components/dashboard/dashboard-icons";
 import { resolveEntityLogoUrl } from "@/lib/entities";
 import { cn } from "@/lib/utils";
 
@@ -33,11 +32,15 @@ export function EntityLogo({ className, logoUrl, name }: EntityLogoProps) {
   return (
     <div
       className={cn(
-        "flex items-center justify-center rounded-2xl bg-sky-50 text-sky-700",
+        "flex items-center justify-center overflow-hidden rounded-2xl border border-white/15 bg-white/95 shadow-sm",
         className,
       )}
     >
-      <DatabaseIcon className="h-5 w-5" />
+      <img
+        alt={name ? `Logo de ${name}` : "Logo de ATOM"}
+        className="h-full w-full object-contain p-2"
+        src="/images/logo.png"
+      />
     </div>
   );
 }
