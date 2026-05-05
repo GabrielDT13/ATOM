@@ -2,14 +2,15 @@ from __future__ import annotations
 
 from backend.app.dependencies.auth import get_current_user, get_request_access_token
 from backend.app.schemas.profile import (
-    PublicProfileResponse,
     ProfileMutationResponse,
     ProfilePasswordChangeRequest,
     ProfileRequiredPasswordChangeRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    PublicProfileResponse,
 )
 from backend.app.services.auth import get_session_user_by_id
+from backend.app.services.errors import ServiceError
 from backend.app.services.profile import (
     change_my_password,
     complete_required_password_change,
@@ -19,7 +20,6 @@ from backend.app.services.profile import (
     mark_welcome_tour_seen,
     update_my_profile,
 )
-from backend.app.services.errors import ServiceError
 from fastapi import APIRouter, HTTPException, Request, status
 
 router = APIRouter(prefix="/api/profile", tags=["profile"])
