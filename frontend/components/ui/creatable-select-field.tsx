@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ type CreatableSelectFieldProps = {
   addButtonLabel?: string;
   allowCreate?: boolean;
   createPlaceholder?: string;
-  label: string;
+  label: ReactNode;
   onChange: (value: string) => void;
   options: readonly CreatableSelectOption[];
   value: string;

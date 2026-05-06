@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   buildProjectFileUrl,
   formatDate,
@@ -26,11 +28,15 @@ import {
   ProjectStackIcon,
   RefreshIcon,
 } from "@/components/projects/project-management-icons";
+import { PublicProjectShareButton } from "@/components/projects/public-project-share-button";
+import { getProjectVisibilityMeta } from "@/components/projects/project-management-utils";
 import type { ProjectExecutionGroup } from "@/components/projects/project-detail-utils";
 import type { ParsedProjectReport } from "@/components/projects/project-report-utils";
 import { buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
+import { EntityLogo } from "@/components/ui/entity-logo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buildPublicProfileHref } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord, ProjectSharedTeam } from "@/types/api";
 
@@ -68,20 +74,26 @@ export function ProjectDetailHero({
   accessRole,
   canEdit,
   project,
+  projectRef,
   teamCount,
 }: {
   accessRole: string;
   canEdit: boolean;
   project: ProjectDetails;
+  projectRef: string | null;
   teamCount: number;
 }) {
+  const visibilityMeta = getProjectVisibilityMeta(project.visibility);
+
   return (
     <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
-          <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
-            <ProjectStackIcon />
-            Proyecto
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
+              <ProjectStackIcon />
+              Proyecto
+            </div>
           </div>
           <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {project.name}
@@ -91,9 +103,12 @@ export function ProjectDetailHero({
             principales desde un único lugar.
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+            <Link
+              className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/14"
+              href={buildPublicProfileHref(project.owner)}
+            >
               @{project.owner}
-            </span>
+            </Link>
             {project.entity_name ? (
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
                 {project.entity_name}
@@ -101,6 +116,9 @@ export function ProjectDetailHero({
             ) : null}
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
               Acceso: {accessRole}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              Visibilidad: {visibilityMeta.label}
             </span>
             {teamCount > 0 ? (
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
@@ -113,10 +131,25 @@ export function ProjectDetailHero({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col items-start gap-4 xl:items-end">
+          {project.entity_name || project.entity_logo_url ? (
+            <EntityLogo
+              className="h-20 w-20 bg-white/95 shadow-lg shadow-slate-950/20 sm:h-24 sm:w-24"
+              logoUrl={project.entity_logo_url}
+              name={project.entity_name ?? project.name}
+            />
+          ) : null}
+
+          <div className="flex flex-wrap gap-3 xl:justify-end">
           <ButtonLink href="/dashboard/projects" size="lg" tone="on-dark" variant="secondary">
             Volver al listado
           </ButtonLink>
+          <PublicProjectShareButton
+            project={project}
+            projectRef={projectRef}
+            tone="on-dark"
+            variant="ghost"
+          />
           {canEdit ? (
             <ButtonLink
               href={`/dashboard/edit_project/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`}
@@ -128,6 +161,7 @@ export function ProjectDetailHero({
               Editar proyecto
             </ButtonLink>
           ) : null}
+          </div>
         </div>
       </div>
     </section>

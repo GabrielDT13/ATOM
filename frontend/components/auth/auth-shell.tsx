@@ -1,10 +1,16 @@
+"use client";
+
 import { ReactNode } from "react";
+
+import { useLocale } from "@/components/providers/locale-provider";
 
 type AuthShellProps = {
   children: ReactNode;
 };
 
 export function AuthShell({ children }: AuthShellProps) {
+  const { locale } = useLocale();
+
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface-dark px-6 py-12 font-display antialiased">
       <div aria-hidden="true" className="absolute inset-0 overflow-hidden">
@@ -16,9 +22,13 @@ export function AuthShell({ children }: AuthShellProps) {
       <div className="relative z-10 w-full max-w-md">
         {children}
         <p className="mt-8 text-center text-xs leading-5 text-white/40">
-          (c) 2026 ATOM. Todos los derechos reservados.
+          {locale === "es"
+            ? "(c) 2026 ATOM. Todos los derechos reservados."
+            : "(c) 2026 ATOM. All rights reserved."}
           <br />
-          Acceso seguro solo para personal autorizado.
+          {locale === "es"
+            ? "Acceso seguro solo para personal autorizado."
+            : "Secure access for authorized staff only."}
         </p>
       </div>
     </main>

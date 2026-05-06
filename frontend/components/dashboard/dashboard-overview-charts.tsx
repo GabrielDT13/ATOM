@@ -1,6 +1,20 @@
 "use client";
 
 import { ChangeEvent, useState } from "react";
+import {
+  Bar,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  Legend,
+  Line,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 import type {
   DashboardStatusBreakdown,
@@ -27,6 +41,7 @@ type ActivityRangeOption = {
 };
 
 type AggregatedActivityPoint = {
+  bucket_start: string;
   completed_analyses: number;
   label: string;
   total_events: number;
@@ -68,11 +83,11 @@ function getBucketCount(days: ActivityRangeDays) {
     case 7:
       return 7;
     case 30:
-      return 5;
+      return 10;
     case 90:
-      return 3;
+      return 9;
     default:
-      return 6;
+      return 12;
   }
 }
 
@@ -147,6 +162,7 @@ function aggregateTimelinePoints(
     const startDate = group[0].bucketDate;
     const endDate = group[group.length - 1].bucketDate;
     groups.push({
+      bucket_start: group[0].bucket_start,
       completed_analyses: group.reduce(
         (sum, point) => sum + point.completed_analyses,
         0,
@@ -159,17 +175,35 @@ function aggregateTimelinePoints(
   return groups;
 }
 
+function renderActivityTooltip(props: any) {
+  const { active, label, payload } = props ?? {};
+  if (!active || !Array.isArray(payload) || payload.length === 0) {
+    return null;
+  }
+
+  const totals = payload.reduce((accumulator: Record<string, number>, item: any) => {
+    if (typeof item?.dataKey === "string" && typeof item?.value === "number") {
+      accumulator[item.dataKey] = item.value;
+    }
+    return accumulator;
+  }, {});
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-xl">
+      <p className="text-sm font-semibold text-slate-950">{label}</p>
+      <div className="mt-2 space-y-1 text-xs text-slate-600">
+        <p>Eventos: {formatNumber(totals.total_events ?? 0)}</p>
+        <p>Completados: {formatNumber(totals.completed_analyses ?? 0)}</p>
+      </div>
+    </div>
+  );
+}
+
 export function DashboardActivityChart({ points }: ActivityChartProps) {
   const [selectedRange, setSelectedRange] = useState<ActivityRangeDays>(30);
   const aggregatedPoints = aggregateTimelinePoints(points, selectedRange);
   const hasActivity = aggregatedPoints.some(
     (point) => point.total_events > 0 || point.completed_analyses > 0,
-  );
-  const maxValue = Math.max(
-    1,
-    ...aggregatedPoints.map((point) =>
-      Math.max(point.total_events, point.completed_analyses),
-    ),
   );
   const selectedRangeMeta =
     ACTIVITY_RANGE_OPTIONS.find((option) => option.days === selectedRange) ??
@@ -190,8 +224,8 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
             Evolución reciente de actividad
           </h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-            Seguimiento real de eventos registrados en proyectos y análisis para
-            la ventana temporal seleccionada.
+            Solo usa eventos reales registrados en proyectos y análisis visibles
+            dentro de ventana temporal seleccionada.
           </p>
         </div>
 
@@ -225,62 +259,59 @@ export function DashboardActivityChart({ points }: ActivityChartProps) {
         </div>
       </div>
 
-      <div
-        className="grid h-72 gap-3"
-        style={{
-          gridTemplateColumns: `repeat(${Math.max(aggregatedPoints.length, 1)}, minmax(0, 1fr))`,
-        }}
-      >
-        {aggregatedPoints.map((point) => {
-          const totalHeight =
-            point.total_events > 0
-              ? Math.max(12, Math.round((point.total_events / maxValue) * 100))
-              : 0;
-          const readyHeight =
-            point.completed_analyses > 0
-              ? Math.max(
-                  10,
-                  Math.round((point.completed_analyses / maxValue) * 100),
-                )
-              : 0;
-
-          return (
-            <div
-              className="flex min-w-0 flex-col items-center justify-end gap-3"
-              key={`${selectedRange}-${point.label}`}
+      <div className="h-80 rounded-[24px] border border-slate-100 bg-slate-50/70 px-3 py-4">
+        {aggregatedPoints.length ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <ComposedChart
+              data={aggregatedPoints}
+              margin={{ top: 8, right: 8, left: -18, bottom: 0 }}
             >
-              <div className="flex h-full w-full items-end gap-2 rounded-[24px] border border-slate-100 bg-slate-50/80 px-3 py-4">
-                <div className="flex h-full flex-1 items-end">
-                  <div
-                    className="w-full rounded-full bg-sky-200/85"
-                    style={{ height: `${totalHeight}%` }}
-                  />
-                </div>
-                <div className="flex h-full flex-1 items-end">
-                  <div
-                    className="w-full rounded-full bg-emerald-400/90"
-                    style={{ height: `${readyHeight}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1 text-center">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  {point.label}
-                </p>
-                <p className="text-xs text-slate-500">
-                  {formatNumber(point.total_events)} mov.
-                </p>
-              </div>
-            </div>
-          );
-        })}
+              <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                axisLine={false}
+                dataKey="label"
+                tick={{ fill: "#64748b", fontSize: 12 }}
+                tickLine={false}
+              />
+              <YAxis
+                allowDecimals={false}
+                axisLine={false}
+                tick={{ fill: "#64748b", fontSize: 12 }}
+                tickLine={false}
+                width={34}
+              />
+              <Tooltip content={renderActivityTooltip} cursor={{ fill: "rgba(148, 163, 184, 0.10)" }} />
+              <Legend
+                formatter={(value) =>
+                  value === "total_events" ? "Movimientos registrados" : "Análisis completados"
+                }
+                iconType="circle"
+                wrapperStyle={{ fontSize: "12px", paddingTop: "4px" }}
+              />
+              <Bar
+                barSize={28}
+                dataKey="total_events"
+                fill="#7dd3fc"
+                name="total_events"
+                radius={[10, 10, 0, 0]}
+              />
+              <Line
+                activeDot={{ r: 4 }}
+                dataKey="completed_analyses"
+                dot={{ fill: "#10b981", r: 3, strokeWidth: 0 }}
+                name="completed_analyses"
+                stroke="#10b981"
+                strokeWidth={3}
+                type="monotone"
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : null}
       </div>
 
       {!hasActivity ? (
         <div className="mt-5 rounded-2xl border border-dashed border-slate-200 px-4 py-5 text-sm text-slate-500">
-          Aún no hay suficientes eventos registrados para dibujar una tendencia
-          con datos reales en la ventana seleccionada.
+          Aún no hay suficientes eventos reales para dibujar tendencia en rango seleccionado.
         </div>
       ) : null}
 
@@ -302,22 +333,21 @@ export function DashboardStatusChart({
   completionRate,
   items,
 }: StatusChartProps) {
-  const total = items.reduce((sum, item) => sum + item.value, 0);
-
-  let currentAngle = 0;
-  const segments = items
-    .filter((item) => item.value > 0)
-    .map((item) => {
-      const start = currentAngle;
-      const segmentAngle = total > 0 ? (item.value / total) * 360 : 0;
-      currentAngle += segmentAngle;
-      return `${STATUS_COLORS[item.status]} ${start}deg ${currentAngle}deg`;
-    });
-
-  const background =
-    segments.length > 0
-      ? `conic-gradient(${segments.join(", ")})`
-      : "conic-gradient(#e2e8f0 0deg 360deg)";
+  const chartItems = items.filter((item) => item.value > 0);
+  const hasData = chartItems.length > 0;
+  const pieData = hasData
+    ? chartItems.map((item) => ({
+        ...item,
+        fill: STATUS_COLORS[item.status],
+      }))
+    : [
+        {
+          fill: "#e2e8f0",
+          label: "Sin actividad",
+          status: "empty",
+          value: 1,
+        },
+      ];
 
   return (
     <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
@@ -328,23 +358,49 @@ export function DashboardStatusChart({
         Distribución del portafolio
       </h3>
 
-      <div className="mt-8 flex items-center justify-center">
-        <div
-          className="relative h-56 w-56 rounded-full p-5 shadow-inner"
-          style={{ background }}
-        >
-          <div className="absolute inset-5 flex flex-col items-center justify-center rounded-full bg-white">
-            <span className="text-4xl font-semibold tracking-tight text-slate-950">
-              {completionRate}%
-            </span>
-            <span className="mt-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-              Cobertura
-            </span>
-          </div>
+      <div className="relative mt-6 flex h-72 items-center justify-center">
+        <div className="h-56 w-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                cx="50%"
+                cy="50%"
+                data={pieData}
+                dataKey="value"
+                innerRadius={58}
+                outerRadius={88}
+                paddingAngle={hasData ? 3 : 0}
+                stroke="none"
+              >
+                {pieData.map((item) => (
+                  <Cell fill={item.fill} key={`${item.status}-${item.label}`} />
+                ))}
+              </Pie>
+              <Tooltip
+                formatter={(value: any) =>
+                  formatNumber(typeof value === "number" ? value : Number(value ?? 0))
+                }
+                contentStyle={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: "16px",
+                  boxShadow: "0 16px 40px rgba(15, 23, 42, 0.12)",
+                }}
+              />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="absolute left-1/2 top-1/2 flex h-32 w-32 -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-100">
+          <span className="text-4xl font-semibold tracking-tight text-slate-950">
+            {completionRate}%
+          </span>
+          <span className="mt-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
+            Cobertura
+          </span>
         </div>
       </div>
 
-      <div className="mt-8 space-y-3">
+      <div className="space-y-3">
         {items.map((item) => (
           <div
             className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3"

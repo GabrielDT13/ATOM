@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { UserIcon } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   CreatableSelectField,
@@ -11,6 +12,8 @@ import {
 } from "@/components/ui/creatable-select-field";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { apiFetch } from "@/lib/api";
+import { detectBrowserLocale } from "@/lib/locale";
+import { persistDarkModePreference } from "@/lib/theme";
 import { cn } from "@/lib/utils";
 import type {
   DepartmentRecord,
@@ -58,6 +61,7 @@ export function ProfileSettingsPage({
 }: ProfileSettingsPageProps) {
   const router = useRouter();
   const appToast = useAppToast();
+  const { setLocale } = useLocale();
   const [resolvedProfileData, setResolvedProfileData] = useState<ProfileRecord | null>(
     profileData,
   );
@@ -77,6 +81,9 @@ export function ProfileSettingsPage({
   const [loginAlerts, setLoginAlerts] = useState(editableValues.loginAlerts);
   const [interfaceLanguage, setInterfaceLanguage] = useState(
     editableValues.interfaceLanguage,
+  );
+  const [interfaceLanguageAuto, setInterfaceLanguageAuto] = useState(
+    editableValues.interfaceLanguageAuto,
   );
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [passwordConfirmOpen, setPasswordConfirmOpen] = useState(false);
@@ -147,6 +154,7 @@ export function ProfileSettingsPage({
     setSystemTheme(editableValues.systemTheme);
     setLoginAlerts(editableValues.loginAlerts);
     setInterfaceLanguage(editableValues.interfaceLanguage);
+    setInterfaceLanguageAuto(editableValues.interfaceLanguageAuto);
   }, [
     editableValues.bio,
     editableValues.department,
@@ -154,6 +162,7 @@ export function ProfileSettingsPage({
     editableValues.email,
     editableValues.emailNotifications,
     editableValues.interfaceLanguage,
+    editableValues.interfaceLanguageAuto,
     editableValues.loginAlerts,
     editableValues.systemTheme,
     editableValues.username,
@@ -176,6 +185,7 @@ export function ProfileSettingsPage({
     setSystemTheme(editableValues.systemTheme);
     setLoginAlerts(editableValues.loginAlerts);
     setInterfaceLanguage(editableValues.interfaceLanguage);
+    setInterfaceLanguageAuto(editableValues.interfaceLanguageAuto);
   }
 
   function resetPasswordForm() {
@@ -220,7 +230,8 @@ export function ProfileSettingsPage({
           email_notifications: emailNotifications,
           security_alerts: loginAlerts,
           dark_mode: systemTheme,
-          interface_language: interfaceLanguage,
+          interface_language: interfaceLanguageAuto ? detectBrowserLocale() : interfaceLanguage,
+          interface_language_auto: interfaceLanguageAuto,
         },
       }),
     }).then((response) => {
@@ -249,6 +260,14 @@ export function ProfileSettingsPage({
     try {
       const response = await request;
       updateResolvedProfile(response.profile);
+      if (response.profile) {
+        persistDarkModePreference(Boolean(response.profile.preferences.dark_mode));
+        setLocale(
+          response.profile.preferences.interface_language_auto
+            ? detectBrowserLocale()
+            : response.profile.preferences.interface_language,
+        );
+      }
       router.refresh();
     } catch {
       // El feedback ya se muestra en el toast.
@@ -664,9 +683,15 @@ export function ProfileSettingsPage({
                 />
                 <PreferenceToggle
                   checked={systemTheme}
-                  description="Activa la apariencia oscura cuando esta opción esté disponible."
+                  description="Si no guardas preferencia, ATOM sigue tema del sistema. Al cambiar aquí, fijas modo claro u oscuro para tu cuenta."
                   onCheckedChange={setSystemTheme}
                   title="Activar modo oscuro"
+                />
+                <PreferenceToggle
+                  checked={interfaceLanguageAuto}
+                  description="Usa idioma del navegador. Si navegador está en español, ATOM usa español; si está en inglés o cualquier otro idioma, usa inglés."
+                  onCheckedChange={setInterfaceLanguageAuto}
+                  title="Detectar idioma automáticamente"
                 />
               </div>
 
@@ -676,6 +701,7 @@ export function ProfileSettingsPage({
                     Idioma de la interfaz
                   </span>
                   <select
+                    disabled={interfaceLanguageAuto}
                     className="mt-2 block w-full rounded-2xl border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-primary focus:ring-primary"
                     onChange={(event) =>
                       setInterfaceLanguage(event.target.value as "es" | "en")
@@ -697,9 +723,13 @@ export function ProfileSettingsPage({
                         Configuración actual
                       </p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {interfaceLanguage === "es"
-                          ? "La interfaz está configurada en español."
-                          : "La interfaz está configurada en inglés."}
+                        {interfaceLanguageAuto
+                          ? detectBrowserLocale() === "es"
+                            ? "Modo automático activo: navegador en español."
+                            : "Automatic mode active: browser in English."
+                          : interfaceLanguage === "es"
+                            ? "La interfaz está configurada en español."
+                            : "La interfaz está configurada en inglés."}
                       </p>
                     </div>
                   </div>

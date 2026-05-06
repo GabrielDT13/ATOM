@@ -46,9 +46,11 @@ from backend.app.services.project_repository import (
     _list_project_members_by_project_id,
     _list_project_team_members_by_project_id,
     _list_project_teams_by_project_id,
+    _list_public_project_records,
     _list_shared_project_records,
     _rename_project_record,
     _set_project_entity,
+    _set_project_visibility,
     _upsert_project_record,
 )
 from backend.app.services.project_storage import (
@@ -65,6 +67,7 @@ from fastapi import UploadFile
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
 ProjectEditableMemberRole = Literal["editor", "viewer"]
+ProjectVisibility = Literal["private", "public"]
 PROJECT_MEMBER_ROLE_RANK: dict[str, int] = {
     "viewer": 1,
     "editor": 2,
@@ -86,6 +89,20 @@ def _pick_highest_project_role(roles: list[str]) -> ProjectMemberRole | None:
         return None
     best_role = max(valid_roles, key=lambda role: PROJECT_MEMBER_ROLE_RANK[role])
     return best_role  # type: ignore[return-value]
+
+
+def _normalize_project_visibility(value: object) -> ProjectVisibility:
+    normalized = str(value or "").strip().lower()
+    if normalized == "public":
+        return "public"
+    return "private"
+
+
+def _parse_project_visibility(value: object) -> ProjectVisibility:
+    normalized = str(value or "").strip().lower()
+    if normalized in {"private", "public"}:
+        return normalized  # type: ignore[return-value]
+    raise ValueError("La visibilidad del proyecto no es válida")
 
 
 def _build_project_team_response(
@@ -386,6 +403,54 @@ def list_projects_for_user(session_user_id: str, session_username: str, role: st
     return {"projects": projects, "items": items}
 
 
+def list_public_projects_for_user(
+    session_user_id: str,
+    session_username: str,
+    role: str,
+) -> dict[str, object]:
+    projects: dict[str, list[str]] = {}
+    items: list[dict[str, object]] = []
+
+    try:
+        public_records = _list_public_project_records()
+    except Exception:
+        public_records = []
+
+    for record in public_records:
+        owner = str(record.get("owner_username") or "").strip()
+        project_name = str(record.get("name") or "").strip()
+        if not owner or not project_name:
+            continue
+
+        project_id = str(record.get("id") or "").strip()
+        project_dir = (
+            migrate_legacy_project_dir(project_id, owner=owner, project_name=project_name)
+            if project_id
+            else get_project_dir(owner, project_name)
+        )
+        projects.setdefault(owner, [])
+        if project_name not in projects[owner]:
+            projects[owner].append(project_name)
+
+        payload = _build_project_payload(owner, project_dir, record)
+        access_role = _get_project_access_role(session_user_id, session_username, role, owner, project_name)
+        payload["access_role"] = access_role or "viewer"
+        items.append(payload)
+
+    for owner, project_names in projects.items():
+        projects[owner] = sorted(project_names, key=lambda item: item.lower())
+
+    items = _attach_active_runs(items)
+    items.sort(
+        key=lambda item: (
+            str(item.get("owner", "")).lower(),
+            str(item.get("name", "")).lower(),
+        )
+    )
+
+    return {"projects": projects, "items": items}
+
+
 async def create_project(
     actor_user_id: str | None,
     username: str,
@@ -395,6 +460,7 @@ async def create_project(
     *,
     entity_name: str | None = None,
     team_id: str | None = None,
+    visibility: ProjectVisibility = "private",
     actor_role: str = "user",
 ) -> tuple[bool, str]:
     try:
@@ -411,6 +477,10 @@ async def create_project(
     legacy_project_dir = get_legacy_project_dir(username, normalized_name)
     record_created = False
     try:
+        normalized_visibility = _parse_project_visibility(visibility)
+    except ValueError as exc:
+        return False, str(exc)
+    try:
         existing_record = _get_project_record(username, normalized_name)
     except Exception:
         existing_record = None
@@ -419,7 +489,12 @@ async def create_project(
 
     project_dir: Path | None = None
     try:
-        created_record = _create_project_record(username, normalized_name, entity_name)
+        created_record = _create_project_record(
+            username,
+            normalized_name,
+            entity_name,
+            normalized_visibility,
+        )
         record_created = True
         project_id = str(created_record.get("id") or "").strip()
         project_dir = ensure_project_storage_dir(project_id, owner=username, project_name=normalized_name)
@@ -1124,6 +1199,7 @@ async def update_project(
     excel_file: UploadFile | None,
     additional_files: list[UploadFile],
     entity_name: str | None = None,
+    visibility: str | None = None,
 ) -> tuple[bool, str, str]:
     try:
         current_name = normalize_project_name(project_name)
@@ -1171,6 +1247,16 @@ async def update_project(
         except ServiceError as exc:
             return False, str(exc), current_name
 
+    if visibility is not None:
+        try:
+            project_id = str(project_record.get("id") or "").strip()
+            if project_id:
+                _set_project_visibility(project_id, _parse_project_visibility(visibility))
+        except ServiceError as exc:
+            return False, str(exc), current_name
+        except ValueError as exc:
+            return False, str(exc), current_name
+
     uploaded_template = bool(excel_file and excel_file.filename)
     uploaded_additional_count = len([upload for upload in additional_files if upload.filename])
     has_uploads = bool(
@@ -1200,6 +1286,11 @@ async def update_project(
     update_segments: list[str] = []
     if new_name and new_name.strip():
         update_segments.append("nombre actualizado")
+    if visibility is not None:
+        visibility_label = "pública" if _normalize_project_visibility(visibility) == "public" else "privada"
+        update_segments.append(
+            f"visibilidad {visibility_label}"
+        )
     if uploaded_template:
         update_segments.append("plantilla reemplazada")
     if uploaded_additional_count:

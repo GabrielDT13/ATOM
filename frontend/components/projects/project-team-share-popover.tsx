@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { getProjectMemberRoleLabel, type EditableProjectMemberRole, PROJECT_SHARE_ROLE_OPTIONS } from "@/components/projects/project-access-utils";
 import { ProjectStackIcon, SearchIcon } from "@/components/projects/project-management-icons";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -85,7 +86,7 @@ export function ProjectTeamSharePopover({
             </label>
 
             <Select onValueChange={(value) => onShareRoleChange(value as EditableProjectMemberRole)} value={shareRole}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Rol al compartir con equipo">
                 <SelectValue placeholder="Rol" />
               </SelectTrigger>
               <SelectContent>
@@ -96,6 +97,13 @@ export function ProjectTeamSharePopover({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Rol</span>
+            <InfoTooltip
+              content="Rol aplica a todo equipo vinculado. Viewer solo lectura. Editor permite cambios en proyecto."
+            />
           </div>
 
           <div className="max-h-72 overflow-y-auto">

@@ -7,12 +7,14 @@ import { AuthBrand } from "@/components/auth/auth-brand";
 import { AuthCard } from "@/components/auth/auth-card";
 import { AuthInputField } from "@/components/auth/auth-input-field";
 import { ArrowRightIcon, MailIcon } from "@/components/auth/auth-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { apiFetch } from "@/lib/api";
 import type { AuthMessageResponse } from "@/types/api";
 
 export function ForgotPasswordForm() {
   const toast = useAppToast();
+  const { locale } = useLocale();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -31,16 +33,19 @@ export function ForgotPasswordForm() {
 
     toast.promise(request, {
       loading: {
-        title: "Enviando instrucciones",
-        description: "Estamos preparando el correo de recuperación.",
+        title: locale === "es" ? "Enviando instrucciones" : "Sending instructions",
+        description: locale === "es" ? "Estamos preparando el correo de recuperación." : "We are preparing recovery email.",
       },
       success: {
-        title: "Revisa tu email",
-        description: "Si la cuenta existe, recibirás un enlace para restablecer la contraseña.",
+        title: locale === "es" ? "Revisa tu email" : "Check your email",
+        description:
+          locale === "es"
+            ? "Si la cuenta existe, recibirás un enlace para restablecer la contraseña."
+            : "If account exists, you will receive reset link.",
       },
       error: {
-        title: "No se pudo completar la solicitud",
-        description: "Vuelve a intentarlo en unos minutos.",
+        title: locale === "es" ? "No se pudo completar la solicitud" : "Could not complete request",
+        description: locale === "es" ? "Vuelve a intentarlo en unos minutos." : "Try again in a few minutes.",
       },
     });
 
@@ -58,9 +63,11 @@ export function ForgotPasswordForm() {
         <AuthBrand />
 
         <div className="space-y-2 text-center">
-          <h2 className="text-2xl font-bold text-slate-950">Recuperar acceso</h2>
+          <h2 className="text-2xl font-bold text-slate-950">{locale === "es" ? "Recuperar acceso" : "Recover access"}</h2>
           <p className="text-sm leading-6 text-slate-500">
-            Introduce tu email y te enviaremos un enlace para establecer una nueva contraseña.
+            {locale === "es"
+              ? "Introduce tu email y te enviaremos un enlace para establecer una nueva contraseña."
+              : "Enter your email and we will send link to set new password."}
           </p>
         </div>
 
@@ -71,7 +78,7 @@ export function ForgotPasswordForm() {
             label="Email"
             leadingIcon={<MailIcon />}
             onChange={(event) => setEmail(event.target.value)}
-            placeholder="Introduce tu email"
+            placeholder={locale === "es" ? "Introduce tu email" : "Enter your email"}
             required
             type="email"
             value={email}
@@ -82,7 +89,7 @@ export function ForgotPasswordForm() {
             disabled={loading}
             type="submit"
           >
-            <span>{loading ? "Enviando..." : "Enviar enlace"}</span>
+            <span>{loading ? (locale === "es" ? "Enviando..." : "Sending...") : locale === "es" ? "Enviar enlace" : "Send link"}</span>
             <ArrowRightIcon className="ml-2 h-5 w-5" />
           </button>
         </form>
@@ -90,17 +97,19 @@ export function ForgotPasswordForm() {
         <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
           {submitted ? (
             <p>
-              Si la cuenta existe, recibirás un correo con instrucciones. También puedes volver al{" "}
+              {locale === "es"
+                ? "Si la cuenta existe, recibirás un correo con instrucciones. También puedes volver al "
+                : "If account exists, you will receive email with instructions. You can also go back to "}
               <Link className="font-semibold text-primary hover:text-blue-700" href="/login">
-                inicio de sesión
+                {locale === "es" ? "inicio de sesión" : "sign in"}
               </Link>
               .
             </p>
           ) : (
             <p>
-              ¿Recuerdas tu contraseña?{" "}
+              {locale === "es" ? "¿Recuerdas tu contraseña? " : "Remember your password? "}
               <Link className="font-semibold text-primary hover:text-blue-700" href="/login">
-                Volver a iniciar sesión
+                {locale === "es" ? "Volver a iniciar sesión" : "Back to sign in"}
               </Link>
               .
             </p>

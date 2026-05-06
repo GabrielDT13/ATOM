@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { parseProjectReportHtml } from "@/components/projects/project-report-utils";
+import {
+  isReportAssetPassthroughPath,
+  parseProjectReportHtml,
+  resolveRelativeReportAssetPath,
+} from "@/components/projects/project-report-utils";
 
 describe("parseProjectReportHtml", () => {
   it("extrae imágenes, título y secciones relevantes del informe", () => {
@@ -56,5 +60,12 @@ describe("parseProjectReportHtml", () => {
       kind: "PCA",
       src: "resolved://design_app_a_files/figure-html/pca-plot-1.png",
     });
+  });
+
+  it("mantiene intactas las imágenes embebidas en data uri", () => {
+    const source = "data:image/png;base64,abc123";
+
+    expect(isReportAssetPassthroughPath(source)).toBe(true);
+    expect(resolveRelativeReportAssetPath("design1/report.html", source)).toBe(source);
   });
 });

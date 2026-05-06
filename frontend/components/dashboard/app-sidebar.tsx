@@ -5,6 +5,7 @@ import Link from "next/link";
 
 import type { SidebarLink } from "@/types/api";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -71,6 +72,33 @@ function getNavIcon(label: string) {
   return <FileIcon className="h-5 w-5" />;
 }
 
+function getLocalizedNavLabel(url: string, fallback: string, locale: "en" | "es") {
+  if (locale === "es") {
+    return fallback;
+  }
+
+  switch (url) {
+    case "/dashboard":
+      return "Dashboard";
+    case "/dashboard/projects":
+      return "Projects";
+    case "/dashboard/public-projects":
+      return "Public";
+    case "/dashboard/reports":
+      return "Reports";
+    case "/dashboard/teams":
+      return "Teams";
+    case "/dashboard/entities":
+      return "Entities";
+    case "/dashboard/profile":
+      return "Profile";
+    case "/dashboard/users":
+      return "Users";
+    default:
+      return fallback;
+  }
+}
+
 export function AppSidebar({
   currentPathname,
   isCollapsed,
@@ -80,6 +108,8 @@ export function AppSidebar({
   onLogout,
   onToggleCollapse,
 }: AppSidebarProps) {
+  const { locale } = useLocale();
+
   return (
     <>
       <div
@@ -127,7 +157,7 @@ export function AppSidebar({
               </div>
 
               <button
-                aria-label="Cerrar menú lateral"
+                aria-label={locale === "es" ? "Cerrar menú lateral" : "Close side menu"}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 hover:text-primary lg:hidden"
                 onClick={onCloseMobile}
                 type="button"
@@ -150,7 +180,7 @@ export function AppSidebar({
                     href={item.url}
                     key={item.url}
                     onClick={onCloseMobile}
-                    title={item.name}
+                    title={getLocalizedNavLabel(item.url, item.name, locale)}
                   >
                     <span className="shrink-0">{getNavIcon(item.name)}</span>
                     <span
@@ -160,7 +190,7 @@ export function AppSidebar({
                           : "lg:max-w-[10rem] lg:opacity-100 lg:translate-x-0"
                       }`}
                     >
-                      {item.name}
+                      {getLocalizedNavLabel(item.url, item.name, locale)}
                     </span>
                   </Link>
                 );
@@ -183,12 +213,20 @@ export function AppSidebar({
                   : "lg:max-w-[8rem] lg:opacity-100 lg:translate-x-0"
               }`}
             >
-              Cerrar sesión
+              {locale === "es" ? "Cerrar sesión" : "Sign out"}
             </span>
           </button>
 
           <button
-            aria-label={isCollapsed ? "Expandir menú lateral" : "Contraer menú lateral"}
+            aria-label={
+              locale === "es"
+                ? isCollapsed
+                  ? "Expandir menú lateral"
+                  : "Contraer menú lateral"
+                : isCollapsed
+                  ? "Expand side menu"
+                  : "Collapse side menu"
+            }
             className="absolute right-0 top-1/2 hidden h-9 w-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:text-primary lg:flex"
             onClick={onToggleCollapse}
             type="button"

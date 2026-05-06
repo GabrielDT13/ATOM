@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 
 import type {
   DashboardOverview,
+  PublicProfileRecord,
   ProfileRecord,
   SessionResponse,
 } from "@/types/api";
@@ -49,6 +50,14 @@ export async function fetchServerSession(): Promise<SessionResponse | null> {
 
 export async function fetchServerProfile(): Promise<ProfileRecord | null> {
   return fetchServerBackend<ProfileRecord>("/api/profile/me");
+}
+
+export async function fetchServerPublicProfile(
+  username: string,
+): Promise<PublicProfileRecord | null> {
+  return fetchServerBackend<PublicProfileRecord>(
+    `/api/profile/public/${encodeURIComponent(username)}`,
+  );
 }
 
 export async function fetchServerDashboardOverview(): Promise<DashboardOverview | null> {

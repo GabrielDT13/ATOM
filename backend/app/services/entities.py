@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import shutil
+from pathlib import Path
+
+from backend.app.core.config import get_settings
 from backend.app.services.database import execute, fetch_all, fetch_one
 from backend.app.services.errors import ServiceError
 
@@ -17,7 +21,7 @@ def _build_entity_response(item: dict[str, object]) -> dict[str, object] | None:
     slug = str(item.get("slug") or "").strip()
     if not entity_id or not name or not slug:
         return None
-    return {
+    response: dict[str, object] = {
         "created_at": str(item.get("created_at") or "").strip() or None,
         "id": entity_id,
         "name": name,
@@ -26,6 +30,19 @@ def _build_entity_response(item: dict[str, object]) -> dict[str, object] | None:
         "team_count": int(item.get("team_count") or 0),
         "user_count": int(item.get("user_count") or 0),
     }
+    if str(item.get("logo_path") or "").strip():
+        response["logo_url"] = build_entity_logo_url(entity_id)
+    return response
+
+
+def build_entity_logo_url(entity_id: str) -> str:
+    return f"/api/entities/{entity_id}/logo"
+
+
+def get_entity_logo_path(entity_id: str) -> Path:
+    settings = get_settings()
+    settings.entity_logos_dir.mkdir(parents=True, exist_ok=True)
+    return settings.entity_logos_dir / f"{entity_id}.webp"
 
 
 def _get_entity_record(entity_id: str) -> dict[str, object] | None:
@@ -35,6 +52,7 @@ def _get_entity_record(entity_id: str) -> dict[str, object] | None:
           e.id,
           e.name,
           e.slug,
+          e.logo_path,
           e.created_at,
           (SELECT count(*) FROM internal.profiles p WHERE p.entity_id = e.id)::bigint AS user_count,
           (SELECT count(*) FROM internal.projects p WHERE p.entity_id = e.id)::bigint AS project_count,
@@ -54,6 +72,7 @@ def _find_entity_by_name(name: str) -> dict[str, object] | None:
     item = fetch_one(
         """
         SELECT id, name, slug, created_at
+        , logo_path
         FROM internal.entities
         WHERE name = %s
         LIMIT 1
@@ -62,7 +81,7 @@ def _find_entity_by_name(name: str) -> dict[str, object] | None:
     )
     if not isinstance(item, dict):
         return None
-    return {
+    response: dict[str, object] = {
         "created_at": str(item.get("created_at") or "").strip() or None,
         "id": str(item.get("id") or "").strip(),
         "name": str(item.get("name") or "").strip(),
@@ -71,6 +90,9 @@ def _find_entity_by_name(name: str) -> dict[str, object] | None:
         "team_count": 0,
         "user_count": 0,
     }
+    if str(item.get("logo_path") or "").strip():
+        response["logo_url"] = build_entity_logo_url(str(item.get("id") or "").strip())
+    return response
 
 
 def _generate_entity_slug(name: str, *, current_entity_id: str | None = None) -> str:
@@ -98,6 +120,7 @@ def list_entities() -> list[dict[str, object]]:
           e.id,
           e.name,
           e.slug,
+          e.logo_path,
           e.created_at,
           (SELECT count(*) FROM internal.profiles p WHERE p.entity_id = e.id)::bigint AS user_count,
           (SELECT count(*) FROM internal.projects p WHERE p.entity_id = e.id)::bigint AS project_count,
@@ -158,12 +181,49 @@ def update_entity(entity_id: str, name: str) -> tuple[bool, str, dict[str, objec
     return True, "Entidad actualizada correctamente", _get_entity_record(entity_id)
 
 
+def update_entity_logo(entity_id: str, logo_bytes: bytes | None) -> dict[str, object] | None:
+    current = _get_entity_record(entity_id)
+    if not current:
+        raise ServiceError("Entidad no encontrada")
+
+    logo_path = get_entity_logo_path(entity_id)
+    if logo_bytes:
+      logo_path.write_bytes(logo_bytes)
+      execute(
+          """
+          UPDATE internal.entities
+          SET logo_path = %s
+          WHERE id = %s
+          """,
+          (logo_path.name, entity_id),
+      )
+    else:
+      if logo_path.exists():
+          logo_path.unlink()
+      execute(
+          """
+          UPDATE internal.entities
+          SET logo_path = NULL
+          WHERE id = %s
+          """,
+          (entity_id,),
+      )
+
+    return _get_entity_record(entity_id)
+
+
 def delete_entity(entity_id: str) -> tuple[bool, str]:
     current = _get_entity_record(entity_id)
     if not current:
         return False, "Entidad no encontrada"
 
     execute("DELETE FROM internal.entities WHERE id = %s", (entity_id,))
+    logo_path = get_entity_logo_path(entity_id)
+    if logo_path.exists():
+        if logo_path.is_dir():
+            shutil.rmtree(logo_path)
+        else:
+            logo_path.unlink()
     return True, "Entidad eliminada correctamente"
 
 

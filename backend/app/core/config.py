@@ -11,6 +11,7 @@ class Settings:
     project_root: Path
     data_dir: Path
     projects_dir: Path
+    entity_logos_dir: Path
     r_scripts_dir: Path
     public_examples_dir: Path
     database_url: str
@@ -64,6 +65,7 @@ def get_settings() -> Settings:
         project_root=project_root,
         data_dir=data_dir,
         projects_dir=_resolve_path("ATOM_PROJECTS_DIR", str(data_dir / "projects"), project_root),
+        entity_logos_dir=_resolve_path("ATOM_ENTITY_LOGOS_DIR", str(data_dir / "entity-logos"), project_root),
         r_scripts_dir=_resolve_path("ATOM_R_SCRIPTS_DIR", "r_scripts", project_root),
         public_examples_dir=_resolve_path(
             "ATOM_PUBLIC_EXAMPLES_DIR",

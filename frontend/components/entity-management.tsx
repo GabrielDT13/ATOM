@@ -92,15 +92,15 @@ export function EntityManagement() {
   const totalProjects = entities.reduce((sum, entity) => sum + (entity.project_count ?? 0), 0);
   const totalTeams = entities.reduce((sum, entity) => sum + (entity.team_count ?? 0), 0);
 
-  async function handleCreate(name: string) {
-    if (!name.trim()) {
+  async function handleCreate(payload: { logoFile: File | null; name: string; removeLogo: boolean }) {
+    if (!payload.name.trim()) {
       appToast.error("El nombre de la entidad es obligatorio");
       return;
     }
 
     setSubmitting(true);
     try {
-      const response = await createEntity(name);
+      const response = await createEntity(payload);
       if (response.success) {
         setCreateOpen(false);
         await loadState();
@@ -118,18 +118,18 @@ export function EntityManagement() {
     }
   }
 
-  async function handleEdit(name: string) {
+  async function handleEdit(payload: { logoFile: File | null; name: string; removeLogo: boolean }) {
     if (!editingEntity) {
       return;
     }
-    if (!name.trim()) {
+    if (!payload.name.trim()) {
       appToast.error("El nombre de la entidad es obligatorio");
       return;
     }
 
     setSubmitting(true);
     try {
-      const response = await updateEntity(editingEntity.id, name);
+      const response = await updateEntity(editingEntity.id, payload);
       if (response.success) {
         setEditingEntity(null);
         await loadState();

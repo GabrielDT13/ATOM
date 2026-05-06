@@ -10,6 +10,7 @@ import {
 import { SearchIcon } from "@/components/projects/project-management-icons";
 import { ProjectAccessUserTrigger } from "@/components/projects/project-access-user-trigger";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -87,7 +88,7 @@ export function ProjectSharePopover({
             </label>
 
             <Select onValueChange={(value) => onShareRoleChange(value as EditableProjectMemberRole)} value={shareRole}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Rol al compartir con usuario">
                 <SelectValue placeholder="Rol" />
               </SelectTrigger>
               <SelectContent>
@@ -98,6 +99,13 @@ export function ProjectSharePopover({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Rol</span>
+            <InfoTooltip
+              content="Viewer puede ver. Editor puede ver y modificar proyecto. Owner no se asigna desde aqui."
+            />
           </div>
 
           <div className="max-h-72 overflow-y-auto">

@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS internal.entities (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   name text NOT NULL UNIQUE,
   slug text NOT NULL UNIQUE,
+  logo_path text,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS internal.profile_preferences (
   security_alerts boolean NOT NULL DEFAULT true,
   dark_mode boolean NOT NULL DEFAULT false,
   interface_language text NOT NULL DEFAULT 'es',
+  interface_language_auto boolean NOT NULL DEFAULT true,
   must_change_password boolean NOT NULL DEFAULT false,
   welcome_tour_seen boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -123,9 +125,11 @@ CREATE TABLE IF NOT EXISTS internal.projects (
   name text NOT NULL,
   slug text NOT NULL UNIQUE,
   description text,
+  visibility text NOT NULL DEFAULT 'private',
   status text NOT NULL DEFAULT 'draft',
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (visibility IN ('private', 'public')),
   CHECK (status IN ('draft', 'active', 'archived'))
 );
 
@@ -229,6 +233,9 @@ ALTER TABLE internal.profiles
 ALTER TABLE internal.projects
   ADD COLUMN IF NOT EXISTS entity_id uuid;
 
+ALTER TABLE internal.projects
+  ADD COLUMN IF NOT EXISTS visibility text NOT NULL DEFAULT 'private';
+
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -240,6 +247,21 @@ BEGIN
     ALTER TABLE internal.profiles
       ADD CONSTRAINT profiles_entity_id_fkey
       FOREIGN KEY (entity_id) REFERENCES internal.entities (id) ON DELETE SET NULL;
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'projects_visibility_check'
+      AND conrelid = 'internal.projects'::regclass
+  ) THEN
+    ALTER TABLE internal.projects
+      ADD CONSTRAINT projects_visibility_check
+      CHECK (visibility IN ('private', 'public'));
   END IF;
 END
 $$;
@@ -273,6 +295,7 @@ CREATE INDEX IF NOT EXISTS idx_internal_notifications_user_unread_created_at
 CREATE INDEX IF NOT EXISTS idx_internal_profiles_entity_id ON internal.profiles (entity_id);
 CREATE INDEX IF NOT EXISTS idx_internal_projects_owner_id ON internal.projects (owner_id);
 CREATE INDEX IF NOT EXISTS idx_internal_projects_entity_id ON internal.projects (entity_id);
+CREATE INDEX IF NOT EXISTS idx_internal_projects_visibility ON internal.projects (visibility);
 CREATE INDEX IF NOT EXISTS idx_internal_project_members_user_id ON internal.project_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_internal_project_teams_team_id ON internal.project_teams (team_id);
 CREATE INDEX IF NOT EXISTS idx_internal_teams_owner_id ON internal.teams (owner_id);
@@ -587,7 +610,8 @@ CREATE OR REPLACE VIEW public.vw_entities AS
 SELECT
   e.id,
   e.name,
-  e.slug
+  e.slug,
+  e.logo_path
 FROM internal.entities e;
 
 CREATE OR REPLACE VIEW public.vw_profiles AS
@@ -620,9 +644,6 @@ SELECT
   p.id,
   p.owner_id,
   owner_profile.username AS owner_username,
-  p.entity_id,
-  e.name AS entity_name,
-  e.slug AS entity_slug,
   p.name,
   p.slug,
   p.description,
@@ -633,7 +654,12 @@ SELECT
     SELECT count(*)
     FROM internal.project_members pm
     WHERE pm.project_id = p.id
-  )::bigint AS member_count
+  )::bigint AS member_count,
+  p.entity_id,
+  e.name AS entity_name,
+  e.slug AS entity_slug,
+  p.visibility,
+  e.logo_path AS entity_logo_path
 FROM internal.projects p
 JOIN internal.profiles owner_profile
   ON owner_profile.id = p.owner_id
@@ -775,10 +801,11 @@ SELECT
   pp.security_alerts,
   pp.dark_mode,
   pp.interface_language,
+  pp.created_at,
+  pp.updated_at,
   pp.must_change_password,
   pp.welcome_tour_seen,
-  pp.created_at,
-  pp.updated_at
+  pp.interface_language_auto
 FROM internal.profile_preferences pp;
 
 CREATE OR REPLACE VIEW public.vw_profile_activity AS
@@ -957,19 +984,21 @@ INSERT INTO internal.profile_preferences (
   security_alerts,
   dark_mode,
   interface_language,
+  interface_language_auto,
   must_change_password,
   welcome_tour_seen
 )
 VALUES
-  ('11111111-1111-1111-1111-111111111111', true, true, false, 'es', false, true),
-  ('22222222-2222-2222-2222-222222222222', true, true, true, 'es', false, true),
-  ('33333333-3333-3333-3333-333333333333', false, true, false, 'es', false, true)
+  ('11111111-1111-1111-1111-111111111111', true, true, false, 'es', true, false, true),
+  ('22222222-2222-2222-2222-222222222222', true, true, true, 'es', true, false, true),
+  ('33333333-3333-3333-3333-333333333333', false, true, false, 'es', true, false, true)
 ON CONFLICT (user_id) DO UPDATE
 SET
   email_notifications = EXCLUDED.email_notifications,
   security_alerts = EXCLUDED.security_alerts,
   dark_mode = EXCLUDED.dark_mode,
   interface_language = EXCLUDED.interface_language,
+  interface_language_auto = EXCLUDED.interface_language_auto,
   must_change_password = EXCLUDED.must_change_password,
   welcome_tour_seen = EXCLUDED.welcome_tour_seen,
   updated_at = now();

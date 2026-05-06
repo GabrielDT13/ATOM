@@ -5,10 +5,33 @@
 :root {
   --color-text-main: #0f172a;
   --color-app-shell: linear-gradient(180deg, #f3f7fb 0%, #eef4f9 100%);
+  --color-surface-base: #ffffff;
+  --color-surface-muted: #f8fafc;
+  --color-surface-soft: #f1f5f9;
+  --color-border-soft: #e2e8f0;
+  --color-text-strong: #0f172a;
+  --color-text-soft: #475569;
+  --color-text-muted: #64748b;
   --hero-surface:
     radial-gradient(circle at top left, rgba(56, 189, 248, 0.28), transparent 30%),
     radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.22), transparent 30%),
     linear-gradient(135deg, #0f172a 0%, #111827 46%, #0b3b34 100%);
+}
+
+html[data-theme="dark"] {
+  --color-text-main: #e5eefb;
+  --color-app-shell: linear-gradient(180deg, #020617 0%, #06111f 100%);
+  --color-surface-base: #0f172a;
+  --color-surface-muted: #111c31;
+  --color-surface-soft: #162338;
+  --color-border-soft: #243246;
+  --color-text-strong: #f8fafc;
+  --color-text-soft: #cbd5e1;
+  --color-text-muted: #94a3b8;
+  --hero-surface:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.2), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.14), transparent 30%),
+    linear-gradient(135deg, #020617 0%, #0f172a 48%, #0b3b34 100%);
 }
 
 * {
@@ -24,6 +47,10 @@ body {
 body {
   background: var(--color-app-shell);
   color: var(--color-text-main);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease;
 }
 
 [data-sonner-toaster] {
@@ -66,6 +93,94 @@ input {
 
 .error-panel {
   color: #b91c1c;
+}
+
+html[data-theme="dark"] .error-panel {
+  color: #fda4af;
+}
+
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] [class*="bg-white"] {
+  background-color: var(--color-surface-base) !important;
+}
+
+html[data-theme="dark"] .bg-slate-50,
+html[data-theme="dark"] [class*="bg-slate-50"] {
+  background-color: var(--color-surface-muted) !important;
+}
+
+html[data-theme="dark"] .bg-slate-100,
+html[data-theme="dark"] [class*="bg-slate-100"] {
+  background-color: var(--color-surface-soft) !important;
+}
+
+html[data-theme="dark"] .border-slate-100,
+html[data-theme="dark"] [class*="border-slate-100"],
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] [class*="border-slate-200"],
+html[data-theme="dark"] .border-white\/10,
+html[data-theme="dark"] [class*="border-white/10"],
+html[data-theme="dark"] .border-white\/12,
+html[data-theme="dark"] [class*="border-white/12"] {
+  border-color: var(--color-border-soft) !important;
+}
+
+html[data-theme="dark"] .text-slate-950,
+html[data-theme="dark"] [class*="text-slate-950"],
+html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] [class*="text-slate-900"] {
+  color: var(--color-text-strong) !important;
+}
+
+html[data-theme="dark"] .text-slate-700,
+html[data-theme="dark"] [class*="text-slate-700"],
+html[data-theme="dark"] .text-slate-600,
+html[data-theme="dark"] [class*="text-slate-600"],
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] [class*="text-slate-500"] {
+  color: var(--color-text-soft) !important;
+}
+
+html[data-theme="dark"] .text-slate-400,
+html[data-theme="dark"] [class*="text-slate-400"] {
+  color: var(--color-text-muted) !important;
+}
+
+html[data-theme="dark"] .shadow-sm,
+html[data-theme="dark"] [class*="shadow-sm"],
+html[data-theme="dark"] [class*="shadow-"] {
+  box-shadow: 0 22px 60px -42px rgba(2, 6, 23, 0.8) !important;
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+  background-color: var(--color-surface-base) !important;
+  border-color: var(--color-border-soft) !important;
+  color: var(--color-text-strong) !important;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: var(--color-text-muted) !important;
+}
+
+html[data-theme="dark"] [data-sonner-toaster] {
+  --normal-bg: #0f172a;
+  --normal-border: #243246;
+  --normal-text: #f8fafc;
+  --success-bg: #052e28;
+  --success-border: #0f766e;
+  --success-text: #d1fae5;
+  --info-bg: #082f49;
+  --info-border: #0369a1;
+  --info-text: #e0f2fe;
+  --warning-bg: #3f2a0f;
+  --warning-border: #b45309;
+  --warning-text: #fef3c7;
+  --error-bg: #4c0519;
+  --error-border: #be123c;
+  --error-text: #ffe4e6;
 }
 
 @layer components {

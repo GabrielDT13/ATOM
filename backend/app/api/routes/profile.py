@@ -7,13 +7,16 @@ from backend.app.schemas.profile import (
     ProfileRequiredPasswordChangeRequest,
     ProfileResponse,
     ProfileUpdateRequest,
+    PublicProfileResponse,
 )
 from backend.app.services.auth import get_session_user_by_id
+from backend.app.services.errors import ServiceError
 from backend.app.services.profile import (
     change_my_password,
     complete_required_password_change,
     delete_my_account,
     get_my_profile,
+    get_public_profile,
     mark_welcome_tour_seen,
     update_my_profile,
 )
@@ -26,6 +29,15 @@ router = APIRouter(prefix="/api/profile", tags=["profile"])
 async def get_my_profile_route(request: Request) -> ProfileResponse:
     current_user = get_current_user(request)
     return ProfileResponse(**get_my_profile(str(current_user["id"])))
+
+
+@router.get("/public/{username}", response_model=PublicProfileResponse)
+async def get_public_profile_route(username: str, request: Request) -> PublicProfileResponse:
+    get_current_user(request)
+    try:
+        return PublicProfileResponse(**get_public_profile(username))
+    except (ServiceError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 @router.put("/me", response_model=ProfileMutationResponse)

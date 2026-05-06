@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS backend-base
+FROM python:3.11-slim AS backend-python
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -16,6 +16,8 @@ WORKDIR /app
 COPY backend/requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir -r /tmp/requirements.txt
 
+FROM backend-python AS backend-base
+
 COPY backend /app/backend
 COPY docker/start-backend.sh /app/docker/start-backend.sh
 RUN chmod +x /app/docker/start-backend.sh
@@ -24,7 +26,7 @@ EXPOSE 8000
 
 CMD ["/app/docker/start-backend.sh"]
 
-FROM backend-base AS backend-analysis
+FROM backend-python AS backend-analysis
 
 RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources \
     && for i in 1 2 3; do \
@@ -70,3 +72,11 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
 
 COPY docker/install_r_packages.R /tmp/install_r_packages.R
 RUN Rscript /tmp/install_r_packages.R
+
+COPY backend /app/backend
+COPY docker/start-backend.sh /app/docker/start-backend.sh
+RUN chmod +x /app/docker/start-backend.sh
+
+EXPOSE 8000
+
+CMD ["/app/docker/start-backend.sh"]

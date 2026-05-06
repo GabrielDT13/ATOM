@@ -11,6 +11,7 @@ import type {
   ProjectTeamCandidatesResponse,
   ProjectTeamMutationResponse,
   ProjectTeamsResponse,
+  ProjectVisibility,
 } from "@/types/api";
 
 type ProjectUploadOptions = {
@@ -20,6 +21,7 @@ type ProjectUploadOptions = {
   onProgress?: (progress: number) => void;
   teamId?: string;
   templateFile?: File | null;
+  visibility?: ProjectVisibility;
 };
 
 function buildProjectFormData({
@@ -28,6 +30,7 @@ function buildProjectFormData({
   name,
   teamId,
   templateFile,
+  visibility,
 }: ProjectUploadOptions): FormData {
   const formData = new FormData();
 
@@ -41,6 +44,10 @@ function buildProjectFormData({
 
   if (teamId?.trim()) {
     formData.append("team_id", teamId.trim());
+  }
+
+  if (visibility) {
+    formData.append("visibility", visibility);
   }
 
   if (templateFile) {
@@ -88,6 +95,10 @@ export function listProjects() {
   return apiFetch<ProjectMapResponse>("/api/projects");
 }
 
+export function listPublicProjects() {
+  return apiFetch<ProjectMapResponse>("/api/projects/public");
+}
+
 export function getProject(owner: string, projectName: string) {
   return apiFetch<ProjectDetails>(
     `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}`,
@@ -105,6 +116,7 @@ export function createProject({
   onProgress,
   teamId,
   templateFile,
+  visibility,
 }: ProjectUploadOptions) {
   const formData = buildProjectFormData({
     additionalFiles,
@@ -112,6 +124,7 @@ export function createProject({
     name,
     teamId,
     templateFile,
+    visibility,
   });
 
   return apiUpload<ProjectMutationResponse>("/api/projects", formData, {
@@ -129,6 +142,7 @@ export function updateProject(
     name,
     onProgress,
     templateFile,
+    visibility,
   }: ProjectUploadOptions,
 ) {
   const formData = new FormData();
@@ -139,6 +153,10 @@ export function updateProject(
 
   if (entityName !== undefined) {
     formData.append("entity_name", entityName.trim());
+  }
+
+  if (visibility) {
+    formData.append("visibility", visibility);
   }
 
   if (templateFile) {

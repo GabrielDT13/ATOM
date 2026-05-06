@@ -4,12 +4,13 @@ from typing import Any, Literal
 from uuid import UUID
 
 from backend.app.services.database import execute, fetch_all, fetch_one
-from backend.app.services.entities import ensure_entity
+from backend.app.services.entities import build_entity_logo_url, ensure_entity
 from backend.app.services.errors import ServiceError
 from backend.app.services.project_inventory import normalize_project_name
 from backend.app.services.project_storage import get_legacy_project_dir
 
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
+ProjectVisibility = Literal["private", "public"]
 PROJECT_MEMBER_ROLE_RANK: dict[str, int] = {
     "viewer": 1,
     "editor": 2,
@@ -30,6 +31,13 @@ def _pick_highest_project_role(roles: list[str]) -> ProjectMemberRole | None:
         return None
     best_role = max(valid_roles, key=lambda role: PROJECT_MEMBER_ROLE_RANK[role])
     return best_role  # type: ignore[return-value]
+
+
+def _normalize_project_visibility(value: Any) -> ProjectVisibility:
+    normalized = str(value or "").strip().lower()
+    if normalized == "public":
+        return "public"
+    return "private"
 
 
 def _fetch_profiles(
@@ -89,9 +97,11 @@ def _fetch_project_records(
       entity_id,
       entity_name,
       entity_slug,
+      entity_logo_path,
       name,
       slug,
       description,
+      visibility,
       status,
       created_at,
       updated_at,
@@ -113,6 +123,9 @@ def _fetch_project_records(
         if "slug" in filters and filters["slug"].startswith("eq."):
             clauses.append("slug = %s")
             params.append(filters["slug"][3:])
+        if "visibility" in filters and filters["visibility"].startswith("eq."):
+            clauses.append("visibility = %s")
+            params.append(filters["visibility"][3:])
     if clauses:
         query += " WHERE " + " AND ".join(clauses)
     if order:
@@ -120,7 +133,16 @@ def _fetch_project_records(
     if limit is not None:
         query += " LIMIT %s"
         params.append(limit)
-    return fetch_all(query, tuple(params))
+    rows = fetch_all(query, tuple(params))
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        entity_id = str(row.get("entity_id") or "").strip()
+        entity_logo_path = str(row.get("entity_logo_path") or "").strip()
+        row["entity_logo_url"] = (
+            build_entity_logo_url(entity_id) if entity_id and entity_logo_path else None
+        )
+    return rows
 
 
 def _get_project_record(owner: str, project_name: str) -> dict[str, Any] | None:
@@ -231,6 +253,10 @@ def _list_shared_project_records(user_id: str) -> list[dict[str, Any]]:
     return projects
 
 
+def _list_public_project_records() -> list[dict[str, Any]]:
+    return _fetch_project_records(filters={"visibility": "eq.public"})
+
+
 def _list_project_teams_by_project_id(project_id: str) -> list[dict[str, Any]]:
     return fetch_all(
         """
@@ -287,7 +313,12 @@ def _get_project_team(project_id: str, team_id: str) -> dict[str, Any] | None:
     return None
 
 
-def _create_project_record(owner: str, project_name: str, entity_name: str | None = None) -> dict[str, Any]:
+def _create_project_record(
+    owner: str,
+    project_name: str,
+    entity_name: str | None = None,
+    visibility: ProjectVisibility = "private",
+) -> dict[str, Any]:
     normalized_name = normalize_project_name(project_name)
     existing = _get_project_record(owner, normalized_name)
     if existing:
@@ -309,12 +340,13 @@ def _create_project_record(owner: str, project_name: str, entity_name: str | Non
     if not slug:
         raise ServiceError("No se pudo calcular el slug del proyecto")
     entity_id = ensure_entity(entity_name)
+    normalized_visibility = _normalize_project_visibility(visibility)
     execute(
         """
-        INSERT INTO internal.projects (owner_id, entity_id, name, slug, description, status)
-        VALUES (%s, %s, %s, %s, %s, %s)
+        INSERT INTO internal.projects (owner_id, entity_id, name, slug, description, visibility, status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         """,
-        (owner_id, entity_id, normalized_name, slug, None, "active"),
+        (owner_id, entity_id, normalized_name, slug, None, normalized_visibility, "active"),
     )
     created = _get_project_record(owner, normalized_name)
     if not created:
@@ -380,6 +412,17 @@ def _set_project_entity(project_id: str, entity_name: str | None) -> None:
     )
 
 
+def _set_project_visibility(project_id: str, visibility: ProjectVisibility) -> None:
+    execute(
+        """
+        UPDATE internal.projects
+        SET visibility = %s
+        WHERE id = %s
+        """,
+        (_normalize_project_visibility(visibility), project_id),
+    )
+
+
 def _delete_project_record(owner: str, project_name: str) -> None:
     record = _get_project_record(owner, project_name)
     if not record:
@@ -429,6 +472,8 @@ def _get_project_access_role(
 
     project_id = str(project["id"])
     roles: list[str] = []
+    if _normalize_project_visibility(project.get("visibility")) == "public":
+        roles.append("viewer")
 
     member = _get_project_member(project_id, user_id)
     direct_role = _normalize_project_member_role(member.get("member_role") if member else None)

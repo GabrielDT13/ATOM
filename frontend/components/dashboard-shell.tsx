@@ -19,8 +19,11 @@ import {
 } from "@/components/dashboard/dashboard-breadcrumb";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { ProjectExplorer } from "@/components/dashboard/project-explorer";
+import { useLocale } from "@/components/providers/locale-provider";
 import { useAppToast } from "@/hooks/use-app-toast";
+import { persistDarkModePreference } from "@/lib/theme";
 import type {
+  ProfileRecord,
   ProfileMutationResponse,
   SessionResponse,
   SidebarLink,
@@ -36,6 +39,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const appToast = useAppToast();
+  const { syncProfileLocale } = useLocale();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [leftNav, setLeftNav] =
     useState<SidebarResponse<SidebarLink> | null>(null);
@@ -86,11 +90,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         setSession(currentSession);
 
-        const [leftData, rightData] = await Promise.all([
+        const [leftData, rightData, profileData] = await Promise.all([
           apiFetch<SidebarResponse<SidebarLink>>("/api/navigation/sidebar-left"),
           apiFetch<SidebarResponse<SidebarProjectItem>>(
             "/api/navigation/sidebar-right",
           ),
+          apiFetch<ProfileRecord>("/api/profile/me"),
         ]);
 
         if (cancelled) {
@@ -99,6 +104,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         setLeftNav(leftData);
         setRightNav(rightData);
+        persistDarkModePreference(Boolean(profileData.preferences.dark_mode));
+        syncProfileLocale(profileData.preferences);
       } catch (loadError) {
         if (cancelled) {
           return;
@@ -127,7 +134,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+  }, [pathname, router, syncProfileLocale]);
 
   useEffect(() => {
     if (!showProjectExplorer || !session?.authenticated || !session.user) {

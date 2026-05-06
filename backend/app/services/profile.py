@@ -93,7 +93,17 @@ def _fetch_profile_by_user_id(user_id: str) -> dict[str, Any]:
 def _fetch_profile_by_username(username: str) -> dict[str, Any] | None:
     return fetch_one(
         """
-        SELECT id, username, email
+        SELECT
+          id,
+          username,
+          email,
+          full_name,
+          department,
+          bio,
+          is_active,
+          created_at,
+          updated_at,
+          roles
         FROM public.vw_profiles
         WHERE username = %s
         LIMIT 1
@@ -123,6 +133,7 @@ def _fetch_preferences(user_id: str) -> dict[str, Any]:
           security_alerts,
           dark_mode,
           interface_language,
+          interface_language_auto,
           must_change_password,
           welcome_tour_seen
         FROM public.vw_profile_preferences
@@ -138,6 +149,7 @@ def _fetch_preferences(user_id: str) -> dict[str, Any]:
         "security_alerts": True,
         "dark_mode": False,
         "interface_language": "es",
+        "interface_language_auto": True,
         "must_change_password": False,
         "welcome_tour_seen": True,
     }
@@ -150,6 +162,7 @@ def _save_preferences(
     security_alerts: bool,
     dark_mode: bool,
     interface_language: str,
+    interface_language_auto: bool,
 ) -> None:
     execute(
         """
@@ -158,18 +171,27 @@ def _save_preferences(
           email_notifications,
           security_alerts,
           dark_mode,
-          interface_language
+          interface_language,
+          interface_language_auto
         )
-        VALUES (%s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (user_id) DO UPDATE
         SET
           email_notifications = EXCLUDED.email_notifications,
           security_alerts = EXCLUDED.security_alerts,
           dark_mode = EXCLUDED.dark_mode,
           interface_language = EXCLUDED.interface_language,
+          interface_language_auto = EXCLUDED.interface_language_auto,
           updated_at = now()
         """,
-        (user_id, email_notifications, security_alerts, dark_mode, interface_language),
+        (
+            user_id,
+            email_notifications,
+            security_alerts,
+            dark_mode,
+            interface_language,
+            interface_language_auto,
+        ),
     )
 
 
@@ -218,6 +240,20 @@ def _fetch_owned_projects(user_id: str) -> list[dict[str, Any]]:
         SELECT id, name, status, updated_at, member_count
         FROM public.vw_projects
         WHERE owner_id = %s
+        ORDER BY updated_at DESC
+        """,
+        (user_id,),
+    )
+    return [row for row in payload if isinstance(row, dict)]
+
+
+def _fetch_public_owned_projects(user_id: str) -> list[dict[str, Any]]:
+    payload = fetch_all(
+        """
+        SELECT id, name, slug, status, updated_at, member_count
+        FROM public.vw_projects
+        WHERE owner_id = %s
+          AND visibility = 'public'
         ORDER BY updated_at DESC
         """,
         (user_id,),
@@ -410,6 +446,80 @@ def _build_projects_preview(
     }
 
 
+def _build_public_summary(public_projects: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "public_projects": len(public_projects),
+        "results_ready": len(
+            [
+                project
+                for project in public_projects
+                if str(project.get("status") or "").strip().lower() == "results"
+            ]
+        ),
+        "member_connections": sum(
+            max(int(project.get("member_count") or 0) - 1, 0)
+            for project in public_projects
+        ),
+    }
+
+
+def _build_public_activity(
+    *,
+    public_projects: list[dict[str, Any]],
+    profile_activity: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    activity_items: list[dict[str, str]] = []
+
+    for item in profile_activity:
+        activity_type = str(item.get("activity_type") or "").strip().lower()
+        created_at = _normalize_timestamp(item.get("created_at"))
+        if activity_type != "profile_updated" or not created_at:
+            continue
+        activity_items.append(
+            {
+                "kind": activity_type,
+                "title": str(item.get("title") or "").strip() or "Perfil actualizado",
+                "description": str(item.get("description") or "").strip()
+                or "Se actualizó la información pública del perfil.",
+                "created_at": created_at,
+            }
+        )
+
+    for project in public_projects[:4]:
+        created_at = _normalize_timestamp(project.get("updated_at"))
+        if not created_at:
+            continue
+        project_name = str(project.get("name") or "").strip()
+        if not project_name:
+            continue
+        activity_items.append(
+            {
+                "kind": "project_updated",
+                "title": "Proyecto público actualizado",
+                "description": f"Se actualizaron los datos visibles de {project_name}.",
+                "created_at": created_at,
+            }
+        )
+
+    activity_items.sort(key=lambda item: _parse_timestamp(item["created_at"]), reverse=True)
+    return activity_items[:6]
+
+
+def _build_public_projects(public_projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(project.get("id") or "").strip(),
+            "name": str(project.get("name") or "").strip(),
+            "slug": _normalize_optional_text(project.get("slug")),
+            "status": str(project.get("status") or "").strip().lower() or "draft",
+            "updated_at": _normalize_timestamp(project.get("updated_at")),
+            "member_count": int(project.get("member_count") or 0),
+        }
+        for project in public_projects
+        if str(project.get("id") or "").strip() and str(project.get("name") or "").strip()
+    ]
+
+
 def _build_profile_response(profile: dict[str, Any]) -> dict[str, Any]:
     user_id = str(profile.get("id") or "").strip()
     collections = _collect_profile_data(user_id)
@@ -432,6 +542,9 @@ def _build_profile_response(profile: dict[str, Any]) -> dict[str, Any]:
             "interface_language": _normalize_interface_language(
                 collections.preferences.get("interface_language"),
             ),
+            "interface_language_auto": bool(
+                collections.preferences.get("interface_language_auto", True)
+            ),
         },
         "summary": _build_summary(
             collections.owned_projects,
@@ -451,6 +564,35 @@ def _build_profile_response(profile: dict[str, Any]) -> dict[str, Any]:
 
 def get_my_profile(user_id: str) -> dict[str, Any]:
     return _build_profile_response(_fetch_profile_by_user_id(user_id))
+
+
+def get_public_profile(username: str) -> dict[str, Any]:
+    normalized_username = _normalize_username(username)
+    profile = _fetch_profile_by_username(normalized_username)
+    if not profile or profile.get("is_active") is False:
+        raise ServiceError("No se encontró el perfil solicitado")
+
+    user_id = str(profile.get("id") or "").strip()
+    public_projects = _fetch_public_owned_projects(user_id)
+    profile_activity = _fetch_profile_activity(user_id)
+
+    return {
+        "id": user_id,
+        "username": str(profile.get("username") or "").strip(),
+        "display_name": str(profile.get("full_name") or "").strip()
+        or str(profile.get("username") or "").strip(),
+        "role": _resolve_role(profile.get("roles")),
+        "department": _normalize_optional_text(profile.get("department")),
+        "bio": _normalize_optional_text(profile.get("bio")),
+        "joined_at": _normalize_timestamp(profile.get("created_at")),
+        "updated_at": _normalize_timestamp(profile.get("updated_at")),
+        "summary": _build_public_summary(public_projects),
+        "activity": _build_public_activity(
+            public_projects=public_projects,
+            profile_activity=profile_activity,
+        ),
+        "public_projects": _build_public_projects(public_projects),
+    }
 
 
 def _validate_profile_uniqueness(
@@ -563,6 +705,7 @@ def update_my_profile(
             security_alerts=bool(preferences.get("security_alerts", True)),
             dark_mode=bool(preferences.get("dark_mode", False)),
             interface_language=normalized_language,
+            interface_language_auto=bool(preferences.get("interface_language_auto", True)),
         )
         _log_profile_activity(
             user_id,

@@ -22,7 +22,8 @@ import {
   CreatableSelectField,
   type CreatableSelectOption,
 } from "@/components/ui/creatable-select-field";
-import type { EntityRecord } from "@/types/api";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import type { EntityRecord, ProjectVisibility } from "@/types/api";
 import type { ProjectRecord } from "@/components/projects/project-management-utils";
 
 export type ProjectEditValues = {
@@ -30,10 +31,12 @@ export type ProjectEditValues = {
   entityName: string;
   name: string;
   templateFiles: File[];
+  visibility: ProjectVisibility;
 };
 
 type ProjectEditDialogProps = {
   canShare?: boolean;
+  canManageVisibility?: boolean;
   onOwnershipTransferred?: () => Promise<void> | void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: ProjectEditValues) => Promise<void> | void;
@@ -121,6 +124,7 @@ function CurrentProjectInventory({ project }: { project: ProjectRecord }) {
 
 export function ProjectEditDialog({
   canShare = false,
+  canManageVisibility = false,
   onOwnershipTransferred,
   onOpenChange,
   onSubmit,
@@ -133,6 +137,7 @@ export function ProjectEditDialog({
   const [entities, setEntities] = useState<EntityRecord[]>([]);
   const [name, setName] = useState("");
   const [entityName, setEntityName] = useState("");
+  const [visibility, setVisibility] = useState<ProjectVisibility>("private");
   const [templateFiles, setTemplateFiles] = useState<File[]>([]);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [confirmReplacementOpen, setConfirmReplacementOpen] = useState(false);
@@ -153,6 +158,7 @@ export function ProjectEditDialog({
 
     setName(project.name);
     setEntityName(project.entity_name ?? "");
+    setVisibility(project.visibility);
     setTemplateFiles([]);
     setAdditionalFiles([]);
     setConfirmReplacementOpen(false);
@@ -165,6 +171,7 @@ export function ProjectEditDialog({
       entityName: entityName.trim(),
       name: name.trim(),
       templateFiles,
+      visibility,
     });
   }
 
@@ -211,6 +218,25 @@ export function ProjectEditDialog({
               options={entityOptions}
               value={entityName}
             />
+
+            {canManageVisibility ? (
+              <label className="flex flex-col gap-2">
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                  Visibilidad
+                  <InfoTooltip
+                    content="Privado: acceso solo por propiedad o compartición. Público: visible para cualquier usuario autenticado en catálogo público."
+                  />
+                </span>
+                <select
+                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                  onChange={(event) => setVisibility(event.target.value as ProjectVisibility)}
+                  value={visibility}
+                >
+                  <option value="private">Privado</option>
+                  <option value="public">Público</option>
+                </select>
+              </label>
+            ) : null}
 
             {project ? <CurrentProjectInventory project={project} /> : null}
 

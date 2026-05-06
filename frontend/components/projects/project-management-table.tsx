@@ -13,6 +13,7 @@ import {
   TrashIcon,
 } from "@/components/projects/project-management-icons";
 import {
+  getProjectVisibilityMeta,
   getProjectPreviewFiles,
   getProjectStatusMeta,
   type ProjectRecord,
@@ -77,6 +78,7 @@ export function ProjectManagementTable({
     {
       cell: (project) => {
         const statusMeta = getProjectStatusMeta(project.status, project.activeRun);
+        const visibilityMeta = getProjectVisibilityMeta(project.visibility);
 
         return (
           <div className="flex items-center gap-4">
@@ -98,6 +100,14 @@ export function ProjectManagementTable({
               <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 font-medium text-slate-600">
                   @{project.owner}
+                </span>
+                <span
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 font-medium",
+                    visibilityMeta.badgeClassName,
+                  )}
+                >
+                  {visibilityMeta.label}
                 </span>
                 {project.entity_name ? (
                   <span className="rounded-full bg-sky-50 px-2 py-0.5 font-medium text-sky-700">

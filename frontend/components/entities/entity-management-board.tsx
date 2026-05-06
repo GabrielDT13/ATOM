@@ -1,8 +1,8 @@
 "use client";
 
-import { DatabaseIcon } from "@/components/dashboard/dashboard-icons";
 import { formatDate } from "@/components/projects/detail/project-detail-helpers";
 import { PencilIcon, TrashIcon } from "@/components/projects/project-management-icons";
+import { EntityLogo } from "@/components/ui/entity-logo";
 import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { EntityRecord } from "@/types/api";
@@ -103,9 +103,7 @@ export function EntityManagementBoard({
               <div className="rounded-[24px] border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-slate-50 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex min-w-0 items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-white text-sky-700 shadow-sm">
-                      <DatabaseIcon className="h-5 w-5" />
-                    </div>
+                    <EntityLogo className="h-12 w-12 shrink-0 bg-white text-sky-700 shadow-sm" logoUrl={entity.logo_url} name={entity.name} />
                     <div className="min-w-0">
                       <h3 className="truncate text-lg font-semibold tracking-tight text-slate-950">
                         {entity.name}

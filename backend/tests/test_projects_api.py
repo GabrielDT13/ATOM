@@ -34,6 +34,7 @@ def test_get_projects_route_returns_project_map_and_items(
                     "status": "results",
                     "template_file": "template.xlsx",
                     "updated_at": "2026-03-09T17:30:00+00:00",
+                    "visibility": "private",
                 }
             ],
         },
@@ -58,6 +59,70 @@ def test_get_projects_route_returns_project_map_and_items(
                 "status": "results",
                 "template_file": "template.xlsx",
                 "updated_at": "2026-03-09T17:30:00+00:00",
+                "visibility": "private",
+            }
+        ],
+        "projects": {"researcher": ["RNA Atlas"]},
+    }
+
+
+def test_get_public_projects_route_returns_public_project_map_and_items(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "get_current_user",
+        lambda request: {"id": "user-2", "username": "visitor", "role": "user"},
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "list_public_projects_for_user",
+        lambda user_id, username, role: {
+            "projects": {"researcher": ["RNA Atlas"]},
+            "items": [
+                {
+                    "access_role": "viewer",
+                    "additional_files": ["notes.csv"],
+                    "created_at": "2026-03-09T17:00:00+00:00",
+                    "file_count": 3,
+                    "files": ["notes.csv", "report/index.html", "template.xlsx"],
+                    "html_files": ["report/index.html"],
+                    "id": "project-1",
+                    "name": "RNA Atlas",
+                    "owner": "researcher",
+                    "slug": "researcher-rna-atlas",
+                    "status": "results",
+                    "template_file": "template.xlsx",
+                    "updated_at": "2026-03-09T17:30:00+00:00",
+                    "visibility": "public",
+                }
+            ],
+        },
+    )
+
+    response = client.get("/api/projects/public")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "access_role": "viewer",
+                "additional_files": ["notes.csv"],
+                "created_at": "2026-03-09T17:00:00+00:00",
+                "file_count": 3,
+                "files": ["notes.csv", "report/index.html", "template.xlsx"],
+                "html_files": ["report/index.html"],
+                "id": "project-1",
+                "name": "RNA Atlas",
+                "owner": "researcher",
+                "slug": "researcher-rna-atlas",
+                "status": "results",
+                "template_file": "template.xlsx",
+                "updated_at": "2026-03-09T17:30:00+00:00",
+                "visibility": "public",
             }
         ],
         "projects": {"researcher": ["RNA Atlas"]},
@@ -97,6 +162,7 @@ def test_get_project_route_returns_structured_project_details(
             "status": "results",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -140,6 +206,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         *,
         entity_name=None,
         team_id=None,
+        visibility="private",
         actor_role="user",
     ):
         captured["actor_user_id"] = actor_user_id
@@ -149,6 +216,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         captured["additional_files"] = [upload.filename for upload in additional_files]
         captured["entity_name"] = entity_name
         captured["team_id"] = team_id
+        captured["visibility"] = visibility
         captured["actor_role"] = actor_role
         return True, "Proyecto creado correctamente"
 
@@ -179,6 +247,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -224,6 +293,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
         "success": True,
     }
@@ -235,6 +305,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         "additional_files": ["notes.csv"],
         "entity_name": None,
         "team_id": None,
+        "visibility": "private",
         "actor_role": "user",
     }
 
@@ -259,7 +330,17 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         lambda request: {"id": "user-1", "username": "researcher", "role": "user"},
     )
 
-    async def fake_update_project(actor_user_id, actor_username, owner, project_name, new_name, excel_file, additional_files):
+    async def fake_update_project(
+        actor_user_id,
+        actor_username,
+        owner,
+        project_name,
+        new_name,
+        excel_file,
+        additional_files,
+        entity_name=None,
+        visibility=None,
+    ):
         captured["actor_user_id"] = actor_user_id
         captured["actor_username"] = actor_username
         captured["owner"] = owner
@@ -267,6 +348,8 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         captured["new_name"] = new_name
         captured["excel_file"] = excel_file.filename if excel_file else None
         captured["additional_files"] = [upload.filename for upload in additional_files]
+        captured["entity_name"] = entity_name
+        captured["visibility"] = visibility
         return True, "Proyecto actualizado correctamente", new_name or project_name
 
     monkeypatch.setattr(project_routes, "update_project", fake_update_project)
@@ -296,6 +379,7 @@ def test_put_project_route_forwards_name_and_uploaded_files(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T18:00:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -341,6 +425,7 @@ def test_put_project_route_forwards_name_and_uploaded_files(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T18:00:00+00:00",
+            "visibility": "private",
         },
         "success": True,
     }
@@ -354,6 +439,8 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         "new_name": "RNA Atlas 2026",
         "excel_file": "template.xlsx",
         "additional_files": ["fresh.csv"],
+        "entity_name": None,
+        "visibility": None,
     }
 
 
@@ -440,6 +527,7 @@ def test_get_project_by_ref_route_resolves_slug_and_returns_project(
             "status": "results",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -793,6 +881,7 @@ def test_post_transfer_project_ownership_route_returns_updated_project(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -824,6 +913,7 @@ def test_post_transfer_project_ownership_route_returns_updated_project(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
         "success": True,
     }
