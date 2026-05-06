@@ -14,13 +14,13 @@ from backend.app.services.entities import (
     update_entity_logo,
 )
 from backend.app.services.errors import ServiceError
-from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/api/entities", tags=["entities"])
 
 
-@router.get("", response_model=list[EntityResponse])
+@router.get("", response_model=list[EntityResponse], response_model_exclude_none=True)
 async def get_entities(request: Request) -> list[EntityResponse]:
     get_current_user(request)
     return [EntityResponse(**entity) for entity in list_entities()]
@@ -51,15 +51,39 @@ async def _read_logo_file(logo_file: UploadFile | None) -> bytes | None:
     return payload
 
 
+def _coerce_form_bool(value: object) -> bool:
+    normalized = str(value or "").strip().lower()
+    return normalized in {"1", "on", "si", "sí", "true", "yes"}
+
+
+async def _read_entity_payload(request: Request) -> tuple[str, UploadFile | None, bool]:
+    content_type = str(request.headers.get("content-type") or "").lower()
+
+    if content_type.startswith("application/json"):
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise HTTPException(status_code=422, detail="El cuerpo JSON no es válido")
+        return (
+            _normalize_entity_name(str(payload.get("name") or "")),
+            None,
+            bool(payload.get("remove_logo", False)),
+        )
+
+    form_data = await request.form()
+    logo_file = form_data.get("logo_file")
+    return (
+        _normalize_entity_name(str(form_data.get("name") or "")),
+        logo_file if isinstance(logo_file, UploadFile) else None,
+        _coerce_form_bool(form_data.get("remove_logo")),
+    )
+
+
 @router.post("", response_model=EntityMutationResponse, response_model_exclude_none=True)
-async def post_entity(
-    request: Request,
-    name: str = Form(...),
-    logo_file: UploadFile | None = File(default=None),
-) -> EntityMutationResponse:
+async def post_entity(request: Request) -> EntityMutationResponse:
     require_admin(request)
+    name, logo_file, _ = await _read_entity_payload(request)
     try:
-        success, message, entity = create_entity(_normalize_entity_name(name))
+        success, message, entity = create_entity(name)
         if success and entity and logo_file is not None:
             entity = update_entity_logo(str(entity["id"]), await _read_logo_file(logo_file))
     except ServiceError as exc:
@@ -75,13 +99,11 @@ async def post_entity(
 async def put_entity(
     entity_id: str,
     request: Request,
-    name: str = Form(...),
-    logo_file: UploadFile | None = File(default=None),
-    remove_logo: bool = Form(default=False),
 ) -> EntityMutationResponse:
     require_admin(request)
+    name, logo_file, remove_logo = await _read_entity_payload(request)
     try:
-        success, message, entity = update_entity(entity_id, _normalize_entity_name(name))
+        success, message, entity = update_entity(entity_id, name)
         if success and entity:
             if remove_logo:
                 entity = update_entity_logo(entity_id, None)

@@ -21,16 +21,18 @@ def _build_entity_response(item: dict[str, object]) -> dict[str, object] | None:
     slug = str(item.get("slug") or "").strip()
     if not entity_id or not name or not slug:
         return None
-    return {
+    response: dict[str, object] = {
         "created_at": str(item.get("created_at") or "").strip() or None,
         "id": entity_id,
-        "logo_url": build_entity_logo_url(entity_id) if str(item.get("logo_path") or "").strip() else None,
         "name": name,
         "project_count": int(item.get("project_count") or 0),
         "slug": slug,
         "team_count": int(item.get("team_count") or 0),
         "user_count": int(item.get("user_count") or 0),
     }
+    if str(item.get("logo_path") or "").strip():
+        response["logo_url"] = build_entity_logo_url(entity_id)
+    return response
 
 
 def build_entity_logo_url(entity_id: str) -> str:
@@ -79,18 +81,18 @@ def _find_entity_by_name(name: str) -> dict[str, object] | None:
     )
     if not isinstance(item, dict):
         return None
-    return {
+    response: dict[str, object] = {
         "created_at": str(item.get("created_at") or "").strip() or None,
         "id": str(item.get("id") or "").strip(),
-        "logo_url": build_entity_logo_url(str(item.get("id") or "").strip())
-        if str(item.get("logo_path") or "").strip()
-        else None,
         "name": str(item.get("name") or "").strip(),
         "project_count": 0,
         "slug": str(item.get("slug") or "").strip(),
         "team_count": 0,
         "user_count": 0,
     }
+    if str(item.get("logo_path") or "").strip():
+        response["logo_url"] = build_entity_logo_url(str(item.get("id") or "").strip())
+    return response
 
 
 def _generate_entity_slug(name: str, *, current_entity_id: str | None = None) -> str:
