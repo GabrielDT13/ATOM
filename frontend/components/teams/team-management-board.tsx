@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { formatDate } from "@/components/projects/detail/project-detail-helpers";
 import { PencilIcon, TrashIcon } from "@/components/projects/project-management-icons";
 import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
@@ -57,6 +58,7 @@ export function TeamManagementBoard({
   onEdit,
   teams,
 }: TeamManagementBoardProps) {
+  const { locale } = useLocale();
   if (loading) {
     return (
       <section className="space-y-4">
@@ -65,7 +67,7 @@ export function TeamManagementBoard({
             <TeamBoardSkeleton key={index} />
           ))}
         </div>
-        <p className="text-center text-sm text-slate-400">Cargando equipos...</p>
+        <p className="text-center text-sm text-slate-400">{locale === "es" ? "Cargando equipos..." : "Loading teams..."}</p>
       </section>
     );
   }
@@ -75,10 +77,12 @@ export function TeamManagementBoard({
       <section className="rounded-[28px] border border-slate-200 bg-white p-10 shadow-sm">
         <div className="mx-auto max-w-md text-center">
           <p className="text-base font-semibold text-slate-900">
-            No hay equipos que coincidan con los filtros.
+            {locale === "es" ? "No hay equipos que coincidan con los filtros." : "No teams match current filters."}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Ajusta la búsqueda o crea un equipo nuevo para empezar a organizar colaboraciones.
+            {locale === "es"
+              ? "Ajusta la búsqueda o crea un equipo nuevo para empezar a organizar colaboraciones."
+              : "Adjust search or create a new team to start organizing collaborations."}
           </p>
         </div>
       </section>
@@ -93,13 +97,13 @@ export function TeamManagementBoard({
         if (team.canManage) {
           actions.push({
             icon: <PencilIcon className="h-4 w-4" />,
-            label: "Editar equipo",
+            label: locale === "es" ? "Editar equipo" : "Edit team",
             onSelect: () => onEdit(team),
           });
           actions.push({
             destructive: true,
             icon: <TrashIcon className="h-4 w-4" />,
-            label: "Eliminar equipo",
+            label: locale === "es" ? "Eliminar equipo" : "Delete team",
             onSelect: () => onDelete(team),
             separatorBefore: true,
           });
@@ -120,11 +124,13 @@ export function TeamManagementBoard({
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                          {team.member_count} miembro{team.member_count === 1 ? "" : "s"}
+                          {team.member_count} {locale === "es" ? `miembro${team.member_count === 1 ? "" : "s"}` : `member${team.member_count === 1 ? "" : "s"}`}
                         </span>
                         {team.membership_role ? (
                           <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
-                            {team.membership_role === "owner" ? "Propietario" : "Miembro"}
+                            {team.membership_role === "owner"
+                              ? locale === "es" ? "Propietario" : "Owner"
+                              : locale === "es" ? "Miembro" : "Member"}
                           </span>
                         ) : null}
                       </div>
@@ -136,7 +142,7 @@ export function TeamManagementBoard({
                   </div>
 
                   {actions.length > 0 ? (
-                    <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${team.name}`} />
+                    <RowActionsMenu actions={actions} ariaLabel={locale === "es" ? `Abrir acciones para ${team.name}` : `Open actions for ${team.name}`} />
                   ) : null}
                 </div>
 
@@ -147,11 +153,11 @@ export function TeamManagementBoard({
                     </span>
                   ) : (
                     <span className="rounded-full border border-dashed border-slate-300 bg-white px-3 py-1 text-sm text-slate-500">
-                      Sin entidad vinculada
+                      {locale === "es" ? "Sin entidad vinculada" : "No linked entity"}
                     </span>
                   )}
                   <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-700">
-                    Actualizado {formatDate(team.updated_at)}
+                    {locale === "es" ? "Actualizado" : "Updated"} {formatDate(team.updated_at)}
                   </span>
                 </div>
               </div>
@@ -162,7 +168,7 @@ export function TeamManagementBoard({
                   <p className="mt-1 truncate text-sm font-semibold text-slate-900">{team.slug}</p>
                 </div>
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Creado</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{locale === "es" ? "Creado" : "Created"}</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">{formatDate(team.created_at)}</p>
                 </div>
               </div>

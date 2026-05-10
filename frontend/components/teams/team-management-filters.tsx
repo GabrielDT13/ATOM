@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   FilterIcon,
@@ -40,6 +41,7 @@ export function TeamManagementFilters({
   search,
   viewMode,
 }: TeamManagementFiltersProps) {
+  const { locale } = useLocale();
   const activeFilterCount = useMemo(() => {
     let total = 0;
     if (ownerFilter !== "all") {
@@ -61,7 +63,7 @@ export function TeamManagementFilters({
           <input
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Buscar por equipo, responsable o entidad..."
+            placeholder={locale === "es" ? "Buscar por equipo, responsable o entidad..." : "Search by team, owner or entity..."}
             type="search"
             value={search}
           />
@@ -70,7 +72,7 @@ export function TeamManagementFilters({
         <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="inline-flex h-12 items-center rounded-2xl border border-slate-200 bg-slate-50 p-1">
             <button
-              aria-label="Cambiar a vista en lista"
+              aria-label={locale === "es" ? "Cambiar a vista en lista" : "Switch to list view"}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
                 viewMode === "list"
@@ -81,10 +83,10 @@ export function TeamManagementFilters({
               type="button"
             >
               <ListViewIcon />
-              <span className="hidden sm:inline">Lista</span>
+              <span className="hidden sm:inline">{locale === "es" ? "Lista" : "List"}</span>
             </button>
             <button
-              aria-label="Cambiar a vista en tablero"
+              aria-label={locale === "es" ? "Cambiar a vista en tablero" : "Switch to board view"}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
                 viewMode === "board"
@@ -95,7 +97,7 @@ export function TeamManagementFilters({
               type="button"
             >
               <GridViewIcon />
-              <span className="hidden sm:inline">Board</span>
+              <span className="hidden sm:inline">{locale === "es" ? "Tablero" : "Board"}</span>
             </button>
           </div>
 
@@ -106,7 +108,7 @@ export function TeamManagementFilters({
                 type="button"
               >
                 <FilterIcon />
-                <span>Filtros</span>
+                <span>{locale === "es" ? "Filtros" : "Filters"}</span>
                 {activeFilterCount > 0 ? (
                   <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
                     {activeFilterCount}
@@ -118,21 +120,23 @@ export function TeamManagementFilters({
             <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-5">
               <div className="flex flex-col gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Filtros de equipos</p>
+                  <p className="text-sm font-semibold text-slate-900">{locale === "es" ? "Filtros de equipos" : "Team filters"}</p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Ajusta la vista por responsable y por entidad vinculada.
+                    {locale === "es"
+                      ? "Ajusta la vista por responsable y por entidad vinculada."
+                      : "Adjust view by owner and linked entity."}
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
-                    Responsable
+                    {locale === "es" ? "Responsable" : "Owner"}
                     <select
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onOwnerFilterChange(event.target.value)}
                       value={ownerFilter}
                     >
-                      <option value="all">Todos los responsables</option>
+                      <option value="all">{locale === "es" ? "Todos los responsables" : "All owners"}</option>
                       {owners.map((owner) => (
                         <option key={owner} value={owner}>
                           {owner}
@@ -142,13 +146,13 @@ export function TeamManagementFilters({
                   </label>
 
                   <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
-                    Entidad
+                    {locale === "es" ? "Entidad" : "Entity"}
                     <select
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onEntityFilterChange(event.target.value)}
                       value={entityFilter}
                     >
-                      <option value="all">Todas las entidades</option>
+                      <option value="all">{locale === "es" ? "Todas las entidades" : "All entities"}</option>
                       {entities.map((entity) => (
                         <option key={entity} value={entity}>
                           {entity}

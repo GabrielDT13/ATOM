@@ -196,6 +196,31 @@ export function LogoutIcon({ className }: IconProps) {
   );
 }
 
+export function GlobeIcon({ className }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20Z"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M4.75 9.5H19.25M4.75 14.5H19.25M12 4.25C13.8 6.2 14.825 9 14.825 12C14.825 15 13.8 17.8 12 19.75M12 4.25C10.2 6.2 9.175 9 9.175 12C9.175 15 10.2 17.8 12 19.75"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
 export function FolderIcon({ className }: IconProps) {
   return (
     <svg

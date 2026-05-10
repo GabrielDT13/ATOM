@@ -1,5 +1,6 @@
 import { MetricCard } from "@/components/ui/metric-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { AppLocale } from "@/lib/locale";
 import {
   DataFilesIcon,
   ProjectStackIcon,
@@ -11,6 +12,7 @@ import { getReportSummaryMetrics } from "@/components/reports/report-management-
 
 type ReportManagementSummaryProps = {
   loading?: boolean;
+  locale: AppLocale;
   reports: ReportRecord[];
 };
 
@@ -30,8 +32,10 @@ function ReportSummarySkeletonCard() {
 
 export function ReportManagementSummary({
   loading = false,
+  locale,
   reports,
 }: ReportManagementSummaryProps) {
+  const t = locale === "es";
   if (loading) {
     return (
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -48,30 +52,30 @@ export function ReportManagementSummary({
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <MetricCard
         accentClassName="bg-emerald-100 text-emerald-700"
-        description="Informes HTML detectados y disponibles para abrir desde ATOM."
+        description={t ? "Informes HTML detectados y disponibles para abrir desde ATOM." : "HTML reports detected and ready to open from ATOM."}
         icon={<ReportSparkIcon />}
-        title="Informes listos"
+        title={t ? "Informes listos" : "Reports ready"}
         value={String(metrics.totalReports)}
       />
       <MetricCard
         accentClassName="bg-sky-100 text-sky-700"
-        description="Proyectos que ya publican al menos un resultado navegable."
+        description={t ? "Proyectos que ya publican al menos un resultado navegable." : "Projects already publishing at least one browsable result."}
         icon={<ProjectStackIcon />}
-        title="Proyectos con salida"
+        title={t ? "Proyectos con salida" : "Projects with output"}
         value={String(metrics.totalProjects)}
       />
       <MetricCard
         accentClassName="bg-violet-100 text-violet-700"
-        description="Propietarios distintos dentro catálogo visible de informes."
+        description={t ? "Propietarios distintos dentro catálogo visible de informes." : "Distinct owners inside the visible report catalog."}
         icon={<TemplateIcon />}
-        title="Propietarios activos"
+        title={t ? "Propietarios activos" : "Active owners"}
         value={String(metrics.owners)}
       />
       <MetricCard
         accentClassName="bg-amber-100 text-amber-700"
-        description="Entidades con resultados accesibles desde esta librería."
+        description={t ? "Entidades con resultados accesibles desde esta librería." : "Entities with results accessible from this library."}
         icon={<DataFilesIcon />}
-        title="Entidades cubiertas"
+        title={t ? "Entidades cubiertas" : "Covered entities"}
         value={String(metrics.entities)}
       />
     </section>

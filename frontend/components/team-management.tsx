@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { listEntities } from "@/lib/entities";
 import {
   createTeam,
@@ -56,6 +57,7 @@ function TeamSummaryCard({
 }
 
 export function TeamManagement() {
+  const { locale } = useLocale();
   const appToast = useAppToast();
   const [session, setSession] = useState<SessionResponse | null>();
   const [entities, setEntities] = useState<EntityRecord[]>([]);
@@ -85,7 +87,7 @@ export function TeamManagement() {
       setEntities(entitiesPayload);
     } catch (loadError) {
       appToast.error(
-        "No se pudieron cargar los equipos",
+        locale === "es" ? "No se pudieron cargar los equipos" : "Could not load teams",
         loadError instanceof Error ? loadError.message : undefined,
       );
       setTeams([]);
@@ -96,7 +98,7 @@ export function TeamManagement() {
 
   useEffect(() => {
     void loadTeamsState();
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -199,7 +201,7 @@ export function TeamManagement() {
       setDialogOpen(true);
     } catch (loadError) {
       appToast.error(
-        "No se pudo cargar el equipo",
+        locale === "es" ? "No se pudo cargar el equipo" : "Could not load team",
         loadError instanceof Error ? loadError.message : undefined,
       );
     } finally {
@@ -210,7 +212,7 @@ export function TeamManagement() {
   async function handleSubmit() {
     const teamName = formState.name.trim();
     if (!teamName) {
-      appToast.error("El nombre del equipo es obligatorio");
+      appToast.error(locale === "es" ? "El nombre del equipo es obligatorio" : "Team name is required");
       return;
     }
 
@@ -235,7 +237,7 @@ export function TeamManagement() {
       }
     } catch (submitError) {
       appToast.error(
-        "No se pudo guardar el equipo",
+        locale === "es" ? "No se pudo guardar el equipo" : "Could not save team",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -259,7 +261,7 @@ export function TeamManagement() {
       }
     } catch (deleteError) {
       appToast.error(
-        "No se pudo eliminar el equipo",
+        locale === "es" ? "No se pudo eliminar el equipo" : "Could not delete team",
         deleteError instanceof Error ? deleteError.message : undefined,
       );
     }
@@ -277,22 +279,23 @@ export function TeamManagement() {
             <div className="max-w-3xl">
               <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
                 <UsersClusterIcon />
-                Equipos
+                {locale === "es" ? "Equipos" : "Teams"}
               </div>
               <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Gestión visual de equipos
+                {locale === "es" ? "Gestión visual de equipos" : "Visual team management"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Crea equipos reutilizables, asígnales entidad, añade miembros y mantén su
-                administración en un espacio separado del flujo de proyectos.
+                {locale === "es"
+                  ? "Crea equipos reutilizables, asígnales entidad, añade miembros y mantén su administración en un espacio separado del flujo de proyectos."
+                  : "Create reusable teams, assign an entity, add members and keep management separate from project flow."}
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                  {teamRecords.length} equipo{teamRecords.length === 1 ? "" : "s"} visibles
+                  {teamRecords.length} {locale === "es" ? `equipo${teamRecords.length === 1 ? "" : "s"} visibles` : `visible team${teamRecords.length === 1 ? "" : "s"}`}
                 </span>
                 {isAdmin ? (
                   <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                    Vista multiusuario habilitada
+                    {locale === "es" ? "Vista multiusuario habilitada" : "Multi-user view enabled"}
                   </span>
                 ) : null}
               </div>
@@ -300,21 +303,21 @@ export function TeamManagement() {
 
             <div className="flex flex-wrap gap-3">
               <Link className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })} href="/dashboard/projects">
-                Ir a proyectos
+                {locale === "es" ? "Ir a proyectos" : "Go to projects"}
               </Link>
               <Button onClick={openCreateDialog} size="lg" tone="on-dark" variant="secondary">
                 <PlusIcon />
-                Crear equipo
+                {locale === "es" ? "Crear equipo" : "Create team"}
               </Button>
             </div>
           </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <TeamSummaryCard label="Equipos visibles" value={String(teamRecords.length)} />
-          <TeamSummaryCard label="Gestionables" value={String(managedTeams)} />
-          <TeamSummaryCard label="Con entidad" value={String(teamsWithEntity)} />
-          <TeamSummaryCard label="Miembros agregados" value={String(totalMemberships)} />
+          <TeamSummaryCard label={locale === "es" ? "Equipos visibles" : "Visible teams"} value={String(teamRecords.length)} />
+          <TeamSummaryCard label={locale === "es" ? "Gestionables" : "Manageable"} value={String(managedTeams)} />
+          <TeamSummaryCard label={locale === "es" ? "Con entidad" : "With entity"} value={String(teamsWithEntity)} />
+          <TeamSummaryCard label={locale === "es" ? "Miembros agregados" : "Added members"} value={String(totalMemberships)} />
         </section>
 
         <TeamManagementFilters
@@ -385,20 +388,25 @@ export function TeamManagement() {
         open={dialogOpen}
         ownerUsername={ownerUsername}
         submitting={submitting}
-        title={editingTeam ? "Editar equipo" : "Crear equipo"}
+        title={editingTeam
+          ? locale === "es" ? "Editar equipo" : "Edit team"
+          : locale === "es" ? "Crear equipo" : "Create team"}
       />
 
       <ConfirmDialog
-        actionLabel="Eliminar equipo"
+        actionLabel={locale === "es" ? "Eliminar equipo" : "Delete team"}
         body={
           pendingDeleteTeam ? (
             <div className="space-y-3">
               <p>
-                Se eliminará <strong>{pendingDeleteTeam.name}</strong> y su composición actual de
-                miembros.
+                {locale === "es"
+                  ? <>Se eliminará <strong>{pendingDeleteTeam.name}</strong> y su composición actual de miembros.</>
+                  : <>This will delete <strong>{pendingDeleteTeam.name}</strong> and its current member composition.</>}
               </p>
               <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                Esta acción no elimina usuarios, solo deshace el equipo.
+                {locale === "es"
+                  ? "Esta acción no elimina usuarios, solo deshace el equipo."
+                  : "This action does not delete users, it only removes the team."}
               </p>
             </div>
           ) : null
@@ -411,7 +419,7 @@ export function TeamManagement() {
           }
         }}
         open={Boolean(pendingDeleteTeam)}
-        title="Confirmar eliminación del equipo"
+        title={locale === "es" ? "Confirmar eliminación del equipo" : "Confirm team deletion"}
       />
     </>
   );

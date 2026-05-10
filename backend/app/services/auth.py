@@ -11,6 +11,7 @@ from backend.app.core.jwt import JwtValidationError, decode_and_validate_hs256_j
 from backend.app.services.database import execute, fetch_one, hash_token
 from backend.app.services.emailing import (
     build_absolute_frontend_url,
+    get_email_user_context,
     send_password_changed_email,
     send_password_reset_email,
 )
@@ -330,11 +331,13 @@ def reset_password_with_token(token: str, new_password: str) -> None:
         (user_id,),
     )
     clear_must_change_password(user_id)
-    send_password_changed_email(
-        to_email=profile_email,
-        username=profile_username,
-        login_url=build_absolute_frontend_url("/login"),
-    )
+    recipient = get_email_user_context(user_id)
+    if recipient and recipient.security_alerts:
+        send_password_changed_email(
+            to_email=profile_email,
+            username=profile_username,
+            login_url=build_absolute_frontend_url("/login"),
+        )
 
 
 def refresh_authenticated_session(refresh_token: str) -> AuthenticatedSession:

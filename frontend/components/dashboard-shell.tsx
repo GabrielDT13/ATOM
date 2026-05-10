@@ -20,11 +20,13 @@ import {
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { ProjectExplorer } from "@/components/dashboard/project-explorer";
 import { useLocale } from "@/components/providers/locale-provider";
+import { useTheme } from "@/components/providers/theme-provider";
 import { useAppToast } from "@/hooks/use-app-toast";
-import { persistDarkModePreference } from "@/lib/theme";
+import { updateProfilePreferences } from "@/lib/profile";
 import type {
   ProfileRecord,
   ProfileMutationResponse,
+  ProfilePreferences,
   SessionResponse,
   SidebarLink,
   SidebarProjectItem,
@@ -39,8 +41,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const appToast = useAppToast();
-  const { syncProfileLocale } = useLocale();
+  const { locale, syncProfileLocale } = useLocale();
+  const { syncProfileTheme } = useTheme();
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [leftNav, setLeftNav] =
     useState<SidebarResponse<SidebarLink> | null>(null);
   const [rightNav, setRightNav] =
@@ -64,6 +68,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   useEffect(() => {
     return subscribeToAuthFailure(() => {
       setSession(null);
+      setProfile(null);
       setLeftNav(null);
       setRightNav(null);
       setError(null);
@@ -104,7 +109,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         setLeftNav(leftData);
         setRightNav(rightData);
-        persistDarkModePreference(Boolean(profileData.preferences.dark_mode));
+        setProfile(profileData);
+        syncProfileTheme(profileData.preferences);
         syncProfileLocale(profileData.preferences);
       } catch (loadError) {
         if (cancelled) {
@@ -134,7 +140,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router, syncProfileLocale]);
+  }, [pathname, router, syncProfileLocale, syncProfileTheme]);
 
   useEffect(() => {
     if (!showProjectExplorer || !session?.authenticated || !session.user) {
@@ -229,6 +235,41 @@ export function DashboardShell({ children }: DashboardShellProps) {
     router.refresh();
   }
 
+  async function handleSidebarLocaleChange(nextLocale: "es" | "en") {
+    if (!profile) {
+      return;
+    }
+
+    const nextPreferences: ProfilePreferences = {
+      ...profile.preferences,
+      interface_language: nextLocale,
+      interface_language_auto: false,
+    };
+
+    try {
+      const response = await updateProfilePreferences(nextPreferences);
+      if (!response.success || !response.profile) {
+        throw new Error(
+          response.message
+            || (locale === "es" ? "No se pudo actualizar el idioma" : "Could not update language"),
+        );
+      }
+
+      setProfile(response.profile);
+      syncProfileTheme(response.profile.preferences);
+      syncProfileLocale(response.profile.preferences);
+    } catch (error) {
+      appToast.error(
+        locale === "es" ? "No se pudo actualizar el idioma" : "Could not update language",
+        error instanceof Error
+          ? error.message
+          : locale === "es"
+            ? "Inténtalo de nuevo."
+            : "Try again.",
+      );
+    }
+  }
+
   async function handleRequiredPasswordChange(newPassword: string) {
     setPasswordChangeSubmitting(true);
 
@@ -308,7 +349,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }
 
   if (loading) {
-    return <div className="screen-center">Cargando panel...</div>;
+    return <div className="screen-center">{locale === "es" ? "Cargando panel..." : "Loading dashboard..."}</div>;
   }
 
   if (error) {
@@ -316,7 +357,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }
 
   if (!session?.authenticated || !session.user) {
-    return <div className="screen-center">Redirigiendo...</div>;
+    return <div className="screen-center">{locale === "es" ? "Redirigiendo..." : "Redirecting..."}</div>;
   }
 
   return (
@@ -327,6 +368,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
         isMobileOpen={mobileSidebarOpen}
         items={leftNav?.items ?? []}
         onCloseMobile={() => setMobileSidebarOpen(false)}
+        onLocaleChange={(nextLocale) => void handleSidebarLocaleChange(nextLocale)}
         onLogout={() => void handleLogout()}
         onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
       />
@@ -340,7 +382,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
         />
 
         <div className="flex-1 overflow-y-auto">
-          <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname)} />
+          <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname, locale)} />
 
           <div className="p-4 sm:p-8">
             {showProjectExplorer ? (
@@ -350,7 +392,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   size="sm"
                   variant="ghost"
                 >
-                  Proyectos
+                  {locale === "es" ? "Proyectos" : "Projects"}
                 </Button>
               </div>
             ) : null}
@@ -367,7 +409,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   items={rightNav?.items ?? []}
                   onCloseMobile={() => setMobileProjectExplorerOpen(false)}
                   onToggleCollapse={() => setProjectExplorerCollapsed((current) => !current)}
-                  title={rightNav?.title ?? "Mis proyectos"}
+                  title={rightNav?.title ?? (locale === "es" ? "Mis proyectos" : "My projects")}
                 />
               ) : null}
             </div>

@@ -8,7 +8,13 @@ import type {
   ProjectStatus,
 } from "@/types/api";
 
+type Locale = "en" | "es";
+
 function createEmptyActivityTimeline(days = 180) {
+  return createEmptyActivityTimelineForLocale(days, "es");
+}
+
+function createEmptyActivityTimelineForLocale(days: number, locale: Locale) {
   const points: DashboardTimelinePoint[] = [];
   const today = new Date();
 
@@ -19,7 +25,7 @@ function createEmptyActivityTimeline(days = 180) {
     points.push({
       bucket_start: bucketDate.toISOString().slice(0, 10),
       completed_analyses: 0,
-      label: new Intl.DateTimeFormat("es-ES", {
+      label: new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
         day: "numeric",
         month: "short",
       }).format(bucketDate),
@@ -31,6 +37,11 @@ function createEmptyActivityTimeline(days = 180) {
 }
 
 export function createEmptyDashboardOverview(): DashboardOverview {
+  return createEmptyDashboardOverviewForLocale("es");
+}
+
+export function createEmptyDashboardOverviewForLocale(locale: Locale): DashboardOverview {
+  const t = locale === "es";
   return {
     access_summary: {
       editable_projects: 0,
@@ -45,7 +56,7 @@ export function createEmptyDashboardOverview(): DashboardOverview {
       project_events: 0,
       last_event_at: null,
     },
-    activity_timeline: createEmptyActivityTimeline(),
+    activity_timeline: createEmptyActivityTimelineForLocale(180, locale),
     featured_projects: [],
     file_breakdown: {
       additional: 0,
@@ -56,9 +67,9 @@ export function createEmptyDashboardOverview(): DashboardOverview {
     recent_activity: [],
     example_library: [],
     status_breakdown: [
-      { label: "Resultados listos", status: "results", value: 0 },
-      { label: "Pendientes de análisis", status: "configured", value: 0 },
-      { label: "Sin archivos", status: "empty", value: 0 },
+      { label: t ? "Resultados listos" : "Results ready", status: "results", value: 0 },
+      { label: t ? "Pendientes de análisis" : "Pending analysis", status: "configured", value: 0 },
+      { label: t ? "Sin archivos" : "No files", status: "empty", value: 0 },
     ],
     summary: {
       completion_rate: 0,
@@ -75,42 +86,42 @@ export function createEmptyDashboardOverview(): DashboardOverview {
   };
 }
 
-export function formatNumber(value: number) {
-  return new Intl.NumberFormat("es-ES").format(value);
+export function formatNumber(value: number, locale: Locale = "es") {
+  return new Intl.NumberFormat(locale === "es" ? "es-ES" : "en-US").format(value);
 }
 
-export function formatDate(value: string) {
+export function formatDate(value: string, locale: Locale = "es") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "Sin fecha";
+    return locale === "es" ? "Sin fecha" : "No date";
   }
 
-  return new Intl.DateTimeFormat("es-ES", {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
     day: "numeric",
     month: "short",
   }).format(date);
 }
 
-export function formatDateLong(value: string) {
+export function formatDateLong(value: string, locale: Locale = "es") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "Sin fecha";
+    return locale === "es" ? "Sin fecha" : "No date";
   }
 
-  return new Intl.DateTimeFormat("es-ES", {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
     day: "numeric",
     month: "long",
     year: "numeric",
   }).format(date);
 }
 
-export function formatDateTime(value: string) {
+export function formatDateTime(value: string, locale: Locale = "es") {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "Sin fecha";
+    return locale === "es" ? "Sin fecha" : "No date";
   }
 
-  return new Intl.DateTimeFormat("es-ES", {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -135,11 +146,16 @@ export function formatBytes(sizeBytes: number) {
   return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-export function getStatusMeta(status: ProjectStatus, activeRun?: AnalysisRun | null) {
+export function getStatusMeta(
+  status: ProjectStatus,
+  activeRun?: AnalysisRun | null,
+  locale: Locale = "es",
+) {
+  const t = locale === "es";
   if (activeRun?.status === "queued") {
     return {
       badgeClassName: "border border-amber-200 bg-amber-50 text-amber-700",
-      label: "En cola",
+      label: t ? "En cola" : "Queued",
       panelClassName: "from-amber-100 via-white to-amber-50",
     };
   }
@@ -147,7 +163,7 @@ export function getStatusMeta(status: ProjectStatus, activeRun?: AnalysisRun | n
   if (activeRun?.status === "running") {
     return {
       badgeClassName: "border border-violet-200 bg-violet-50 text-violet-700",
-      label: "Procesando",
+      label: t ? "Procesando" : "Processing",
       panelClassName: "from-violet-100 via-white to-violet-50",
     };
   }
@@ -157,88 +173,95 @@ export function getStatusMeta(status: ProjectStatus, activeRun?: AnalysisRun | n
       return {
         badgeClassName:
           "border border-emerald-200 bg-emerald-50 text-emerald-700",
-        label: "Resultados listos",
+        label: t ? "Resultados listos" : "Results ready",
         panelClassName: "from-emerald-100 via-white to-emerald-50",
       };
     case "configured":
       return {
         badgeClassName: "border border-sky-200 bg-sky-50 text-sky-700",
-        label: "Pendiente de análisis",
+        label: t ? "Pendiente de análisis" : "Pending analysis",
         panelClassName: "from-sky-100 via-white to-sky-50",
       };
     default:
       return {
         badgeClassName: "border border-slate-200 bg-slate-50 text-slate-600",
-        label: "Sin archivos",
+        label: t ? "Sin archivos" : "No files",
         panelClassName: "from-slate-100 via-white to-slate-50",
       };
   }
 }
 
-export function getExampleKindMeta(exampleFile: DashboardExampleFile) {
+export function getExampleKindMeta(exampleFile: DashboardExampleFile, locale: Locale = "es") {
+  const t = locale === "es";
   switch (exampleFile.kind) {
     case "template":
       return {
         badgeClassName: "bg-sky-100 text-sky-700",
-        label: "Plantilla",
+        label: t ? "Plantilla" : "Template",
       };
     case "counts":
       return {
         badgeClassName: "bg-amber-100 text-amber-700",
-        label: "Conteos",
+        label: t ? "Conteos" : "Counts",
       };
     default:
       return {
         badgeClassName: "bg-slate-100 text-slate-700",
-        label: "Recurso",
+        label: t ? "Recurso" : "Resource",
       };
   }
 }
 
-export function getProjectSupportingText(project: DashboardProjectHighlight) {
+export function getProjectSupportingText(project: DashboardProjectHighlight, locale: Locale = "es") {
+  const t = locale === "es";
   if (project.active_run?.status === "queued") {
-    return "La ejecución está en cola y arrancará automáticamente.";
+    return t ? "La ejecución está en cola y arrancará automáticamente." : "Execution is queued and will start automatically.";
   }
 
   if (project.active_run?.status === "running") {
-    return "El proyecto se está procesando en segundo plano.";
+    return t ? "El proyecto se está procesando en segundo plano." : "Project is processing in background.";
   }
 
   if (project.status === "results") {
-    return `${project.result_count} informe(s) HTML listos para revisar.`;
+    return t
+      ? `${project.result_count} informe(s) HTML listos para revisar.`
+      : `${project.result_count} HTML report(s) ready to review.`;
   }
 
   if (project.file_count > 0) {
-    return `${project.file_count} archivo(s) listos para lanzar el flujo.`;
+    return t
+      ? `${project.file_count} archivo(s) listos para lanzar el flujo.`
+      : `${project.file_count} file(s) ready to run workflow.`;
   }
 
-  return "Todavía no hay archivos cargados en este proyecto.";
+  return t ? "Todavía no hay archivos cargados en este proyecto." : "There are no uploaded files in this project yet.";
 }
 
-export function getDashboardActivityMeta(item: DashboardActivityItem) {
+export function getDashboardActivityMeta(item: DashboardActivityItem, locale: Locale = "es") {
+  const t = locale === "es";
   if (item.status === "running") {
     return {
       badgeClassName: "bg-violet-100 text-violet-700",
-      label: "En curso",
+      label: t ? "En curso" : "In progress",
     };
   }
 
   if (item.status === "success") {
     return {
       badgeClassName: "bg-emerald-100 text-emerald-700",
-      label: "Completado",
+      label: t ? "Completado" : "Completed",
     };
   }
 
   if (item.status === "warning") {
     return {
       badgeClassName: "bg-amber-100 text-amber-700",
-      label: "Con incidencias",
+      label: t ? "Con incidencias" : "With issues",
     };
   }
 
   return {
     badgeClassName: "bg-sky-100 text-sky-700",
-    label: "Proyecto",
+    label: t ? "Proyecto" : "Project",
   };
 }

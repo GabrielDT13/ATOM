@@ -56,7 +56,7 @@ function formatRelativeTime(dateValue: string, locale: "en" | "es") {
     return rtf.format(diffDays, "day");
   }
 
-  return formatDate(dateValue);
+  return formatDate(dateValue, locale);
 }
 
 export function PublicProfilePage({
@@ -168,7 +168,7 @@ export function PublicProfilePage({
           <div className="space-y-3">
             <DetailRow icon={<DepartmentIcon className="h-5 w-5" />} label={locale === "es" ? "Departamento" : "Department"} value={profile.department || (locale === "es" ? "Sin departamento" : "No department")} />
             <DetailRow icon={<CalendarIcon className="h-5 w-5" />} label={locale === "es" ? "Miembro desde" : "Member since"} value={formatMonthYear(profile.joined_at, locale)} />
-            <DetailRow icon={<SparkIcon className="h-5 w-5" />} label={locale === "es" ? "Última actividad" : "Last activity"} value={formatDate(profile.updated_at)} />
+            <DetailRow icon={<SparkIcon className="h-5 w-5" />} label={locale === "es" ? "Última actividad" : "Last activity"} value={formatDate(profile.updated_at, locale)} />
           </div>
         </SectionCard>
 
@@ -244,7 +244,7 @@ export function PublicProfilePage({
                     {project.name}
                   </Link>
                   <p className="mt-2 text-sm text-slate-500">
-                    {locale === "es" ? "Actualizado" : "Updated"} {formatDate(project.updated_at)}
+                    {locale === "es" ? "Actualizado" : "Updated"} {formatDate(project.updated_at, locale)}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
                     <span className="rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-700">

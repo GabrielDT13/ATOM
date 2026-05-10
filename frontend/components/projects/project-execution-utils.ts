@@ -1,5 +1,6 @@
 "use client";
 
+import type { AppLocale } from "@/lib/locale";
 import type { AnalysisStreamEvent } from "@/types/api";
 
 export type AnalysisExecutionStatus = "idle" | "queued" | "running" | "completed" | "failed";
@@ -324,33 +325,42 @@ export function applyAnalysisStreamEvent(
 function buildExecutionMeta({
   activeDesign,
   failedDesigns,
+  locale,
   processedDesigns,
   totalDesigns,
 }: {
   activeDesign: AnalysisExecutionDesign | null;
   failedDesigns: number;
+  locale: AppLocale;
   processedDesigns: number;
   totalDesigns: number;
 }) {
+  const t = locale === "es";
   if (activeDesign) {
-    return `Ejecución ${activeDesign.currentIndex} de ${Math.max(totalDesigns, 1)}`;
+    return t
+      ? `Ejecución ${activeDesign.currentIndex} de ${Math.max(totalDesigns, 1)}`
+      : `Execution ${activeDesign.currentIndex} of ${Math.max(totalDesigns, 1)}`;
   }
 
   if (processedDesigns > 0) {
-    return `${processedDesigns} de ${Math.max(totalDesigns, processedDesigns)} completadas`;
+    return t
+      ? `${processedDesigns} de ${Math.max(totalDesigns, processedDesigns)} completadas`
+      : `${processedDesigns} of ${Math.max(totalDesigns, processedDesigns)} completed`;
   }
 
   if (failedDesigns > 0) {
-    return `${failedDesigns} con incidencias`;
+    return t ? `${failedDesigns} con incidencias` : `${failedDesigns} with issues`;
   }
 
-  return totalDesigns > 0 ? `${totalDesigns} previstas` : null;
+  return totalDesigns > 0 ? (t ? `${totalDesigns} previstas` : `${totalDesigns} planned`) : null;
 }
 
 export function buildAnalysisExecutionSnapshot(
   state: AnalysisExecutionState,
   now = Date.now(),
+  locale: AppLocale = "es",
 ): AnalysisExecutionSnapshot {
+  const t = locale === "es";
   const designs = state.designOrder
     .map((designId) => state.designs[designId])
     .filter((design): design is AnalysisExecutionDesign => Boolean(design))
@@ -455,31 +465,48 @@ export function buildAnalysisExecutionSnapshot(
     {
       description:
         state.status === "idle"
-          ? "Estamos preparando los datos iniciales del proyecto."
+          ? t
+            ? "Estamos preparando los datos iniciales del proyecto."
+            : "We are preparing the project's initial data."
           : state.status === "queued"
-            ? "La ejecución ya está registrada y está esperando a que el worker la recoja."
-            : "La plantilla y los archivos del proyecto ya se han preparado correctamente.",
+            ? t
+              ? "La ejecución ya está registrada y está esperando a que el worker la recoja."
+              : "The run is already registered and waiting for a worker to pick it up."
+            : t
+              ? "La plantilla y los archivos del proyecto ya se han preparado correctamente."
+              : "The template and project files have already been prepared successfully.",
       id: "project-preparation",
-      label: "Preparación",
-      meta: state.startedAt ? formatTimeOfDay(state.startedAt) : null,
+      label: t ? "Preparación" : "Preparation",
+      meta: state.startedAt ? formatTimeOfDay(state.startedAt, locale) : null,
       status: state.status === "idle" ? "pending" : state.status === "queued" ? "active" : "completed",
     },
     {
       description:
         state.status === "completed"
-          ? "Todas las ejecuciones previstas ya se han procesado."
+          ? t
+            ? "Todas las ejecuciones previstas ya se han procesado."
+            : "All planned runs have already been processed."
           : state.status === "failed"
-            ? "El procesamiento se detuvo antes de completar todas las ejecuciones."
+            ? t
+              ? "El procesamiento se detuvo antes de completar todas las ejecuciones."
+              : "Processing stopped before all runs were completed."
             : state.status === "queued"
-              ? "La ejecución está en cola y comenzará automáticamente en cuanto haya un worker disponible."
+              ? t
+                ? "La ejecución está en cola y comenzará automáticamente en cuanto haya un worker disponible."
+                : "The run is queued and will start automatically as soon as a worker is available."
             : activeDesign
-              ? "Estamos procesando las ejecuciones del proyecto y actualizando el detalle técnico en tiempo real."
-              : "El procesamiento comenzará en cuanto arranque la primera ejecución.",
+              ? t
+                ? "Estamos procesando las ejecuciones del proyecto y actualizando el detalle técnico en tiempo real."
+                : "We are processing the project's runs and updating the technical details in real time."
+              : t
+                ? "El procesamiento comenzará en cuanto arranque la primera ejecución."
+                : "Processing will start as soon as the first run begins.",
       id: "analysis-processing",
-      label: "Análisis",
+      label: t ? "Análisis" : "Analysis",
       meta: buildExecutionMeta({
         activeDesign,
         failedDesigns,
+        locale,
         processedDesigns,
         totalDesigns: state.totalDesigns,
       }),
@@ -497,19 +524,31 @@ export function buildAnalysisExecutionSnapshot(
     {
       description:
         state.status === "completed"
-          ? "El informe ya se ha generado con los resultados disponibles."
+          ? t
+            ? "El informe ya se ha generado con los resultados disponibles."
+            : "The report has already been generated with the available results."
           : state.status === "failed"
-            ? "La generación del informe no pudo finalizar por completo."
+            ? t
+              ? "La generación del informe no pudo finalizar por completo."
+              : "Report generation could not complete successfully."
             : state.status === "queued"
-              ? "El informe se generará automáticamente cuando comience el procesamiento."
+              ? t
+                ? "El informe se generará automáticamente cuando comience el procesamiento."
+                : "The report will be generated automatically when processing starts."
             : remainingExecutions === 0 && (activeDesign || processedDesigns > 0)
-              ? "Estamos cerrando el informe final con los últimos resultados."
-              : "El informe final se generará cuando terminen las ejecuciones pendientes.",
+              ? t
+                ? "Estamos cerrando el informe final con los últimos resultados."
+                : "We are finalizing the final report with the latest results."
+              : t
+                ? "El informe final se generará cuando terminen las ejecuciones pendientes."
+                : "The final report will be generated when the pending runs finish.",
       id: "report-generation",
-      label: "Generación del informe",
+      label: t ? "Generación del informe" : "Report generation",
       meta:
         remainingExecutions > 0 && state.status === "running"
-          ? `${remainingExecutions} pendiente${remainingExecutions === 1 ? "" : "s"}`
+          ? t
+            ? `${remainingExecutions} pendiente${remainingExecutions === 1 ? "" : "s"}`
+            : `${remainingExecutions} pending`
           : null,
       status:
         state.status === "completed"
@@ -525,14 +564,22 @@ export function buildAnalysisExecutionSnapshot(
     {
       description:
         state.status === "completed"
-          ? "Los resultados ya están listos y la vista volverá al proyecto automáticamente."
+          ? t
+            ? "Los resultados ya están listos y la vista volverá al proyecto automáticamente."
+            : "Results are ready and the view will return to the project automatically."
           : state.status === "failed"
-            ? "Puedes volver al proyecto y relanzar la generación cuando lo necesites."
+            ? t
+              ? "Puedes volver al proyecto y relanzar la generación cuando lo necesites."
+              : "You can go back to the project and relaunch generation whenever you need."
             : state.status === "queued"
-              ? "Los resultados aparecerán en el proyecto cuando el worker termine la ejecución."
-            : "Los resultados aparecerán en el proyecto cuando termine el informe.",
+              ? t
+                ? "Los resultados aparecerán en el proyecto cuando el worker termine la ejecución."
+                : "Results will appear in the project when the worker finishes the run."
+            : t
+              ? "Los resultados aparecerán en el proyecto cuando termine el informe."
+              : "Results will appear in the project when the report finishes.",
       id: "publish-results",
-      label: "Resultados listos",
+      label: t ? "Resultados listos" : "Results ready",
       meta: null,
       status:
         state.status === "completed"
@@ -584,10 +631,10 @@ export function formatDuration(durationMs: number) {
   return `${seconds} s`;
 }
 
-export function formatTimeOfDay(value: number | string) {
+export function formatTimeOfDay(value: number | string, locale: AppLocale = "es") {
   const date = typeof value === "number" ? new Date(value) : new Date(value);
 
-  return new Intl.DateTimeFormat("es-ES", {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);

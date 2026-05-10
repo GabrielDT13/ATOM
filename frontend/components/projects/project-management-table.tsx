@@ -19,8 +19,14 @@ import {
   type ProjectRecord,
 } from "@/components/projects/project-management-utils";
 
-function ProjectStatusBadge({ project }: { project: ProjectRecord }) {
-  const meta = getProjectStatusMeta(project.status, project.activeRun);
+function ProjectStatusBadge({
+  locale,
+  project,
+}: {
+  locale: "en" | "es";
+  project: ProjectRecord;
+}) {
+  const meta = getProjectStatusMeta(project.status, project.activeRun, locale);
 
   return (
     <span
@@ -34,21 +40,28 @@ function ProjectStatusBadge({ project }: { project: ProjectRecord }) {
   );
 }
 
-function ProjectInventoryCell({ project }: { project: ProjectRecord }) {
+function ProjectInventoryCell({
+  locale,
+  project,
+}: {
+  locale: "en" | "es";
+  project: ProjectRecord;
+}) {
+  const t = locale === "es";
   return (
     <div className="space-y-1">
       <p className="text-sm font-semibold text-slate-900">
-        {project.files.length} archivo{project.files.length === 1 ? "" : "s"}
+        {project.files.length} {t ? `archivo${project.files.length === 1 ? "" : "s"}` : `file${project.files.length === 1 ? "" : "s"}`}
       </p>
       <div className="flex flex-wrap gap-2 text-xs text-slate-500">
         <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-          {project.templateFile ? "Plantilla lista" : "Sin plantilla"}
+          {project.templateFile ? (t ? "Plantilla lista" : "Template ready") : (t ? "Sin plantilla" : "No template")}
         </span>
         <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-          {project.additionalFiles.length} adicional{project.additionalFiles.length === 1 ? "" : "es"}
+          {project.additionalFiles.length} {t ? `adicional${project.additionalFiles.length === 1 ? "" : "es"}` : `extra${project.additionalFiles.length === 1 ? "" : "s"}`}
         </span>
         <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-          {project.htmlFiles.length} resultado{project.htmlFiles.length === 1 ? "" : "s"}
+          {project.htmlFiles.length} {t ? `resultado${project.htmlFiles.length === 1 ? "" : "s"}` : `result${project.htmlFiles.length === 1 ? "" : "s"}`}
         </span>
       </div>
     </div>
@@ -58,6 +71,7 @@ function ProjectInventoryCell({ project }: { project: ProjectRecord }) {
 type ProjectManagementTableProps = {
   canDeleteProject: (project: ProjectRecord) => boolean;
   canEditProject: (project: ProjectRecord) => boolean;
+  locale: "en" | "es";
   loading: boolean;
   onDelete: (project: ProjectRecord) => void;
   onEdit: (project: ProjectRecord) => void;
@@ -68,17 +82,19 @@ type ProjectManagementTableProps = {
 export function ProjectManagementTable({
   canDeleteProject,
   canEditProject,
+  locale,
   loading,
   onDelete,
   onEdit,
   onView,
   projects,
 }: ProjectManagementTableProps) {
+  const t = locale === "es";
   const columns: DataTableColumn<ProjectRecord>[] = [
     {
       cell: (project) => {
-        const statusMeta = getProjectStatusMeta(project.status, project.activeRun);
-        const visibilityMeta = getProjectVisibilityMeta(project.visibility);
+        const statusMeta = getProjectStatusMeta(project.status, project.activeRun, locale);
+        const visibilityMeta = getProjectVisibilityMeta(project.visibility, locale);
 
         return (
           <div className="flex items-center gap-4">
@@ -115,30 +131,30 @@ export function ProjectManagementTable({
                   </span>
                 ) : null}
                 {project.templateFile ? (
-                  <span className="truncate">Base: {project.templateFile}</span>
+                  <span className="truncate">{t ? "Base" : "Base"}: {project.templateFile}</span>
                 ) : (
-                  <span className="truncate">Sin plantilla registrada</span>
+                  <span className="truncate">{t ? "Sin plantilla registrada" : "No template registered"}</span>
                 )}
               </div>
             </div>
           </div>
         );
       },
-      header: "Proyecto",
+      header: t ? "Proyecto" : "Project",
       id: "project",
       sortValue: (project) => `${project.owner} ${project.name}`.toLowerCase(),
     },
     {
-      cell: (project) => <ProjectInventoryCell project={project} />,
-      header: "Inventario",
+      cell: (project) => <ProjectInventoryCell locale={locale} project={project} />,
+      header: t ? "Inventario" : "Inventory",
       id: "inventory",
       sortValue: (project) => project.files.length,
     },
     {
-      cell: (project) => <ProjectStatusBadge project={project} />,
-      header: "Estado",
+      cell: (project) => <ProjectStatusBadge locale={locale} project={project} />,
+      header: t ? "Estado" : "Status",
       id: "status",
-      sortValue: (project) => getProjectStatusMeta(project.status, project.activeRun).label.toLowerCase(),
+      sortValue: (project) => getProjectStatusMeta(project.status, project.activeRun, locale).label.toLowerCase(),
     },
     {
       cell: (project) => {
@@ -163,7 +179,7 @@ export function ProjectManagementTable({
                 </a>
               ))
             ) : (
-              <span className="text-sm text-slate-400">Sin archivos todavía</span>
+              <span className="text-sm text-slate-400">{t ? "Sin archivos todavía" : "No files yet"}</span>
             )}
             {project.files.length > previewFiles.length ? (
               <span className="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
@@ -173,7 +189,7 @@ export function ProjectManagementTable({
           </div>
         );
       },
-      header: "Archivos",
+      header: t ? "Archivos" : "Files",
       id: "files",
       sortValue: (project) => project.files.join(" ").toLowerCase(),
     },
@@ -182,7 +198,7 @@ export function ProjectManagementTable({
         const actions: RowActionItem[] = [
           {
             icon: <EyeIcon className="h-4 w-4" />,
-            label: "Ver proyecto",
+            label: t ? "Ver proyecto" : "View project",
             onSelect: () => onView(project),
           },
         ];
@@ -190,7 +206,7 @@ export function ProjectManagementTable({
         if (canEditProject(project)) {
           actions.push({
             icon: <PencilIcon className="h-4 w-4" />,
-            label: "Editar proyecto",
+            label: t ? "Editar proyecto" : "Edit project",
             onSelect: () => onEdit(project),
           });
         }
@@ -199,7 +215,7 @@ export function ProjectManagementTable({
           actions.push({
             destructive: true,
             icon: <TrashIcon className="h-4 w-4" />,
-            label: "Eliminar proyecto",
+            label: t ? "Eliminar proyecto" : "Delete project",
             onSelect: () => onDelete(project),
             separatorBefore: canEditProject(project),
           });
@@ -207,12 +223,12 @@ export function ProjectManagementTable({
 
         return (
           <div className="flex justify-end">
-            <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${project.name}`} />
+            <RowActionsMenu actions={actions} ariaLabel={t ? `Abrir acciones para ${project.name}` : `Open actions for ${project.name}`} />
           </div>
         );
       },
       cellClassName: "w-[1%] whitespace-nowrap text-right",
-      header: "Acciones",
+      header: t ? "Acciones" : "Actions",
       headerClassName: "text-right",
       id: "actions",
     },
@@ -225,17 +241,19 @@ export function ProjectManagementTable({
       emptyState={
         <div className="mx-auto max-w-md text-center">
           <p className="text-base font-semibold text-slate-900">
-            No hay proyectos que coincidan con los filtros.
+            {t ? "No hay proyectos que coincidan con los filtros." : "No projects match the current filters."}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Ajusta la búsqueda o crea un nuevo proyecto para empezar a trabajar desde esta vista.
+            {t
+              ? "Ajusta la búsqueda o crea un nuevo proyecto para empezar a trabajar desde esta vista."
+              : "Adjust your search or create a new project to start working from this view."}
           </p>
         </div>
       }
       getRowKey={(project) => project.id}
       initialSort={{ columnId: "project", direction: "asc" }}
       loading={loading}
-      loadingLabel="Cargando proyectos..."
+      loadingLabel={t ? "Cargando proyectos..." : "Loading projects..."}
     />
   );
 }

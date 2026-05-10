@@ -1,3 +1,4 @@
+import type { AppLocale } from "@/lib/locale";
 import type { ProjectMemberRole } from "@/types/api";
 
 export type EditableProjectMemberRole = Extract<ProjectMemberRole, "editor" | "viewer">;
@@ -21,13 +22,14 @@ export function getProjectMemberRoleBadgeClassName(role: ProjectMemberRole) {
   }
 }
 
-export function getProjectMemberRoleLabel(role: ProjectMemberRole) {
+export function getProjectMemberRoleLabel(role: ProjectMemberRole, locale: AppLocale = "en") {
+  const t = locale === "es";
   switch (role) {
     case "owner":
-      return "Owner";
+      return t ? "Propietario" : "Owner";
     case "editor":
-      return "Editor";
+      return t ? "Editor" : "Editor";
     default:
-      return "Viewer";
+      return t ? "Lector" : "Viewer";
   }
 }

@@ -140,6 +140,34 @@ function getNotificationSummary(notification: NotificationRecord, locale: "en" |
   }
 }
 
+function getNotificationActionLabel(notification: NotificationRecord, locale: "en" | "es") {
+  if (locale === "en") {
+    switch (notification.type) {
+      case "analysis_completed":
+      case "analysis_failed":
+        return "Open run";
+      case "project_access_changed":
+      case "project_ownership_transferred":
+      case "project_shared":
+        return "Open project";
+      default:
+        return "Open";
+    }
+  }
+
+  switch (notification.type) {
+    case "analysis_completed":
+    case "analysis_failed":
+      return "Abrir ejecución";
+    case "project_access_changed":
+    case "project_ownership_transferred":
+    case "project_shared":
+      return "Abrir proyecto";
+    default:
+      return "Abrir";
+  }
+}
+
 function applyReadState(
   collection: NotificationCollectionResponse,
   notificationId: number,
@@ -466,7 +494,7 @@ export function HeaderNotificationsPopover({
                                   }
                                 }}
                               >
-                                {notification.action_label || copy.open}
+                                {getNotificationActionLabel(notification, locale)}
                               </a>
                             ) : null}
                           </div>
@@ -558,7 +586,7 @@ export function HeaderNotificationsPopover({
                     className="inline-flex h-11 items-center justify-center rounded-full bg-primary px-5 text-sm font-semibold text-white shadow-[0_16px_32px_-20px_rgba(13,127,242,0.85)] transition hover:bg-primary-dark"
                     href={selectedNotification.action_url}
                   >
-                    {selectedNotification.action_label || copy.open}
+                    {getNotificationActionLabel(selectedNotification, locale)}
                   </a>
                 ) : null}
               </DialogFooter>

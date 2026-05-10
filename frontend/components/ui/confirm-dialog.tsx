@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   Dialog,
   DialogClose,
@@ -32,6 +33,8 @@ export function ConfirmDialog({
   open,
   title,
 }: ConfirmDialogProps) {
+  const { locale } = useLocale();
+
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="max-w-lg overflow-hidden">
@@ -39,7 +42,7 @@ export function ConfirmDialog({
 
         <DialogFooter className="px-6 pb-6 sm:px-8">
           <DialogClose asChild>
-            <Button variant="secondary">Cancelar</Button>
+            <Button variant="secondary">{locale === "es" ? "Cancelar" : "Cancel"}</Button>
           </DialogClose>
           <Button
             disabled={confirmDisabled}

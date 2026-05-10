@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   Tooltip,
   TooltipContent,
@@ -34,7 +35,7 @@ function HelpCircleIcon({ className = "h-4 w-4" }: { className?: string }) {
 
 export function InfoTooltip({
   content,
-  label = "Más información",
+  label,
   side = "top",
   triggerClassName,
 }: {
@@ -43,12 +44,15 @@ export function InfoTooltip({
   side?: "bottom" | "left" | "right" | "top";
   triggerClassName?: string;
 }) {
+  const { locale } = useLocale();
+  const resolvedLabel = label ?? (locale === "es" ? "Más información" : "More information");
+
   return (
     <TooltipProvider delayDuration={120}>
       <Tooltip>
         <TooltipTrigger asChild>
           <button
-            aria-label={label}
+            aria-label={resolvedLabel}
             className={cn(
               "inline-flex h-5 w-5 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
               triggerClassName,

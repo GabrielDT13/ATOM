@@ -3,6 +3,7 @@ from __future__ import annotations
 from backend.app.dependencies.auth import get_current_user, get_request_access_token
 from backend.app.schemas.profile import (
     ProfileMutationResponse,
+    ProfilePreferencesUpdateRequest,
     ProfilePasswordChangeRequest,
     ProfileRequiredPasswordChangeRequest,
     ProfileResponse,
@@ -19,6 +20,7 @@ from backend.app.services.profile import (
     get_public_profile,
     mark_welcome_tour_seen,
     update_my_profile,
+    update_my_profile_preferences,
 )
 from fastapi import APIRouter, HTTPException, Request, status
 
@@ -64,6 +66,23 @@ async def update_my_profile_route(
     if success:
         request.session["user"] = get_session_user_by_id(str(current_user["id"]))
 
+    return ProfileMutationResponse(
+        success=success,
+        message=message,
+        profile=ProfileResponse(**profile) if profile else None,
+    )
+
+
+@router.put("/me/preferences", response_model=ProfileMutationResponse)
+async def update_my_profile_preferences_route(
+    payload: ProfilePreferencesUpdateRequest,
+    request: Request,
+) -> ProfileMutationResponse:
+    current_user = get_current_user(request)
+    success, message, profile = update_my_profile_preferences(
+        user_id=str(current_user["id"]),
+        preferences=payload.preferences.model_dump(),
+    )
     return ProfileMutationResponse(
         success=success,
         message=message,

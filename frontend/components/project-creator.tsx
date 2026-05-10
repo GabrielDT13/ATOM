@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { fetchSession } from "@/lib/api";
 import { listEntities } from "@/lib/entities";
 import { createProject } from "@/lib/projects";
@@ -26,6 +27,7 @@ import { InfoTooltip } from "@/components/ui/info-tooltip";
 
 export function ProjectCreator() {
   const router = useRouter();
+  const { locale } = useLocale();
   const appToast = useAppToast();
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [entities, setEntities] = useState<EntityRecord[]>([]);
@@ -71,11 +73,11 @@ export function ProjectCreator() {
       })
       .catch((loadError) =>
         appToast.error(
-          "No se pudieron cargar los datos iniciales",
+          locale === "es" ? "No se pudieron cargar los datos iniciales" : "Could not load initial data",
           loadError instanceof Error ? loadError.message : undefined,
         ),
       );
-  }, [appToast]);
+  }, [appToast, locale]);
 
   useEffect(() => {
     if (!teamId) {
@@ -94,12 +96,12 @@ export function ProjectCreator() {
     const templateFile = templateFiles[0] ?? null;
 
     if (!normalizedProjectName) {
-      appToast.error("Indica un nombre de proyecto válido");
+      appToast.error(locale === "es" ? "Indica un nombre de proyecto válido" : "Enter a valid project name");
       return;
     }
 
     if (!templateFile) {
-      appToast.error("Selecciona al menos un Excel base");
+      appToast.error(locale === "es" ? "Selecciona al menos un Excel base" : "Select at least one base Excel file");
       return;
     }
 
@@ -130,7 +132,7 @@ export function ProjectCreator() {
     } catch (submitError) {
       setUploadState("idle");
       appToast.error(
-        "No se pudo crear el proyecto",
+        locale === "es" ? "No se pudo crear el proyecto" : "Could not create project",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -145,18 +147,20 @@ export function ProjectCreator() {
           <div className="max-w-3xl">
             <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
               <UploadStackIcon />
-              Nuevo proyecto
+              {locale === "es" ? "Nuevo proyecto" : "New project"}
             </div>
             <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              Crear proyecto
+              {locale === "es" ? "Crear proyecto" : "Create project"}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Sube la plantilla principal y los archivos asociados del proyecto.
+              {locale === "es"
+                ? "Sube la plantilla principal y los archivos asociados del proyecto."
+                : "Upload project main template and associated files."}
             </p>
           </div>
 
           <ButtonLink href="/dashboard/projects" size="lg" tone="on-dark" variant="secondary">
-            Volver al listado
+            {locale === "es" ? "Volver al listado" : "Back to list"}
           </ButtonLink>
         </div>
       </section>
@@ -170,24 +174,25 @@ export function ProjectCreator() {
           <div className="border-b border-slate-200 px-6 pb-6 pt-7 sm:px-8">
             <div className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
               <ProjectStackIcon />
-              Configuración
+              {locale === "es" ? "Configuración" : "Configuration"}
             </div>
             <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-950">
-              Identidad del proyecto
+              {locale === "es" ? "Identidad del proyecto" : "Project identity"}
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Define el nombre visible del proyecto y prepara los archivos iniciales para el
-              workspace.
+              {locale === "es"
+                ? "Define el nombre visible del proyecto y prepara los archivos iniciales para el workspace."
+                : "Define project display name and prepare initial files for workspace."}
             </p>
           </div>
 
           <div className="grid gap-8 px-6 py-6 sm:px-8">
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-slate-700">Nombre del proyecto</span>
+              <span className="text-sm font-semibold text-slate-700">{locale === "es" ? "Nombre del proyecto" : "Project name"}</span>
               <input
                 className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
                 onChange={(event) => setProjectName(event.target.value)}
-                placeholder="ej. Human Genome Seq-A12"
+                placeholder={locale === "es" ? "ej. Human Genome Seq-A12" : "e.g. Human Genome Seq-A12"}
                 required
                 type="text"
                 value={projectName}
@@ -196,8 +201,8 @@ export function ProjectCreator() {
 
             <CreatableSelectField
               allowCreate={false}
-              createPlaceholder="Escribe una nueva entidad"
-              label="Entidad vinculada"
+              createPlaceholder={locale === "es" ? "Escribe una nueva entidad" : "Type a new entity"}
+              label={locale === "es" ? "Entidad vinculada" : "Linked entity"}
               onChange={setEntityName}
               options={entityOptions}
               value={entityName}
@@ -209,9 +214,11 @@ export function ProjectCreator() {
                 createPlaceholder="Escribe un equipo"
                 label={
                   <span className="inline-flex items-center gap-1">
-                    Añadir a un equipo
+                    {locale === "es" ? "Añadir a un equipo" : "Add to a team"}
                     <InfoTooltip
-                      content="Comparte proyecto desde inicio con equipo que gestionas. Lista se filtra por entidad si eliges una."
+                      content={locale === "es"
+                        ? "Comparte proyecto desde inicio con equipo que gestionas. Lista se filtra por entidad si eliges una."
+                        : "Share project from start with a team you manage. List is filtered by entity if you choose one."}
                     />
                   </span>
                 }
@@ -220,16 +227,19 @@ export function ProjectCreator() {
                 value={teamId}
               />
               <p className="text-xs leading-5 text-slate-500">
-                Opcional. Solo se muestran equipos que gestionas. Si eliges una entidad, la lista
-                se filtra a los equipos de esa entidad.
+                {locale === "es"
+                  ? "Opcional. Solo se muestran equipos que gestionas. Si eliges una entidad, la lista se filtra a los equipos de esa entidad."
+                  : "Optional. Only teams you manage are shown. If you choose an entity, list is filtered to its teams."}
               </p>
             </div>
 
             <label className="flex flex-col gap-2">
               <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
-                Visibilidad
+                {locale === "es" ? "Visibilidad" : "Visibility"}
                 <InfoTooltip
-                  content="Privado: solo propietario, miembros y equipos compartidos. Público: cualquier usuario autenticado puede verlo desde catálogo público."
+                  content={locale === "es"
+                    ? "Privado: solo propietario, miembros y equipos compartidos. Público: cualquier usuario autenticado puede verlo desde catálogo público."
+                    : "Private: only owner, members and shared teams. Public: any authenticated user can see it from public catalog."}
                 />
               </span>
               <select
@@ -237,8 +247,8 @@ export function ProjectCreator() {
                 onChange={(event) => setVisibility(event.target.value as ProjectVisibility)}
                 value={visibility}
               >
-                <option value="private">Privado</option>
-                <option value="public">Público</option>
+                <option value="private">{locale === "es" ? "Privado" : "Private"}</option>
+                <option value="public">{locale === "es" ? "Público" : "Public"}</option>
               </select>
             </label>
 
@@ -246,12 +256,12 @@ export function ProjectCreator() {
               <ProjectFileDropzone
                 accept=".xlsx,.xls"
                 accentClassName="bg-sky-100 text-sky-700"
-                description="Sube el Excel base del proyecto."
+                description={locale === "es" ? "Sube el Excel base del proyecto." : "Upload project base Excel file."}
                 disabled={submitting}
                 files={templateFiles}
-                helper="Formatos permitidos: .xlsx y .xls"
+                helper={locale === "es" ? "Formatos permitidos: .xlsx y .xls" : "Allowed formats: .xlsx and .xls"}
                 icon={<TemplateIcon />}
-                label="Plantilla Excel"
+                label={locale === "es" ? "Plantilla Excel" : "Excel template"}
                 onChange={setTemplateFiles}
                 required
                 uploadProgress={uploadProgress}
@@ -259,12 +269,14 @@ export function ProjectCreator() {
               />
               <ProjectFileDropzone
                 accentClassName="bg-indigo-100 text-indigo-700"
-                description="Adjunta archivos complementarios del proyecto. Puedes subir varios a la vez."
+                description={locale === "es"
+                  ? "Adjunta archivos complementarios del proyecto. Puedes subir varios a la vez."
+                  : "Attach complementary project files. You can upload several at once."}
                 disabled={submitting}
                 files={additionalFiles}
-                helper="Puedes arrastrar varios ficheros o usar el selector."
+                helper={locale === "es" ? "Puedes arrastrar varios ficheros o usar el selector." : "You can drag several files or use picker."}
                 icon={<DataFilesIcon />}
-                label="Archivos adicionales"
+                label={locale === "es" ? "Archivos adicionales" : "Additional files"}
                 multiple
                 onChange={setAdditionalFiles}
                 uploadProgress={uploadProgress}
@@ -276,13 +288,15 @@ export function ProjectCreator() {
           <div className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50 px-6 py-5 sm:flex-row sm:justify-end sm:px-8">
             <div className="flex flex-wrap gap-3">
               <ButtonLink href="/dashboard/projects" variant="secondary">
-                Cancelar
+                {locale === "es" ? "Cancelar" : "Cancel"}
               </ButtonLink>
               <Button
                 disabled={submitting}
                 type="submit"
               >
-                {submitting ? "Creando proyecto..." : "Crear proyecto"}
+                {submitting
+                  ? locale === "es" ? "Creando proyecto..." : "Creating project..."
+                  : locale === "es" ? "Crear proyecto" : "Create project"}
               </Button>
             </div>
           </div>

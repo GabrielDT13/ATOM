@@ -1,3 +1,4 @@
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   GridViewIcon,
   ListViewIcon,
@@ -19,6 +20,7 @@ export function EntityManagementFilters({
   search,
   viewMode,
 }: EntityManagementFiltersProps) {
+  const { locale } = useLocale();
   return (
     <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -29,7 +31,7 @@ export function EntityManagementFilters({
           <input
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Buscar por entidad o slug..."
+            placeholder={locale === "es" ? "Buscar por entidad o slug..." : "Search by entity or slug..."}
             type="search"
             value={search}
           />
@@ -37,7 +39,7 @@ export function EntityManagementFilters({
 
         <div className="inline-flex h-12 items-center rounded-2xl border border-slate-200 bg-slate-50 p-1">
           <button
-            aria-label="Cambiar a vista en lista"
+            aria-label={locale === "es" ? "Cambiar a vista en lista" : "Switch to list view"}
             className={cn(
               "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
               viewMode === "list"
@@ -48,10 +50,10 @@ export function EntityManagementFilters({
             type="button"
           >
             <ListViewIcon />
-            <span className="hidden sm:inline">Lista</span>
+            <span className="hidden sm:inline">{locale === "es" ? "Lista" : "List"}</span>
           </button>
           <button
-            aria-label="Cambiar a vista en tablero"
+            aria-label={locale === "es" ? "Cambiar a vista en tablero" : "Switch to board view"}
             className={cn(
               "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
               viewMode === "board"
@@ -62,7 +64,7 @@ export function EntityManagementFilters({
             type="button"
           >
             <GridViewIcon />
-            <span className="hidden sm:inline">Board</span>
+            <span className="hidden sm:inline">{locale === "es" ? "Tablero" : "Board"}</span>
           </button>
         </div>
       </div>

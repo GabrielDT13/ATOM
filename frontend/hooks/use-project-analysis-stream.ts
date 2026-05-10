@@ -8,6 +8,7 @@ import {
   createInitialAnalysisExecutionState,
   type AnalysisExecutionState,
 } from "@/components/projects/project-execution-utils";
+import type { AppLocale } from "@/lib/locale";
 import { createAnalysisRun, getAnalysisRun, getAnalysisRunLogs } from "@/lib/analysis";
 import type { AnalysisRun, AnalysisRunEvent, AnalysisStreamEvent } from "@/types/api";
 
@@ -170,7 +171,10 @@ function buildStreamEvent(run: AnalysisRun | null, event: AnalysisRunEvent): Ana
   }
 }
 
-export function useProjectAnalysisStream(target: AnalysisTarget | null): AnalysisExecutionResult {
+export function useProjectAnalysisStream(
+  target: AnalysisTarget | null,
+  locale: AppLocale = "es",
+): AnalysisExecutionResult {
   const [run, setRun] = useState<AnalysisRun | null>(null);
   const [events, setEvents] = useState<AnalysisRunEvent[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -224,7 +228,9 @@ export function useProjectAnalysisStream(target: AnalysisTarget | null): Analysi
           setError(
             loadError instanceof Error
               ? loadError.message
-              : "No se pudo seguir el estado de la ejecución.",
+              : locale === "es"
+                ? "No se pudo seguir el estado de la ejecución."
+                : "Could not track execution status.",
           );
         }
       }
@@ -276,7 +282,9 @@ export function useProjectAnalysisStream(target: AnalysisTarget | null): Analysi
           setError(
             runError instanceof Error
               ? runError.message
-              : "No se pudo iniciar la ejecución.",
+              : locale === "es"
+                ? "No se pudo iniciar la ejecución."
+                : "Could not start execution.",
           );
         }
       }
@@ -290,7 +298,7 @@ export function useProjectAnalysisStream(target: AnalysisTarget | null): Analysi
         window.clearTimeout(pollId);
       }
     };
-  }, [target, targetKey]);
+  }, [locale, target, targetKey]);
 
   useEffect(() => {
     if (!run || (run.status !== "queued" && run.status !== "running")) {
@@ -309,7 +317,7 @@ export function useProjectAnalysisStream(target: AnalysisTarget | null): Analysi
   const executionState = useMemo(() => buildStateFromRun(run, events), [events, run]);
 
   return {
-    ...buildAnalysisExecutionSnapshot(executionState, now),
+    ...buildAnalysisExecutionSnapshot(executionState, now, locale),
     error,
     run,
   };

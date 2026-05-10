@@ -9,6 +9,8 @@ from backend.app.services.emailing import (
     get_email_user_context,
     send_notification_email,
 )
+from backend.app.services.errors import ServiceError
+from backend.app.services.profile import _fetch_preferences
 from psycopg.errors import UndefinedTable
 
 NotificationType = Literal[
@@ -169,6 +171,14 @@ def create_notification(
     actor_user_id: str | None = None,
     project_id: str | None = None,
 ) -> None:
+    try:
+        preferences = _fetch_preferences(user_id)
+    except ServiceError:
+        preferences = {}
+
+    if not bool(preferences.get("email_notifications", True)):
+        return
+
     try:
         execute(
             """

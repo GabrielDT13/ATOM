@@ -1,17 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { apiFetch } from "@/lib/api";
 import type { MutationResponse, UserRecord } from "@/types/api";
-import { Button, buttonStyles } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export function UserEditor() {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const params = useParams<{ username: string }>();
   const router = useRouter();
   const username = decodeURIComponent(params.username);
@@ -37,14 +39,14 @@ export function UserEditor() {
       })
       .catch((error) => {
         if (active) {
-          setMessage(error instanceof Error ? error.message : "No se pudo cargar el usuario");
+          setMessage(error instanceof Error ? error.message : t ? "No se pudo cargar el usuario" : "Could not load user");
         }
       });
 
     return () => {
       active = false;
     };
-  }, [username]);
+  }, [t, username]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -67,7 +69,7 @@ export function UserEditor() {
       setMessage(response.message);
       router.replace("/dashboard/edit_users");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "No se pudo actualizar el usuario");
+      setMessage(error instanceof Error ? error.message : t ? "No se pudo actualizar el usuario" : "Could not update user");
     }
   }
 
@@ -75,34 +77,34 @@ export function UserEditor() {
     <FormPage
       actions={
         <ButtonLink href="/dashboard/users" size="lg" tone="on-dark" variant="secondary">
-          Volver a usuarios
+          {t ? "Volver a usuarios" : "Back to users"}
         </ButtonLink>
       }
-      description="Actualiza los datos básicos del usuario seleccionado."
-      eyebrow="Usuarios"
-      title="Editar usuario"
+      description={t ? "Actualiza los datos básicos del usuario seleccionado." : "Update basic data for selected user."}
+      eyebrow={t ? "Usuarios" : "Users"}
+      title={t ? "Editar usuario" : "Edit user"}
     >
       <form onSubmit={handleSubmit}>
         <FormCard
           footer={
             <>
               <ButtonLink href="/dashboard/users" variant="secondary">
-                Cancelar
+                {t ? "Cancelar" : "Cancel"}
               </ButtonLink>
               <Button
                 type="submit"
               >
-                Guardar cambios
+                {t ? "Guardar cambios" : "Save changes"}
               </Button>
             </>
           }
-          title={`Editar ${username}`}
+          title={`${t ? "Editar" : "Edit"} ${username}`}
         >
           <div className="grid gap-5 sm:grid-cols-2">
-            <FormField label="Nombre de usuario">
+            <FormField label={t ? "Nombre de usuario" : "Username"}>
               <FormInput
                 onChange={(event) => setNextUsername(event.target.value)}
-                placeholder="Nombre de usuario"
+                placeholder={t ? "Nombre de usuario" : "Username"}
                 required
                 value={nextUsername}
               />
@@ -118,17 +120,17 @@ export function UserEditor() {
             </FormField>
           </div>
 
-          <FormField label="Nueva contraseña">
+          <FormField label={t ? "Nueva contraseña" : "New password"}>
             <FormInput
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Dejar en blanco si no cambia"
+              placeholder={t ? "Dejar en blanco si no cambia" : "Leave blank if unchanged"}
               type="password"
               value={password}
             />
           </FormField>
 
           {message ? (
-            <FormMessage tone={message.includes("correctamente") ? "neutral" : "danger"}>
+            <FormMessage tone={message.includes("correctamente") || message.includes("success") ? "neutral" : "danger"}>
               {message}
             </FormMessage>
           ) : null}

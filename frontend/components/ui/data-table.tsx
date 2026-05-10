@@ -1,5 +1,8 @@
+"use client";
+
 import { ReactNode, useEffect, useMemo, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { cn } from "@/lib/utils";
 import {
   Pagination,
@@ -102,10 +105,12 @@ export function DataTable<T>({
   footer,
   getRowKey,
   loading = false,
-  loadingLabel = "Cargando datos...",
+  loadingLabel,
   rowClassName,
   initialSort,
 }: DataTableProps<T>) {
+  const { locale } = useLocale();
+  const resolvedLoadingLabel = loadingLabel ?? (locale === "es" ? "Cargando datos..." : "Loading data...");
   const [sortState, setSortState] = useState<DataTableSortState | null>(initialSort ?? null);
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(defaultRowsPerPage);
@@ -233,7 +238,7 @@ export function DataTable<T>({
                 ))}
                 <tr>
                   <td className="px-6 pb-6 pt-2 text-center text-sm text-slate-400" colSpan={columns.length}>
-                    {loadingLabel}
+                    {resolvedLoadingLabel}
                   </td>
                 </tr>
               </>
@@ -243,7 +248,9 @@ export function DataTable<T>({
               <tr>
                 <td className="px-6 py-14" colSpan={columns.length}>
                   {emptyState ?? (
-                    <div className="text-center text-sm text-slate-500">No hay datos para mostrar.</div>
+                    <div className="text-center text-sm text-slate-500">
+                      {locale === "es" ? "No hay datos para mostrar." : "No data to display."}
+                    </div>
                   )}
                 </td>
               </tr>
@@ -281,7 +288,7 @@ export function DataTable<T>({
         >
           <div className="flex flex-col items-start gap-3">
             <p className="text-sm text-slate-500">
-              Mostrando <span className="font-semibold text-slate-700">{visibleStart}</span>-
+              {locale === "es" ? "Mostrando" : "Showing"} <span className="font-semibold text-slate-700">{visibleStart}</span>-
               <span className="font-semibold text-slate-700">{visibleEnd}</span> de{" "}
               <span className="font-semibold text-slate-700">{sortedData.length}</span>
             </p>
@@ -291,7 +298,7 @@ export function DataTable<T>({
 
           <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-end lg:items-center">
             <p className="text-sm text-slate-500">
-              Página <span className="font-semibold text-slate-700">{currentPage}</span> de{" "}
+              {locale === "es" ? "Página" : "Page"} <span className="font-semibold text-slate-700">{currentPage}</span> {locale === "es" ? "de" : "of"}{" "}
               <span className="font-semibold text-slate-700">{totalPages}</span>
             </p>
 
@@ -314,7 +321,7 @@ export function DataTable<T>({
             </Pagination>
 
             <label className="flex items-center gap-2 text-sm font-medium text-slate-500">
-              <span>Filas</span>
+              <span>{locale === "es" ? "Filas" : "Rows"}</span>
               <Select
                 disabled={loading}
                 onValueChange={(value) => setRowsPerPage(Number(value))}

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { ChevronDownIcon } from "@/components/users/user-management-icons";
+import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -18,6 +19,7 @@ import type {
 type ReportManagementFiltersProps = {
   entities: string[];
   entityFilter: ReportEntityFilter;
+  locale: AppLocale;
   onEntityFilterChange: (value: ReportEntityFilter) => void;
   onOwnerFilterChange: (value: ReportOwnerFilter) => void;
   onSearchChange: (value: string) => void;
@@ -31,6 +33,7 @@ type ReportManagementFiltersProps = {
 export function ReportManagementFilters({
   entities,
   entityFilter,
+  locale,
   onEntityFilterChange,
   onOwnerFilterChange,
   onSearchChange,
@@ -40,6 +43,7 @@ export function ReportManagementFilters({
   search,
   viewMode,
 }: ReportManagementFiltersProps) {
+  const t = locale === "es";
   const activeFilterCount = useMemo(() => {
     let total = 0;
     if (ownerFilter !== "all") {
@@ -61,7 +65,11 @@ export function ReportManagementFilters({
           <input
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Buscar por proyecto, informe, propietario o entidad..."
+            placeholder={
+              t
+                ? "Buscar por proyecto, informe, propietario o entidad..."
+                : "Search by project, report, owner, or entity..."
+            }
             type="search"
             value={search}
           />
@@ -70,7 +78,7 @@ export function ReportManagementFilters({
         <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="inline-flex h-12 items-center rounded-2xl border border-slate-200 bg-slate-50 p-1">
             <button
-              aria-label="Cambiar a vista en lista"
+              aria-label={t ? "Cambiar a vista en lista" : "Switch to list view"}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
                 viewMode === "list"
@@ -81,10 +89,10 @@ export function ReportManagementFilters({
               type="button"
             >
               <ListViewIcon />
-              <span className="hidden sm:inline">Lista</span>
+              <span className="hidden sm:inline">{t ? "Lista" : "List"}</span>
             </button>
             <button
-              aria-label="Cambiar a vista en tablero"
+              aria-label={t ? "Cambiar a vista en tablero" : "Switch to board view"}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
                 viewMode === "board"
@@ -106,7 +114,7 @@ export function ReportManagementFilters({
                 type="button"
               >
                 <FilterIcon />
-                <span>Filtros</span>
+                <span>{t ? "Filtros" : "Filters"}</span>
                 {activeFilterCount > 0 ? (
                   <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
                     {activeFilterCount}
@@ -118,21 +126,25 @@ export function ReportManagementFilters({
             <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-5">
               <div className="flex flex-col gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Filtros de informes</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {t ? "Filtros de informes" : "Report filters"}
+                  </p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Acota catálogo por propietario o entidad para localizar entregables más rápido.
+                    {t
+                      ? "Acota catálogo por propietario o entidad para localizar entregables más rápido."
+                      : "Narrow the catalog by owner or entity to find deliverables faster."}
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
-                    Propietario
+                    {t ? "Propietario" : "Owner"}
                     <select
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onOwnerFilterChange(event.target.value)}
                       value={ownerFilter}
                     >
-                      <option value="all">Todos los propietarios</option>
+                      <option value="all">{t ? "Todos los propietarios" : "All owners"}</option>
                       {owners.map((owner) => (
                         <option key={owner} value={owner}>
                           {owner}
@@ -142,13 +154,13 @@ export function ReportManagementFilters({
                   </label>
 
                   <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
-                    Entidad
+                    {t ? "Entidad" : "Entity"}
                     <select
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onEntityFilterChange(event.target.value)}
                       value={entityFilter}
                     >
-                      <option value="all">Todas las entidades</option>
+                      <option value="all">{t ? "Todas las entidades" : "All entities"}</option>
                       {entities.map((entity) => (
                         <option key={entity} value={entity}>
                           {entity}

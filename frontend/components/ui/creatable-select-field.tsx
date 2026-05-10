@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { Button } from "@/components/ui/button";
 
 export type CreatableSelectOption = {
@@ -78,17 +79,21 @@ function ChevronUpIcon() {
 }
 
 export function CreatableSelectField({
-  addButtonLabel = "Añadir opción",
+  addButtonLabel,
   allowCreate = true,
-  createPlaceholder = "Escribe una nueva opción",
+  createPlaceholder,
   label,
   onChange,
   options,
   value,
 }: CreatableSelectFieldProps) {
+  const { locale } = useLocale();
   const [customOptions, setCustomOptions] = useState<CreatableSelectOption[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [draftValue, setDraftValue] = useState("");
+  const resolvedAddButtonLabel = addButtonLabel ?? (locale === "es" ? "Añadir opción" : "Add option");
+  const resolvedCreatePlaceholder =
+    createPlaceholder ?? (locale === "es" ? "Escribe una nueva opción" : "Type a new option");
 
   useEffect(() => {
     if (!value) {
@@ -140,7 +145,7 @@ export function CreatableSelectField({
           onChange={(event) => onChange(event.target.value)}
           value={value}
         >
-          <option value="">Selecciona una opción</option>
+          <option value="">{locale === "es" ? "Selecciona una opción" : "Select an option"}</option>
           {mergedOptions.map((option) => (
             <option key={normalizeOptionValue(option.value)} value={option.value}>
               {option.label}
@@ -150,7 +155,7 @@ export function CreatableSelectField({
 
         {allowCreate ? (
           <Button
-            aria-label={addButtonLabel}
+            aria-label={resolvedAddButtonLabel}
             className="w-12 px-0"
             onClick={() => setIsCreating((current) => !current)}
             size="lg"
@@ -167,7 +172,7 @@ export function CreatableSelectField({
           <input
             className="h-12 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
             onChange={(event) => setDraftValue(event.target.value)}
-            placeholder={createPlaceholder}
+            placeholder={resolvedCreatePlaceholder}
             value={draftValue}
           />
           <Button
@@ -175,7 +180,7 @@ export function CreatableSelectField({
             size="lg"
             type="button"
           >
-            Añadir
+            {locale === "es" ? "Añadir" : "Add"}
           </Button>
         </div>
       ) : null}

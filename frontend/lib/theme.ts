@@ -1,10 +1,14 @@
 "use client";
 
-export const THEME_STORAGE_KEY = "atom-theme";
+import type { ProfilePreferences } from "@/types/api";
+
+export const LEGACY_THEME_STORAGE_KEY = "atom-theme";
+export const THEME_PREFERENCE_STORAGE_KEY = "atom-theme-preference";
 
 export type ThemeMode = "dark" | "light";
+export type ThemePreference = ThemeMode | "system";
 
-function getSystemTheme(): ThemeMode {
+export function detectSystemTheme(): ThemeMode {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return "light";
   }
@@ -12,17 +16,31 @@ function getSystemTheme(): ThemeMode {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
-export function getStoredTheme(): ThemeMode | null {
+function normalizeThemePreference(value: string | null): ThemePreference | null {
+  if (value === "system" || value === "dark" || value === "light") {
+    return value;
+  }
+
+  return null;
+}
+
+export function getStoredThemePreference(): ThemePreference | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  const value = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return value === "dark" || value === "light" ? value : null;
+  const storedPreference = normalizeThemePreference(
+    window.localStorage.getItem(THEME_PREFERENCE_STORAGE_KEY),
+  );
+  if (storedPreference) {
+    return storedPreference;
+  }
+
+  return normalizeThemePreference(window.localStorage.getItem(LEGACY_THEME_STORAGE_KEY));
 }
 
-export function resolveThemeMode(): ThemeMode {
-  return getStoredTheme() ?? getSystemTheme();
+export function resolveThemeMode(preference: ThemePreference): ThemeMode {
+  return preference === "system" ? detectSystemTheme() : preference;
 }
 
 export function applyThemeMode(mode: ThemeMode) {
@@ -34,22 +52,25 @@ export function applyThemeMode(mode: ThemeMode) {
   document.documentElement.style.colorScheme = mode;
 }
 
-export function persistThemeMode(mode: ThemeMode) {
+export function persistThemePreference(preference: ThemePreference) {
   if (typeof window !== "undefined") {
-    window.localStorage.setItem(THEME_STORAGE_KEY, mode);
-  }
-  applyThemeMode(mode);
-}
-
-export function persistDarkModePreference(enabled: boolean) {
-  persistThemeMode(enabled ? "dark" : "light");
-}
-
-export function syncThemeFromSystem() {
-  if (getStoredTheme() !== null) {
-    applyThemeMode(resolveThemeMode());
-    return;
+    window.localStorage.setItem(THEME_PREFERENCE_STORAGE_KEY, preference);
+    if (preference === "system") {
+      window.localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(LEGACY_THEME_STORAGE_KEY, preference);
+    }
   }
 
-  applyThemeMode(getSystemTheme());
+  applyThemeMode(resolveThemeMode(preference));
+}
+
+export function resolveThemePreferenceFromProfile(
+  preferences: Pick<ProfilePreferences, "dark_mode" | "dark_mode_auto">,
+): ThemePreference {
+  if (preferences.dark_mode_auto) {
+    return "system";
+  }
+
+  return preferences.dark_mode ? "dark" : "light";
 }
