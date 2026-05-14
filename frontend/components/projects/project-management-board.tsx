@@ -5,7 +5,7 @@ import Link from "next/link";
 import { buildApiUrl, encodePathSegments } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { buildProjectDetailHref } from "@/lib/projects";
-import { formatDate } from "@/components/projects/detail/project-detail-helpers";
+import { formatDate } from "@/components/dashboard/dashboard-overview-utils";
 import {
   EyeIcon,
   PencilIcon,
@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 type ProjectManagementBoardProps = {
   canDeleteProject: (project: ProjectRecord) => boolean;
   canEditProject: (project: ProjectRecord) => boolean;
+  locale: "en" | "es";
   loading: boolean;
   onDelete: (project: ProjectRecord) => void;
   onEdit: (project: ProjectRecord) => void;
@@ -36,8 +37,8 @@ type ProjectManagementBoardProps = {
 const PROJECT_BOARD_SKELETON_COUNT = 6;
 const PROJECT_BOARD_HERO_IMAGE = "/images/project-hero-molecule.jpg";
 
-function ProjectStatusBadge({ project }: { project: ProjectRecord }) {
-  const meta = getProjectStatusMeta(project.status, project.activeRun);
+function ProjectStatusBadge({ locale, project }: { locale: "en" | "es"; project: ProjectRecord }) {
+  const meta = getProjectStatusMeta(project.status, project.activeRun, locale);
 
   return (
     <span
@@ -51,11 +52,11 @@ function ProjectStatusBadge({ project }: { project: ProjectRecord }) {
   );
 }
 
-function ProjectPreviewPills({ project }: { project: ProjectRecord }) {
+function ProjectPreviewPills({ locale, project }: { locale: "en" | "es"; project: ProjectRecord }) {
   const previewFiles = getProjectPreviewFiles(project, 3);
 
   if (previewFiles.length === 0) {
-    return <p className="text-sm text-slate-400">Sin archivos todavía</p>;
+    return <p className="text-sm text-slate-400">{locale === "es" ? "Sin archivos todavía" : "No files yet"}</p>;
   }
 
   return (
@@ -135,12 +136,14 @@ function ProjectBoardSkeleton() {
 export function ProjectManagementBoard({
   canDeleteProject,
   canEditProject,
+  locale,
   loading,
   onDelete,
   onEdit,
   onView,
   projects,
 }: ProjectManagementBoardProps) {
+  const t = locale === "es";
   if (loading) {
     return (
       <section className="space-y-4">
@@ -149,7 +152,7 @@ export function ProjectManagementBoard({
             <ProjectBoardSkeleton key={index} />
           ))}
         </div>
-        <p className="text-center text-sm text-slate-400">Cargando proyectos...</p>
+        <p className="text-center text-sm text-slate-400">{t ? "Cargando proyectos..." : "Loading projects..."}</p>
       </section>
     );
   }
@@ -159,10 +162,12 @@ export function ProjectManagementBoard({
       <section className="rounded-[28px] border border-slate-200 bg-white p-10 shadow-sm">
         <div className="mx-auto max-w-md text-center">
           <p className="text-base font-semibold text-slate-900">
-            No hay proyectos que coincidan con los filtros.
+            {t ? "No hay proyectos que coincidan con los filtros." : "No projects match the current filters."}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Ajusta la búsqueda o crea un nuevo proyecto para empezar a trabajar desde esta vista.
+            {t
+              ? "Ajusta la búsqueda o crea un nuevo proyecto para empezar a trabajar desde esta vista."
+              : "Adjust your search or create a new project to start working from this view."}
           </p>
         </div>
       </section>
@@ -172,12 +177,12 @@ export function ProjectManagementBoard({
   return (
     <section className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
       {projects.map((project) => {
-        const statusMeta = getProjectStatusMeta(project.status, project.activeRun);
-        const visibilityMeta = getProjectVisibilityMeta(project.visibility);
+        const statusMeta = getProjectStatusMeta(project.status, project.activeRun, locale);
+        const visibilityMeta = getProjectVisibilityMeta(project.visibility, locale);
         const actions: RowActionItem[] = [
           {
             icon: <EyeIcon className="h-4 w-4" />,
-            label: "Ver proyecto",
+            label: t ? "Ver proyecto" : "View project",
             onSelect: () => onView(project),
           },
         ];
@@ -185,7 +190,7 @@ export function ProjectManagementBoard({
         if (canEditProject(project)) {
           actions.push({
             icon: <PencilIcon className="h-4 w-4" />,
-            label: "Editar proyecto",
+            label: t ? "Editar proyecto" : "Edit project",
             onSelect: () => onEdit(project),
           });
         }
@@ -194,7 +199,7 @@ export function ProjectManagementBoard({
           actions.push({
             destructive: true,
             icon: <TrashIcon className="h-4 w-4" />,
-            label: "Eliminar proyecto",
+            label: t ? "Eliminar proyecto" : "Delete project",
             onSelect: () => onDelete(project),
             separatorBefore: canEditProject(project),
           });
@@ -225,10 +230,11 @@ export function ProjectManagementBoard({
 
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <ProjectStatusBadge project={project} />
+                  <ProjectStatusBadge locale={locale} project={project} />
+
                   <div className="mt-3 flex flex-wrap gap-2">
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                      Actualizado {formatDate(project.updated_at)}
+                      {t ? "Actualizado" : "Updated"} {formatDate(project.updated_at, locale)}
                     </span>
                     <span
                       className={cn(
@@ -246,25 +252,25 @@ export function ProjectManagementBoard({
                   </div>
                 </div>
 
-                <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${project.name}`} />
+                <RowActionsMenu actions={actions} ariaLabel={t ? `Abrir acciones para ${project.name}` : `Open actions for ${project.name}`} />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <ProjectMetricChip label="Archivos" value={String(project.files.length)} />
-                <ProjectMetricChip label="Resultados" value={String(project.htmlFiles.length)} />
-                <ProjectMetricChip label="Extras" value={String(project.additionalFiles.length)} />
+                <ProjectMetricChip label={t ? "Archivos" : "Files"} value={String(project.files.length)} />
+                <ProjectMetricChip label={t ? "Resultados" : "Results"} value={String(project.htmlFiles.length)} />
+                <ProjectMetricChip label={t ? "Extras" : "Extras"} value={String(project.additionalFiles.length)} />
               </div>
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    Archivos destacados
+                    {t ? "Archivos destacados" : "Featured files"}
                   </p>
                   <span className="text-xs font-medium text-slate-400">
-                    Creado {formatDate(project.created_at)}
+                    {t ? "Creado" : "Created"} {formatDate(project.created_at, locale)}
                   </span>
                 </div>
-                <ProjectPreviewPills project={project} />
+                <ProjectPreviewPills locale={locale} project={project} />
               </div>
 
               <div className="flex items-center justify-between gap-3 pt-1">
@@ -274,7 +280,7 @@ export function ProjectManagementBoard({
                   type="button"
                 >
                   <EyeIcon className="h-4 w-4" />
-                  Abrir proyecto
+                  {t ? "Abrir proyecto" : "Open project"}
                 </button>
                 <p className="max-w-[10rem] text-right text-xs leading-5 text-slate-500">
                   {statusMeta.description}

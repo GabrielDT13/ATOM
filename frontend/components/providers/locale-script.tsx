@@ -7,11 +7,19 @@ export function LocaleScript() {
         __html: `
           (function() {
             try {
-              var key = "atom-locale";
-              var stored = window.localStorage.getItem(key);
-              var locale = stored === "es" || stored === "en"
+              var preferenceKey = "atom-locale-preference";
+              var legacyKey = "atom-locale";
+              var stored = window.localStorage.getItem(preferenceKey);
+              if (stored !== "auto" && stored !== "es" && stored !== "en") {
+                stored = window.localStorage.getItem(legacyKey);
+              }
+              var preference = stored === "auto" || stored === "es" || stored === "en"
                 ? stored
-                : (navigator.language || "").toLowerCase().indexOf("es") === 0 ? "es" : ((navigator.language || "").toLowerCase().indexOf("en") === 0 ? "en" : "en");
+                : "auto";
+              var browserLanguage = (navigator.language || "").toLowerCase();
+              var locale = preference === "auto"
+                ? (browserLanguage.indexOf("es") === 0 ? "es" : (browserLanguage.indexOf("en") === 0 ? "en" : "en"))
+                : preference;
               document.documentElement.lang = locale;
             } catch (error) {
               document.documentElement.lang = "en";

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAppToast } from "@/hooks/use-app-toast";
 import { buildProjectDetailHref, listProjects } from "@/lib/projects";
+import { useLocale } from "@/components/providers/locale-provider";
 import { buttonStyles } from "@/components/ui/button";
 import {
   PlusIcon,
@@ -38,6 +39,8 @@ function hasActiveAnalysisRun(reports: ReturnType<typeof buildProjectRecords>) {
 }
 
 export function ReportManagement() {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const router = useRouter();
   const appToast = useAppToast();
   const [reports, setReports] = useState<ReportRecord[]>([]);
@@ -62,7 +65,7 @@ export function ReportManagement() {
     } catch (loadError) {
       if (!options?.silent) {
         appToast.error(
-          "No se pudieron cargar los informes",
+          t ? "No se pudieron cargar los informes" : "Could not load reports",
           loadError instanceof Error ? loadError.message : undefined,
         );
         setReports([]);
@@ -72,7 +75,7 @@ export function ReportManagement() {
         setLoading(false);
       }
     }
-  }, [appToast]);
+  }, [appToast, t]);
 
   useEffect(() => {
     void loadReports();
@@ -158,25 +161,30 @@ export function ReportManagement() {
           <div className="max-w-3xl">
             <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
               <ReportSparkIcon />
-              Informes
+              {t ? "Informes" : "Reports"}
             </div>
             <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-              Biblioteca de informes generados
+              {t ? "Biblioteca de informes generados" : "Generated report library"}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Revisa todos los informes HTML ya publicados, ábrelos rápido y salta al contexto
-              completo del proyecto desde board o lista.
+              {t
+                ? "Revisa todos los informes HTML ya publicados, ábrelos rápido y salta al contexto completo del proyecto desde board o lista."
+                : "Review every published HTML report, open them quickly, and jump back to the full project context from board or list view."}
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                {metrics.totalReports} informe{metrics.totalReports === 1 ? "" : "s"} listos
+                {t
+                  ? `${metrics.totalReports} informe${metrics.totalReports === 1 ? "" : "s"} listos`
+                  : `${metrics.totalReports} report${metrics.totalReports === 1 ? "" : "s"} ready`}
               </span>
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                {metrics.totalProjects} proyecto{metrics.totalProjects === 1 ? "" : "s"} con resultados
+                {t
+                  ? `${metrics.totalProjects} proyecto${metrics.totalProjects === 1 ? "" : "s"} con resultados`
+                  : `${metrics.totalProjects} project${metrics.totalProjects === 1 ? "" : "s"} with results`}
               </span>
               {hasRunningAnalysis ? (
                 <span className="inline-flex items-center rounded-full border border-emerald-200/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
-                  Catálogo autoactualizable activo
+                  {t ? "Catálogo autoactualizable activo" : "Auto-refreshing catalog active"}
                 </span>
               ) : null}
             </div>
@@ -188,7 +196,7 @@ export function ReportManagement() {
               href="/dashboard/projects"
             >
               <ProjectStackIcon className="h-4 w-4" />
-              Ver proyectos
+              {t ? "Ver proyectos" : "View projects"}
             </Link>
 
             <Link
@@ -196,16 +204,17 @@ export function ReportManagement() {
               href="/dashboard/create_project"
             >
               <PlusIcon />
-              Crear proyecto
+              {t ? "Crear proyecto" : "Create project"}
             </Link>
           </div>
         </div>
       </section>
 
-      <ReportManagementSummary loading={loading} reports={reports} />
+      <ReportManagementSummary loading={loading} locale={locale} reports={reports} />
       <ReportManagementFilters
         entities={entities}
         entityFilter={entityFilter}
+        locale={locale}
         onEntityFilterChange={setEntityFilter}
         onOwnerFilterChange={setOwnerFilter}
         onSearchChange={setSearch}
@@ -218,6 +227,7 @@ export function ReportManagement() {
 
       {viewMode === "board" ? (
         <ReportManagementBoard
+          locale={locale}
           loading={loading}
           onOpenProject={(report) => router.push(buildProjectDetailHref(report.routeRef))}
           onOpenReport={(report) => router.push(report.primaryReportHref)}
@@ -225,6 +235,7 @@ export function ReportManagement() {
         />
       ) : (
         <ReportManagementTable
+          locale={locale}
           loading={loading}
           onOpenProject={(report) => router.push(buildProjectDetailHref(report.routeRef))}
           onOpenReport={(report) => router.push(report.primaryReportHref)}

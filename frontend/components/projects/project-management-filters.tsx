@@ -17,6 +17,7 @@ import { ChevronDownIcon } from "@/components/users/user-management-icons";
 type ProjectViewMode = "board" | "list";
 
 type ProjectManagementFiltersProps = {
+  locale: "en" | "es";
   onOwnerFilterChange: (value: ProjectOwnerFilter) => void;
   onSearchChange: (value: string) => void;
   onStatusFilterChange: (value: ProjectStatusFilter) => void;
@@ -29,6 +30,7 @@ type ProjectManagementFiltersProps = {
 };
 
 export function ProjectManagementFilters({
+  locale,
   onOwnerFilterChange,
   onSearchChange,
   onStatusFilterChange,
@@ -39,6 +41,7 @@ export function ProjectManagementFilters({
   statusFilter,
   viewMode,
 }: ProjectManagementFiltersProps) {
+  const t = locale === "es";
   const activeFilterCount = useMemo(() => {
     let total = 0;
     if (statusFilter !== "all") {
@@ -60,7 +63,7 @@ export function ProjectManagementFilters({
           <input
             className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-12 pr-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Buscar por proyecto, propietario o nombre de archivo..."
+            placeholder={t ? "Buscar por proyecto, propietario o nombre de archivo..." : "Search by project, owner or file name..."}
             type="search"
             value={search}
           />
@@ -69,7 +72,7 @@ export function ProjectManagementFilters({
         <div className="flex flex-wrap items-center justify-end gap-3">
           <div className="inline-flex h-12 items-center rounded-2xl border border-slate-200 bg-slate-50 p-1">
             <button
-              aria-label="Cambiar a vista en lista"
+              aria-label={t ? "Cambiar a vista en lista" : "Switch to list view"}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
                 viewMode === "list"
@@ -80,10 +83,10 @@ export function ProjectManagementFilters({
               type="button"
             >
               <ListViewIcon />
-              <span className="hidden sm:inline">Lista</span>
+              <span className="hidden sm:inline">{t ? "Lista" : "List"}</span>
             </button>
             <button
-              aria-label="Cambiar a vista en tablero"
+              aria-label={t ? "Cambiar a vista en tablero" : "Switch to board view"}
               className={cn(
                 "inline-flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold transition",
                 viewMode === "board"
@@ -94,7 +97,7 @@ export function ProjectManagementFilters({
               type="button"
             >
               <GridViewIcon />
-              <span className="hidden sm:inline">Board</span>
+              <span className="hidden sm:inline">{t ? "Tablero" : "Board"}</span>
             </button>
           </div>
 
@@ -105,7 +108,7 @@ export function ProjectManagementFilters({
                 type="button"
               >
                 <FilterIcon />
-                <span>Filtros</span>
+                <span>{t ? "Filtros" : "Filters"}</span>
                 {activeFilterCount > 0 ? (
                   <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-sky-100 px-2 py-0.5 text-xs font-bold text-sky-700">
                     {activeFilterCount}
@@ -117,35 +120,39 @@ export function ProjectManagementFilters({
             <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-5">
               <div className="flex flex-col gap-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">Filtros de proyectos</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {t ? "Filtros de proyectos" : "Project filters"}
+                  </p>
                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                    Ajusta el listado por estado del inventario y por propietario.
+                    {t
+                      ? "Ajusta el listado por estado del inventario y por propietario."
+                      : "Adjust listing by inventory status and owner."}
                   </p>
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
-                    Estado
+                    {t ? "Estado" : "Status"}
                     <select
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onStatusFilterChange(event.target.value as ProjectStatusFilter)}
                       value={statusFilter}
                     >
-                      <option value="all">Todos los estados</option>
-                      <option value="results">Resultados listos</option>
-                      <option value="configured">Pendiente de análisis</option>
-                      <option value="empty">Sin archivos</option>
+                      <option value="all">{t ? "Todos los estados" : "All statuses"}</option>
+                      <option value="results">{t ? "Resultados listos" : "Results ready"}</option>
+                      <option value="configured">{t ? "Pendiente de análisis" : "Pending analysis"}</option>
+                      <option value="empty">{t ? "Sin archivos" : "No files"}</option>
                     </select>
                   </label>
 
                   <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
-                    Propietario
+                    {t ? "Propietario" : "Owner"}
                     <select
                       className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onOwnerFilterChange(event.target.value)}
                       value={ownerFilter}
                     >
-                      <option value="all">Todos los propietarios</option>
+                      <option value="all">{t ? "Todos los propietarios" : "All owners"}</option>
                       {owners.map((owner) => (
                         <option key={owner} value={owner}>
                           {owner}

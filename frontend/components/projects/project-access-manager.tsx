@@ -3,6 +3,7 @@
 import { useDeferredValue, useEffect, useState } from "react";
 
 import { UserIcon } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   EditableProjectMemberRole,
   PROJECT_SHARE_ROLE_OPTIONS,
@@ -52,6 +53,8 @@ export function ProjectAccessManager({
   owner,
   projectName,
 }: ProjectAccessManagerProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const appToast = useAppToast();
   const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
   const [teams, setTeams] = useState<ProjectSharedTeam[]>([]);
@@ -94,7 +97,7 @@ export function ProjectAccessManager({
       setTeams(teamsResponse.teams);
     } catch (error) {
       appToast.error(
-        "No se pudo cargar el acceso del proyecto",
+        t ? "No se pudo cargar el acceso del proyecto" : "Could not load project access",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -104,7 +107,7 @@ export function ProjectAccessManager({
 
   useEffect(() => {
     void loadAccessState();
-  }, [owner, projectName]);
+  }, [owner, projectName, t]);
 
   useEffect(() => {
     if (!popoverOpen) {
@@ -125,7 +128,7 @@ export function ProjectAccessManager({
       .catch((error) => {
         if (!cancelled) {
           appToast.error(
-            "No se pudieron buscar usuarios",
+            t ? "No se pudieron buscar usuarios" : "Could not search users",
             error instanceof Error ? error.message : undefined,
           );
           setCandidates([]);
@@ -140,7 +143,7 @@ export function ProjectAccessManager({
     return () => {
       cancelled = true;
     };
-  }, [appToast, deferredSearch, owner, popoverOpen, projectName]);
+  }, [appToast, deferredSearch, owner, popoverOpen, projectName, t]);
 
   useEffect(() => {
     if (!teamPopoverOpen) {
@@ -161,7 +164,7 @@ export function ProjectAccessManager({
       .catch((error) => {
         if (!cancelled) {
           appToast.error(
-            "No se pudieron buscar equipos",
+            t ? "No se pudieron buscar equipos" : "Could not search teams",
             error instanceof Error ? error.message : undefined,
           );
           setTeamCandidates([]);
@@ -176,7 +179,7 @@ export function ProjectAccessManager({
     return () => {
       cancelled = true;
     };
-  }, [appToast, deferredTeamSearch, owner, projectName, teamPopoverOpen]);
+  }, [appToast, deferredTeamSearch, owner, projectName, t, teamPopoverOpen]);
 
   async function handleShare(username: string, role: EditableProjectMemberRole) {
     setSubmittingUsername(username);
@@ -192,7 +195,7 @@ export function ProjectAccessManager({
       }
     } catch (error) {
       appToast.error(
-        "No se pudo compartir el proyecto",
+        t ? "No se pudo compartir el proyecto" : "Could not share project",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -212,7 +215,7 @@ export function ProjectAccessManager({
       }
     } catch (error) {
       appToast.error(
-        "No se pudo actualizar el rol",
+        t ? "No se pudo actualizar el rol" : "Could not update role",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -232,7 +235,7 @@ export function ProjectAccessManager({
       }
     } catch (error) {
       appToast.error(
-        "No se pudo quitar el acceso",
+        t ? "No se pudo quitar el acceso" : "Could not remove access",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -252,7 +255,7 @@ export function ProjectAccessManager({
       }
     } catch (error) {
       appToast.error(
-        "No se pudo transferir el proyecto",
+        t ? "No se pudo transferir el proyecto" : "Could not transfer project",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -274,7 +277,7 @@ export function ProjectAccessManager({
       }
     } catch (error) {
       appToast.error(
-        "No se pudo añadir el equipo",
+        t ? "No se pudo añadir el equipo" : "Could not add team",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -294,7 +297,7 @@ export function ProjectAccessManager({
       }
     } catch (error) {
       appToast.error(
-        "No se pudo actualizar el acceso del equipo",
+        t ? "No se pudo actualizar el acceso del equipo" : "Could not update team access",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -314,7 +317,7 @@ export function ProjectAccessManager({
       }
     } catch (error) {
       appToast.error(
-        "No se pudo quitar el equipo",
+        t ? "No se pudo quitar el equipo" : "Could not remove team",
         error instanceof Error ? error.message : undefined,
       );
     } finally {
@@ -380,13 +383,19 @@ export function ProjectAccessManager({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
-            Acceso al proyecto
+            {t ? "Acceso al proyecto" : "Project access"}
             <InfoTooltip
-              content="Acceso puede venir por usuario o por equipo. Rol efectivo siempre gana por nivel mas alto."
+              content={
+                t
+                  ? "Acceso puede venir por usuario o por equipo. Rol efectivo siempre gana por nivel mas alto."
+                  : "Access can come from direct user sharing or team sharing. Effective role always uses highest level."
+              }
             />
           </p>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Combina acceso directo por usuario y acceso heredado desde equipos.
+            {t
+              ? "Combina acceso directo por usuario y acceso heredado desde equipos."
+              : "Combines direct user access with inherited team access."}
           </p>
         </div>
 
@@ -407,7 +416,7 @@ export function ProjectAccessManager({
             trigger={
               <Button variant="secondary">
                 <UserIcon className="h-4 w-4" />
-                Añadir usuario
+                {t ? "Añadir usuario" : "Add user"}
               </Button>
             }
           />
@@ -428,7 +437,7 @@ export function ProjectAccessManager({
             trigger={
               <Button variant="secondary">
                 <ProjectStackIcon className="h-4 w-4" />
-                Añadir equipo
+                {t ? "Añadir equipo" : "Add team"}
               </Button>
             }
           />
@@ -439,13 +448,19 @@ export function ProjectAccessManager({
         <section className="rounded-[24px] border border-slate-200 bg-white p-4">
           <div>
             <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
-              Personas con acceso
+              {t ? "Personas con acceso" : "People with access"}
               <InfoTooltip
-                content="Lista muestra rol efectivo final. Si usuario tiene acceso directo y por equipo, se usa rol mas alto."
+                content={
+                  t
+                    ? "Lista muestra rol efectivo final. Si usuario tiene acceso directo y por equipo, se usa rol mas alto."
+                    : "List shows final effective role. If user has direct and team access, highest role wins."
+                }
               />
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Se muestra el rol efectivo de cada usuario, aunque llegue por equipo.
+              {t
+                ? "Se muestra el rol efectivo de cada usuario, aunque llegue por equipo."
+                : "Shows each user's effective role, even when it comes through a team."}
             </p>
           </div>
 
@@ -468,24 +483,30 @@ export function ProjectAccessManager({
             ) : members.length > 0 ? (
               <div className="space-y-5">
                 {renderMemberGroup(
-                  "Propietario",
-                  "Responsable principal del proyecto.",
+                  t ? "Propietario" : "Owner",
+                  t ? "Responsable principal del proyecto." : "Primary project owner.",
                   ownerMembers,
                 )}
                 {renderMemberGroup(
-                  "Acceso directo",
-                  "Usuarios añadidos manualmente al proyecto. Pueden además pertenecer a equipos vinculados.",
+                  t ? "Acceso directo" : "Direct access",
+                  t
+                    ? "Usuarios añadidos manualmente al proyecto. Pueden además pertenecer a equipos vinculados."
+                    : "Users added manually to project. They may also belong to linked teams.",
                   nonOwnerDirectMembers,
                 )}
                 {renderMemberGroup(
-                  "Vía equipos",
-                  "Usuarios que acceden solo por pertenecer a equipos vinculados al proyecto.",
+                  t ? "Vía equipos" : "Via teams",
+                  t
+                    ? "Usuarios que acceden solo por pertenecer a equipos vinculados al proyecto."
+                    : "Users who access only because they belong to linked teams.",
                   teamOnlyMembers,
                 )}
               </div>
             ) : (
               <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                Este proyecto todavía no está compartido con otros usuarios.
+                {t
+                  ? "Este proyecto todavía no está compartido con otros usuarios."
+                  : "This project is not shared with other users yet."}
               </p>
             )}
           </div>
@@ -494,13 +515,19 @@ export function ProjectAccessManager({
         <section className="rounded-[24px] border border-slate-200 bg-white p-4">
           <div>
             <p className="inline-flex items-center gap-1 text-sm font-semibold text-slate-900">
-              Equipos vinculados
+              {t ? "Equipos vinculados" : "Linked teams"}
               <InfoTooltip
-                content="Vincular equipo da acceso a miembros actuales. Si equipo cambia luego, acceso heredado cambia tambien."
+                content={
+                  t
+                    ? "Vincular equipo da acceso a miembros actuales. Si equipo cambia luego, acceso heredado cambia tambien."
+                    : "Linking a team grants access to current members. If team changes later, inherited access changes too."
+                }
               />
             </p>
             <p className="mt-1 text-sm text-slate-500">
-              Cada equipo añade acceso a todos sus miembros actuales.
+              {t
+                ? "Cada equipo añade acceso a todos sus miembros actuales."
+                : "Each team grants access to all its current members."}
             </p>
           </div>
 
@@ -531,7 +558,9 @@ export function ProjectAccessManager({
               ))
             ) : (
               <p className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                Este proyecto todavía no tiene equipos vinculados.
+                {t
+                  ? "Este proyecto todavía no tiene equipos vinculados."
+                  : "This project does not have linked teams yet."}
               </p>
             )}
           </div>
@@ -539,22 +568,26 @@ export function ProjectAccessManager({
       </div>
 
       <ConfirmDialog
-        actionLabel="Guardar rol"
+        actionLabel={t ? "Guardar rol" : "Save role"}
         body={
           memberPendingRoleEdit ? (
             <div className="space-y-4">
               <p>
-                Cambia el rol directo de <strong>{memberPendingRoleEdit.display_name}</strong>
-                {" "}(@{memberPendingRoleEdit.username}) dentro de este proyecto.
+                {t ? "Cambia el rol directo de " : "Change direct role for "}
+                <strong>{memberPendingRoleEdit.display_name}</strong>
+                {" "}(@{memberPendingRoleEdit.username})
+                {t ? " dentro de este proyecto." : " in this project."}
               </p>
               <Select onValueChange={(value) => setEditedRole(value as EditableProjectMemberRole)} value={editedRole}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un rol" />
+                  <SelectValue placeholder={t ? "Selecciona un rol" : "Select a role"} />
                 </SelectTrigger>
                 <SelectContent>
                   {PROJECT_SHARE_ROLE_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {locale === "es"
+                        ? option.value === "viewer" ? "Lector" : "Editor"
+                        : option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -580,21 +613,23 @@ export function ProjectAccessManager({
           }
         }}
         open={memberPendingRoleEdit !== null}
-        title="Editar rol del usuario"
+        title={t ? "Editar rol del usuario" : "Edit user role"}
       />
 
       <ConfirmDialog
-        actionLabel="Transferir proyecto"
+        actionLabel={t ? "Transferir proyecto" : "Transfer project"}
         body={
           memberPendingTransfer ? (
             <div className="space-y-3">
               <p>
                 <strong>{memberPendingTransfer.display_name}</strong>
-                {" "}(@{memberPendingTransfer.username}) pasará a ser el nuevo owner del proyecto.
+                {" "}(@{memberPendingTransfer.username})
+                {t ? " pasará a ser el nuevo owner del proyecto." : " will become new project owner."}
               </p>
               <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                Tu usuario conservará acceso como editor y la carpeta del proyecto se moverá al
-                workspace del nuevo propietario.
+                {t
+                  ? "Tu usuario conservará acceso como editor y la carpeta del proyecto se moverá al workspace del nuevo propietario."
+                  : "Your user will keep editor access and project folder will move to new owner's workspace."}
               </p>
             </div>
           ) : null
@@ -614,16 +649,18 @@ export function ProjectAccessManager({
           }
         }}
         open={memberPendingTransfer !== null}
-        title="Confirmar transferencia"
+        title={t ? "Confirmar transferencia" : "Confirm transfer"}
       />
 
       <ConfirmDialog
-        actionLabel="Quitar acceso"
+        actionLabel={t ? "Quitar acceso" : "Remove access"}
         body={
           memberPendingRemoval ? (
             <>
-              Se eliminará el acceso directo de <strong>{memberPendingRemoval.display_name}</strong>
-              {" "}(@{memberPendingRemoval.username}) a este proyecto.
+              {t ? "Se eliminará el acceso directo de " : "Direct access will be removed for "}
+              <strong>{memberPendingRemoval.display_name}</strong>
+              {" "}(@{memberPendingRemoval.username})
+              {t ? " a este proyecto." : " in this project."}
             </>
           ) : null
         }
@@ -642,26 +679,29 @@ export function ProjectAccessManager({
           }
         }}
         open={memberPendingRemoval !== null}
-        title="Confirmar eliminación de acceso"
+        title={t ? "Confirmar eliminación de acceso" : "Confirm access removal"}
       />
 
       <ConfirmDialog
-        actionLabel="Guardar rol"
+        actionLabel={t ? "Guardar rol" : "Save role"}
         body={
           teamPendingRoleEdit ? (
             <div className="space-y-4">
               <p>
-                Cambia el rol con el que el equipo <strong>{teamPendingRoleEdit.name}</strong>
-                {" "}entra en este proyecto.
+                {t ? "Cambia el rol con el que el equipo " : "Change role used by team "}
+                <strong>{teamPendingRoleEdit.name}</strong>
+                {t ? " para entrar en este proyecto." : " to access this project."}
               </p>
               <Select onValueChange={(value) => setEditedTeamRole(value as EditableProjectMemberRole)} value={editedTeamRole}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecciona un rol" />
+                  <SelectValue placeholder={t ? "Selecciona un rol" : "Select a role"} />
                 </SelectTrigger>
                 <SelectContent>
                   {PROJECT_SHARE_ROLE_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
-                      {option.label}
+                      {locale === "es"
+                        ? option.value === "viewer" ? "Lector" : "Editor"
+                        : option.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -687,15 +727,17 @@ export function ProjectAccessManager({
           }
         }}
         open={teamPendingRoleEdit !== null}
-        title="Editar rol del equipo"
+        title={t ? "Editar rol del equipo" : "Edit team role"}
       />
 
       <ConfirmDialog
-        actionLabel="Quitar equipo"
+        actionLabel={t ? "Quitar equipo" : "Remove team"}
         body={
           teamPendingRemoval ? (
             <>
-              Se eliminará el acceso del equipo <strong>{teamPendingRemoval.name}</strong> a este proyecto.
+              {t ? "Se eliminará el acceso del equipo " : "Team access will be removed for "}
+              <strong>{teamPendingRemoval.name}</strong>
+              {t ? " a este proyecto." : "."}
             </>
           ) : null
         }
@@ -714,7 +756,7 @@ export function ProjectAccessManager({
           }
         }}
         open={teamPendingRemoval !== null}
-        title="Confirmar eliminación del equipo"
+        title={t ? "Confirmar eliminación del equipo" : "Confirm team removal"}
       />
     </section>
   );

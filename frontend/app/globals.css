@@ -20,18 +20,18 @@
 
 html[data-theme="dark"] {
   --color-text-main: #e5eefb;
-  --color-app-shell: linear-gradient(180deg, #020617 0%, #06111f 100%);
-  --color-surface-base: #0f172a;
-  --color-surface-muted: #111c31;
-  --color-surface-soft: #162338;
-  --color-border-soft: #243246;
+  --color-app-shell: linear-gradient(180deg, #07111f 0%, #0b1628 100%);
+  --color-surface-base: #162235;
+  --color-surface-muted: #1b2a40;
+  --color-surface-soft: #23344c;
+  --color-border-soft: #31455f;
   --color-text-strong: #f8fafc;
   --color-text-soft: #cbd5e1;
   --color-text-muted: #94a3b8;
   --hero-surface:
-    radial-gradient(circle at top left, rgba(56, 189, 248, 0.2), transparent 30%),
-    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.14), transparent 30%),
-    linear-gradient(135deg, #020617 0%, #0f172a 48%, #0b3b34 100%);
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.24), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.18), transparent 30%),
+    linear-gradient(135deg, #0b1322 0%, #162235 48%, #0f4d43 100%);
 }
 
 * {
@@ -149,7 +149,7 @@ html[data-theme="dark"] [class*="text-slate-400"] {
 html[data-theme="dark"] .shadow-sm,
 html[data-theme="dark"] [class*="shadow-sm"],
 html[data-theme="dark"] [class*="shadow-"] {
-  box-shadow: 0 22px 60px -42px rgba(2, 6, 23, 0.8) !important;
+  box-shadow: 0 24px 60px -40px rgba(2, 6, 23, 0.62) !important;
 }
 
 html[data-theme="dark"] input,
@@ -166,19 +166,19 @@ html[data-theme="dark"] textarea::placeholder {
 }
 
 html[data-theme="dark"] [data-sonner-toaster] {
-  --normal-bg: #0f172a;
-  --normal-border: #243246;
+  --normal-bg: #162235;
+  --normal-border: #31455f;
   --normal-text: #f8fafc;
-  --success-bg: #052e28;
+  --success-bg: #0b3a33;
   --success-border: #0f766e;
   --success-text: #d1fae5;
-  --info-bg: #082f49;
+  --info-bg: #103556;
   --info-border: #0369a1;
   --info-text: #e0f2fe;
-  --warning-bg: #3f2a0f;
+  --warning-bg: #4a3416;
   --warning-border: #b45309;
   --warning-text: #fef3c7;
-  --error-bg: #4c0519;
+  --error-bg: #5a1023;
   --error-border: #be123c;
   --error-text: #ffe4e6;
 }

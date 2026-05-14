@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 
+import type { AppLocale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
-import { buildProjectDetailHref } from "@/lib/projects";
-import { formatDate } from "@/components/projects/detail/project-detail-helpers";
 import {
   EyeIcon,
   ProjectStackIcon,
@@ -21,6 +20,7 @@ import {
 } from "@/components/reports/report-management-utils";
 
 type ReportManagementBoardProps = {
+  locale: AppLocale;
   loading: boolean;
   onOpenProject: (report: ReportRecord) => void;
   onOpenReport: (report: ReportRecord) => void;
@@ -29,6 +29,14 @@ type ReportManagementBoardProps = {
 
 const REPORT_BOARD_SKELETON_COUNT = 6;
 const REPORT_BOARD_HERO_IMAGE = "/images/report-hero-lines.jpg";
+
+function formatReportDate(value: string, locale: AppLocale) {
+  return new Intl.DateTimeFormat(locale === "es" ? "es-ES" : "en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
 
 function ReportPreviewPills({ report }: { report: ReportRecord }) {
   const previewFiles = getReportPreviewFiles(report, 3);
@@ -101,11 +109,13 @@ function ReportBoardSkeleton() {
 }
 
 export function ReportManagementBoard({
+  locale,
   loading,
   onOpenProject,
   onOpenReport,
   reports,
 }: ReportManagementBoardProps) {
+  const t = locale === "es";
   if (loading) {
     return (
       <section className="space-y-4">
@@ -114,7 +124,9 @@ export function ReportManagementBoard({
             <ReportBoardSkeleton key={index} />
           ))}
         </div>
-        <p className="text-center text-sm text-slate-400">Cargando informes...</p>
+        <p className="text-center text-sm text-slate-400">
+          {t ? "Cargando informes..." : "Loading reports..."}
+        </p>
       </section>
     );
   }
@@ -124,10 +136,12 @@ export function ReportManagementBoard({
       <section className="rounded-[28px] border border-slate-200 bg-white p-10 shadow-sm">
         <div className="mx-auto max-w-md text-center">
           <p className="text-base font-semibold text-slate-900">
-            No hay informes que coincidan con los filtros.
+            {t ? "No hay informes que coincidan con los filtros." : "No reports match the current filters."}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Ajusta la búsqueda o entra en proyectos para generar nuevos resultados.
+            {t
+              ? "Ajusta la búsqueda o entra en proyectos para generar nuevos resultados."
+              : "Adjust your search or go to projects to generate new results."}
           </p>
         </div>
       </section>
@@ -140,12 +154,12 @@ export function ReportManagementBoard({
         const actions: RowActionItem[] = [
           {
             icon: <ReportSparkIcon className="h-4 w-4" />,
-            label: "Abrir informe",
+            label: t ? "Abrir informe" : "Open report",
             onSelect: () => onOpenReport(report),
           },
           {
             icon: <EyeIcon className="h-4 w-4" />,
-            label: "Ver proyecto",
+            label: t ? "Ver proyecto" : "View project",
             onSelect: () => onOpenProject(report),
           },
         ];
@@ -167,7 +181,11 @@ export function ReportManagementBoard({
                     />
                   ) : null
                 }
-                eyebrow={`${report.reportCount} informe${report.reportCount === 1 ? "" : "s"} listo${report.reportCount === 1 ? "" : "s"}`}
+                eyebrow={
+                  t
+                    ? `${report.reportCount} informe${report.reportCount === 1 ? "" : "s"} listo${report.reportCount === 1 ? "" : "s"}`
+                    : `${report.reportCount} report${report.reportCount === 1 ? "" : "s"} ready`
+                }
                 imagePath={REPORT_BOARD_HERO_IMAGE}
                 subtitle={`@${report.owner}${report.entity_name ? ` · ${report.entity_name}` : ""}`}
                 title={report.name}
@@ -177,26 +195,26 @@ export function ReportManagementBoard({
                 <div className="min-w-0">
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                      Actualizado {formatDate(report.updated_at)}
+                      {t ? "Actualizado" : "Updated"} {formatReportDate(report.updated_at, locale)}
                     </span>
                     <span className="max-w-full truncate rounded-full bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-700">
-                      Principal: {report.primaryReportName}
+                      {t ? "Principal" : "Primary"}: {report.primaryReportName}
                     </span>
                   </div>
                 </div>
 
-                <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${report.name}`} />
+                <RowActionsMenu actions={actions} ariaLabel={`${t ? "Abrir" : "Open"} actions for ${report.name}`} />
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
-                <ReportMetricChip label="Informes" value={String(report.reportCount)} />
-                <ReportMetricChip label="Archivos" value={String(report.files.length)} />
-                <ReportMetricChip label="Ruta" value={report.routeRef} />
+                <ReportMetricChip label={t ? "Informes" : "Reports"} value={String(report.reportCount)} />
+                <ReportMetricChip label={t ? "Archivos" : "Files"} value={String(report.files.length)} />
+                <ReportMetricChip label={t ? "Ruta" : "Route"} value={report.routeRef} />
               </div>
 
               <div className="space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Entregables HTML
+                  {t ? "Entregables HTML" : "HTML deliverables"}
                 </p>
                 <ReportPreviewPills report={report} />
               </div>
@@ -207,7 +225,7 @@ export function ReportManagementBoard({
                   href={report.primaryReportHref}
                 >
                   <ReportSparkIcon className="h-4 w-4" />
-                  Abrir informe
+                  {t ? "Abrir informe" : "Open report"}
                 </Link>
                 <button
                   className={cn(buttonStyles({ size: "sm", variant: "ghost" }), "border border-slate-200")}
@@ -215,7 +233,7 @@ export function ReportManagementBoard({
                   type="button"
                 >
                   <ProjectStackIcon className="h-4 w-4" />
-                  Ver proyecto
+                  {t ? "Ver proyecto" : "View project"}
                 </button>
               </div>
             </div>

@@ -7,6 +7,7 @@ class ProfilePreferencesPayload(BaseModel):
     email_notifications: bool = True
     security_alerts: bool = True
     dark_mode: bool = False
+    dark_mode_auto: bool = True
     interface_language: str = "es"
     interface_language_auto: bool = True
 
@@ -50,6 +51,10 @@ class ProfileUpdateRequest(BaseModel):
         if not normalized or "@" not in normalized:
             raise ValueError("El email no es válido")
         return normalized
+
+
+class ProfilePreferencesUpdateRequest(BaseModel):
+    preferences: ProfilePreferencesPayload = Field(default_factory=ProfilePreferencesPayload)
 
 
 class ProfilePasswordChangeRequest(BaseModel):

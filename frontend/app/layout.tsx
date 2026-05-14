@@ -6,12 +6,17 @@ import "sonner/dist/styles.css";
 import { AppToastProvider } from "@/components/providers/app-toast-provider";
 import { LocaleProvider } from "@/components/providers/locale-provider";
 import { LocaleScript } from "@/components/providers/locale-script";
+import { ThemeProvider } from "@/components/providers/theme-provider";
 import { ThemeScript } from "@/components/providers/theme-script";
-import { ThemeSyncProvider } from "@/components/providers/theme-sync-provider";
 
 export const metadata: Metadata = {
   title: "ATOM",
   description: "Panel modular en Next.js para ATOM",
+  icons: {
+    apple: "/images/favicon-atom.png",
+    icon: "/images/favicon-atom.png",
+    shortcut: "/images/favicon-atom.png",
+  },
 };
 
 type RootLayoutProps = {
@@ -26,11 +31,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <ThemeScript />
       </head>
       <body className="app-shell">
-        <LocaleProvider>
-          <ThemeSyncProvider />
-          {children}
-          <AppToastProvider />
-        </LocaleProvider>
+        <ThemeProvider>
+          <LocaleProvider>
+            {children}
+            <AppToastProvider />
+          </LocaleProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

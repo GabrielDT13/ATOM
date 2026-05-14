@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { fetchSession } from "@/lib/api";
 import { createEntity, deleteEntity, listEntities, updateEntity } from "@/lib/entities";
 import { useAppToast } from "@/hooks/use-app-toast";
@@ -34,6 +35,7 @@ function EntitySummaryCard({
 const ENTITY_VIEW_STORAGE_KEY = "atom.entity-management.view";
 
 export function EntityManagement() {
+  const { locale } = useLocale();
   const appToast = useAppToast();
   const [session, setSession] = useState<SessionResponse | null>();
   const [entities, setEntities] = useState<EntityRecord[]>([]);
@@ -56,7 +58,7 @@ export function EntityManagement() {
       setEntities(entitiesPayload);
     } catch (loadError) {
       appToast.error(
-        "No se pudieron cargar las entidades",
+        locale === "es" ? "No se pudieron cargar las entidades" : "Could not load entities",
         loadError instanceof Error ? loadError.message : undefined,
       );
       setEntities([]);
@@ -67,7 +69,7 @@ export function EntityManagement() {
 
   useEffect(() => {
     void loadState();
-  }, []);
+  }, [locale]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -94,7 +96,7 @@ export function EntityManagement() {
 
   async function handleCreate(payload: { logoFile: File | null; name: string; removeLogo: boolean }) {
     if (!payload.name.trim()) {
-      appToast.error("El nombre de la entidad es obligatorio");
+      appToast.error(locale === "es" ? "El nombre de la entidad es obligatorio" : "Entity name is required");
       return;
     }
 
@@ -110,7 +112,7 @@ export function EntityManagement() {
       }
     } catch (submitError) {
       appToast.error(
-        "No se pudo crear la entidad",
+        locale === "es" ? "No se pudo crear la entidad" : "Could not create entity",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -123,7 +125,7 @@ export function EntityManagement() {
       return;
     }
     if (!payload.name.trim()) {
-      appToast.error("El nombre de la entidad es obligatorio");
+      appToast.error(locale === "es" ? "El nombre de la entidad es obligatorio" : "Entity name is required");
       return;
     }
 
@@ -139,7 +141,7 @@ export function EntityManagement() {
       }
     } catch (submitError) {
       appToast.error(
-        "No se pudo actualizar la entidad",
+        locale === "es" ? "No se pudo actualizar la entidad" : "Could not update entity",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -163,7 +165,7 @@ export function EntityManagement() {
       }
     } catch (deleteError) {
       appToast.error(
-        "No se pudo eliminar la entidad",
+        locale === "es" ? "No se pudo eliminar la entidad" : "Could not delete entity",
         deleteError instanceof Error ? deleteError.message : undefined,
       );
     }
@@ -173,9 +175,11 @@ export function EntityManagement() {
     return (
       <section className="rounded-[28px] border border-slate-200 bg-white p-10 shadow-sm">
         <div className="mx-auto max-w-xl text-center">
-          <p className="text-base font-semibold text-slate-900">Acceso restringido</p>
+          <p className="text-base font-semibold text-slate-900">{locale === "es" ? "Acceso restringido" : "Restricted access"}</p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            La gestión de entidades está disponible solo para administradores.
+            {locale === "es"
+              ? "La gestión de entidades está disponible solo para administradores."
+              : "Entity management is available only for administrators."}
           </p>
         </div>
       </section>
@@ -190,29 +194,30 @@ export function EntityManagement() {
             <div className="max-w-3xl">
               <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
                 <DatabaseIcon className="h-5 w-5" />
-                Entidades
+                {locale === "es" ? "Entidades" : "Entities"}
               </div>
               <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Gestión de entidades
+                {locale === "es" ? "Gestión de entidades" : "Entity management"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Administra universidades, institutos y centros reutilizables para usuarios,
-                proyectos y equipos desde una pantalla específica de administración.
+                {locale === "es"
+                  ? "Administra universidades, institutos y centros reutilizables para usuarios, proyectos y equipos desde una pantalla específica de administración."
+                  : "Manage universities, institutes and reusable centers for users, projects and teams from a dedicated administration screen."}
               </p>
             </div>
 
             <Button onClick={() => setCreateOpen(true)} size="lg" tone="on-dark" variant="secondary">
               <PlusIcon />
-              Crear entidad
+              {locale === "es" ? "Crear entidad" : "Create entity"}
             </Button>
           </div>
         </section>
 
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <EntitySummaryCard label="Entidades" value={String(entities.length)} />
-          <EntitySummaryCard label="Usuarios vinculados" value={String(totalUsers)} />
-          <EntitySummaryCard label="Proyectos vinculados" value={String(totalProjects)} />
-          <EntitySummaryCard label="Equipos vinculados" value={String(totalTeams)} />
+          <EntitySummaryCard label={locale === "es" ? "Entidades" : "Entities"} value={String(entities.length)} />
+          <EntitySummaryCard label={locale === "es" ? "Usuarios vinculados" : "Linked users"} value={String(totalUsers)} />
+          <EntitySummaryCard label={locale === "es" ? "Proyectos vinculados" : "Linked projects"} value={String(totalProjects)} />
+          <EntitySummaryCard label={locale === "es" ? "Equipos vinculados" : "Linked teams"} value={String(totalTeams)} />
         </section>
 
         <EntityManagementFilters
@@ -261,15 +266,19 @@ export function EntityManagement() {
       />
 
       <ConfirmDialog
-        actionLabel="Eliminar entidad"
+        actionLabel={locale === "es" ? "Eliminar entidad" : "Delete entity"}
         body={
           pendingDeleteEntity ? (
             <div className="space-y-3">
               <p>
-                Se eliminará <strong>{pendingDeleteEntity.name}</strong>.
+                {locale === "es"
+                  ? <>Se eliminará <strong>{pendingDeleteEntity.name}</strong>.</>
+                  : <>This will delete <strong>{pendingDeleteEntity.name}</strong>.</>}
               </p>
               <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                Los usuarios, proyectos y equipos vinculados quedarán sin entidad asignada.
+                {locale === "es"
+                  ? "Los usuarios, proyectos y equipos vinculados quedarán sin entidad asignada."
+                  : "Linked users, projects and teams will remain without an assigned entity."}
               </p>
             </div>
           ) : null
@@ -282,7 +291,7 @@ export function EntityManagement() {
           }
         }}
         open={Boolean(pendingDeleteEntity)}
-        title="Confirmar eliminación de entidad"
+        title={locale === "es" ? "Confirmar eliminación de entidad" : "Confirm entity deletion"}
       />
     </>
   );

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { MailIcon } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   LinkIcon,
   ShareIcon,
@@ -49,12 +50,17 @@ export function PublicProjectShareDialog({
   triggerTone = "default",
   triggerVariant = "secondary",
 }: PublicProjectShareDialogProps) {
+  const { locale } = useLocale();
   const appToast = useAppToast();
   const [open, setOpen] = useState(false);
   const [copying, setCopying] = useState(false);
   const shareUrl = useMemo(() => buildAbsoluteProjectUrl(projectRef), [projectRef]);
-  const shareTitle = `Proyecto publico: ${projectName}`;
-  const shareMessage = `Mira proyecto publico ${projectName} de @${owner}: ${shareUrl}`;
+  const shareTitle =
+    locale === "es" ? `Proyecto público: ${projectName}` : `Public project: ${projectName}`;
+  const shareMessage =
+    locale === "es"
+      ? `Mira proyecto público ${projectName} de @${owner}: ${shareUrl}`
+      : `Check public project ${projectName} from @${owner}: ${shareUrl}`;
   const encodedShareMessage = encodeURIComponent(shareMessage);
   const mailtoHref = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodedShareMessage}`;
   const whatsappHref = `https://wa.me/?text=${encodedShareMessage}`;
@@ -63,10 +69,13 @@ export function PublicProjectShareDialog({
     try {
       setCopying(true);
       await navigator.clipboard.writeText(shareUrl);
-      appToast.success("Enlace copiado", "Link publico listo para compartir.");
+      appToast.success(
+        locale === "es" ? "Enlace copiado" : "Link copied",
+        locale === "es" ? "Enlace público listo para compartir." : "Public link ready to share.",
+      );
     } catch (copyError) {
       appToast.error(
-        "No se pudo copiar enlace",
+        locale === "es" ? "No se pudo copiar enlace" : "Could not copy link",
         copyError instanceof Error ? copyError.message : undefined,
       );
     } finally {
@@ -81,7 +90,7 @@ export function PublicProjectShareDialog({
 
     try {
       await navigator.share({
-        text: `Proyecto publico de @${owner}`,
+        text: locale === "es" ? `Proyecto público de @${owner}` : `Public project from @${owner}`,
         title: shareTitle,
         url: shareUrl,
       });
@@ -91,7 +100,7 @@ export function PublicProjectShareDialog({
       }
 
       appToast.error(
-        "No se pudo abrir compartir",
+        locale === "es" ? "No se pudo abrir compartir" : "Could not open share",
         shareError instanceof Error ? shareError.message : undefined,
       );
     }
@@ -107,15 +116,19 @@ export function PublicProjectShareDialog({
           variant={triggerVariant}
         >
           <ShareIcon className="h-4 w-4" />
-          {triggerLabel}
+          {triggerLabel === "Compartir" && locale === "en" ? "Share" : triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-xl overflow-hidden rounded-[32px]">
         <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-6 sm:px-8">
           <DialogHeader>
-            <DialogTitle>Compartir proyecto publico</DialogTitle>
+            <DialogTitle>
+              {locale === "es" ? "Compartir proyecto público" : "Share public project"}
+            </DialogTitle>
             <DialogDescription>
-              Comparte enlace directo o abre canal rapido para mandar proyecto fuera de plataforma.
+              {locale === "es"
+                ? "Comparte enlace directo o abre un canal rápido para enviar proyecto fuera de la plataforma."
+                : "Share direct link or open a quick channel to send the project outside the platform."}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -123,7 +136,7 @@ export function PublicProjectShareDialog({
         <div className="space-y-5 px-6 py-6 sm:px-8">
           <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              Enlace publico
+              {locale === "es" ? "Enlace público" : "Public link"}
             </p>
             <p className="mt-2 break-all text-sm leading-6 text-slate-700">{shareUrl}</p>
           </div>
@@ -138,7 +151,9 @@ export function PublicProjectShareDialog({
               variant="secondary"
             >
               <LinkIcon className="h-4 w-4" />
-              {copying ? "Copiando..." : "Copiar enlace"}
+              {copying
+                ? locale === "es" ? "Copiando..." : "Copying..."
+                : locale === "es" ? "Copiar enlace" : "Copy link"}
             </Button>
             {typeof navigator !== "undefined" && typeof navigator.share === "function" ? (
               <Button
@@ -150,7 +165,7 @@ export function PublicProjectShareDialog({
                 variant="secondary"
               >
                 <ShareIcon className="h-4 w-4" />
-                Compartir desde dispositivo
+                {locale === "es" ? "Compartir desde dispositivo" : "Share from device"}
               </Button>
             ) : null}
             <a
@@ -160,21 +175,21 @@ export function PublicProjectShareDialog({
               target="_blank"
             >
               <WhatsAppIcon className="h-4 w-4" />
-              Compartir por WhatsApp
+              {locale === "es" ? "Compartir por WhatsApp" : "Share via WhatsApp"}
             </a>
             <a
               className="inline-flex h-12 items-center justify-start gap-2 rounded-[22px] border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950"
               href={mailtoHref}
             >
               <MailIcon className="h-4 w-4" />
-              Compartir por correo
+              {locale === "es" ? "Compartir por correo" : "Share by email"}
             </a>
           </div>
         </div>
 
         <DialogFooter className="border-t border-slate-200 bg-white px-6 py-5 sm:px-8">
           <Button onClick={() => setOpen(false)} variant="ghost">
-            Cerrar
+            {locale === "es" ? "Cerrar" : "Close"}
           </Button>
         </DialogFooter>
       </DialogContent>

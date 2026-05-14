@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { apiFetch, fetchSession } from "@/lib/api";
 import { listEntities } from "@/lib/entities";
 import { useAppToast } from "@/hooks/use-app-toast";
@@ -31,6 +32,7 @@ type DialogState =
   | { mode: "edit"; open: boolean; user: UserRecord | null };
 
 export function UserManagement() {
+  const { locale } = useLocale();
   const [departments, setDepartments] = useState<DepartmentRecord[]>([]);
   const [entities, setEntities] = useState<EntityRecord[]>([]);
   const [projectsByOwner, setProjectsByOwner] = useState<Record<string, string[]>>({});
@@ -65,7 +67,7 @@ export function UserManagement() {
       setUsers(payload);
     } catch (loadError) {
       appToast.error(
-        "No se pudieron cargar los usuarios",
+        locale === "es" ? "No se pudieron cargar los usuarios" : "Could not load users",
         loadError instanceof Error ? loadError.message : undefined,
       );
     } finally {
@@ -79,7 +81,7 @@ export function UserManagement() {
       setDepartments(payload);
     } catch (loadError) {
       appToast.error(
-        "No se pudieron cargar los departamentos",
+        locale === "es" ? "No se pudieron cargar los departamentos" : "Could not load departments",
         loadError instanceof Error ? loadError.message : undefined,
       );
     }
@@ -91,7 +93,7 @@ export function UserManagement() {
       setEntities(payload);
     } catch (loadError) {
       appToast.error(
-        "No se pudieron cargar las entidades",
+        locale === "es" ? "No se pudieron cargar las entidades" : "Could not load entities",
         loadError instanceof Error ? loadError.message : undefined,
       );
       setEntities([]);
@@ -104,7 +106,7 @@ export function UserManagement() {
       setProjectsByOwner(payload.projects);
     } catch (loadError) {
       appToast.error(
-        "No se pudo comprobar la relación de proyectos por usuario",
+        locale === "es" ? "No se pudo comprobar la relación de proyectos por usuario" : "Could not check project ownership by user",
         loadError instanceof Error ? loadError.message : undefined,
       );
       setProjectsByOwner({});
@@ -127,7 +129,7 @@ export function UserManagement() {
       })
       .catch(() => setSession(null));
     void loadUsers();
-  }, []);
+  }, [locale]);
 
   function openCreateDialog() {
     setDialogState({ mode: "create", open: true });
@@ -169,7 +171,9 @@ export function UserManagement() {
         appToast.success(
           response.message,
           response.temporary_password
-            ? `Contraseña temporal generada: ${response.temporary_password}${copied ? " · Copiada al portapapeles." : ""}`
+            ? locale === "es"
+              ? `Contraseña temporal generada: ${response.temporary_password}${copied ? " · Copiada al portapapeles." : ""}`
+              : `Temporary password generated: ${response.temporary_password}${copied ? " · Copied to clipboard." : ""}`
             : undefined,
           10000,
         );
@@ -178,7 +182,7 @@ export function UserManagement() {
       }
     } catch (submitError) {
       appToast.error(
-        "No se pudo crear el usuario",
+        locale === "es" ? "No se pudo crear el usuario" : "Could not create user",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -222,7 +226,7 @@ export function UserManagement() {
       }
     } catch (submitError) {
       appToast.error(
-        "No se pudo actualizar el usuario",
+        locale === "es" ? "No se pudo actualizar el usuario" : "Could not update user",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -249,19 +253,19 @@ export function UserManagement() {
       }
     } catch (deleteError) {
       appToast.error(
-        "No se pudo eliminar el usuario",
+        locale === "es" ? "No se pudo eliminar el usuario" : "Could not delete user",
         deleteError instanceof Error ? deleteError.message : undefined,
       );
     }
   }
 
-  const filteredUsers = filterUsers(users, search, roleFilter, departmentFilter);
+  const filteredUsers = filterUsers(users, search, roleFilter, departmentFilter, locale);
   const pendingDeleteProjects =
     pendingDeleteUser ? projectsByOwner[pendingDeleteUser.username] ?? [] : [];
   const deleteBlockedByProjects = pendingDeleteProjects.length > 0;
 
   if (session === undefined) {
-    return <div className="screen-center">Cargando usuarios...</div>;
+    return <div className="screen-center">{locale === "es" ? "Cargando usuarios..." : "Loading users..."}</div>;
   }
 
   if (session?.user && session.user.role !== "admin") {
@@ -269,12 +273,12 @@ export function UserManagement() {
       <section className="rounded-[28px] border border-slate-200 bg-white p-8 shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-400">Acceso</p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight text-slate-950">
-          Solo disponible para administradores
+          {locale === "es" ? "Solo disponible para administradores" : "Only available to administrators"}
         </h1>
         <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-500">
-          Esta vista está preparada para la administración de usuarios. El backend ya limita el
-          acceso, y aquí mantenemos también una capa de interfaz clara para evitar acciones fuera
-          de contexto.
+          {locale === "es"
+            ? "Esta vista está preparada para la administración de usuarios. El backend ya limita el acceso, y aquí mantenemos también una capa de interfaz clara para evitar acciones fuera de contexto."
+            : "This view is prepared for user administration. Backend already restricts access, and here we also keep a clear UI layer to avoid out-of-context actions."}
         </p>
       </section>
     );
@@ -288,13 +292,15 @@ export function UserManagement() {
             <div className="max-w-3xl">
               <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
                 <UsersClusterIcon />
-                Administración
+                {locale === "es" ? "Administración" : "Administration"}
               </div>
               <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Gestión de usuarios
+                {locale === "es" ? "Gestión de usuarios" : "User management"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Vista centralizada para revisar accesos, crear nuevas cuentas y editar usuarios.
+                {locale === "es"
+                  ? "Vista centralizada para revisar accesos, crear nuevas cuentas y editar usuarios."
+                  : "Centralized view to review access, create new accounts and edit users."}
               </p>
             </div>
 
@@ -304,7 +310,7 @@ export function UserManagement() {
               type="button"
             >
               <PlusIcon />
-              Crear nuevo usuario
+              {locale === "es" ? "Crear nuevo usuario" : "Create new user"}
             </button>
           </div>
         </section>
@@ -354,19 +360,26 @@ export function UserManagement() {
       />
 
       <ConfirmDialog
-        actionLabel={deleteBlockedByProjects ? "Bloqueado por proyectos" : "Eliminar usuario"}
+        actionLabel={deleteBlockedByProjects
+          ? locale === "es" ? "Bloqueado por proyectos" : "Blocked by projects"
+          : locale === "es" ? "Eliminar usuario" : "Delete user"}
         body={
           pendingDeleteUser ? (
             <div className="space-y-3">
               <p>
-                Vas a eliminar a <strong>{pendingDeleteUser.username}</strong>. Esta acción quitará
-                todo su acceso.
+                {locale === "es"
+                  ? <>Vas a eliminar a <strong>{pendingDeleteUser.username}</strong>. Esta acción quitará todo su acceso.</>
+                  : <>You are about to delete <strong>{pendingDeleteUser.username}</strong>. This action will remove all access.</>}
               </p>
               {deleteBlockedByProjects ? (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                  <p className="font-semibold">Este usuario todavía tiene proyectos asociados.</p>
+                  <p className="font-semibold">
+                    {locale === "es"
+                      ? "Este usuario todavía tiene proyectos asociados."
+                      : "This user still has associated projects."}
+                  </p>
                   <p className="mt-1">
-                    Reasigna o elimina primero estos proyectos:
+                    {locale === "es" ? "Reasigna o elimina primero estos proyectos:" : "Reassign or delete these projects first:"}
                   </p>
                   <p className="mt-2 break-words">
                     {pendingDeleteProjects.join(", ")}
@@ -385,7 +398,7 @@ export function UserManagement() {
           }
         }}
         open={pendingDeleteUser !== null}
-        title="Confirmar eliminación"
+        title={locale === "es" ? "Confirmar eliminación" : "Confirm deletion"}
       />
     </>
   );

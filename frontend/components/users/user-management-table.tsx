@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useLocale } from "@/components/providers/locale-provider";
 import type { SessionUser, UserRecord } from "@/types/api";
 import type { DataTableColumn } from "@/components/ui/data-table";
 import { DataTable } from "@/components/ui/data-table";
@@ -37,6 +38,7 @@ function UserAvatar({ user }: { user: UserRecord }) {
 }
 
 function RoleBadge({ role }: { role: UserRecord["role"] }) {
+  const { locale } = useLocale();
   return (
     <span
       className={cn(
@@ -46,7 +48,7 @@ function RoleBadge({ role }: { role: UserRecord["role"] }) {
           : "bg-slate-100 text-slate-600",
       )}
     >
-      {getRoleLabel(role)}
+      {getRoleLabel(role, locale)}
     </span>
   );
 }
@@ -66,6 +68,8 @@ export function UserManagementTable({
   onEdit,
   users,
 }: UserManagementTableProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const columns: DataTableColumn<UserRecord>[] = [
     {
       cell: (user) => (
@@ -83,23 +87,23 @@ export function UserManagementTable({
           </div>
         </div>
       ),
-      header: "Usuario",
+      header: t ? "Usuario" : "User",
       id: "user",
       sortValue: (user) => getDisplayName(user).toLowerCase(),
     },
     {
       cell: (user) => <RoleBadge role={user.role} />,
-      header: "Rol",
+      header: t ? "Rol" : "Role",
       id: "role",
-      sortValue: (user) => getRoleLabel(user.role).toLowerCase(),
+      sortValue: (user) => getRoleLabel(user.role, locale).toLowerCase(),
     },
     {
       cell: (user) => (
-        <span className="text-sm text-slate-600">{user.department || "Sin departamento"}</span>
+        <span className="text-sm text-slate-600">{user.department || (t ? "Sin departamento" : "No department")}</span>
       ),
-      header: "Departamento",
+      header: t ? "Departamento" : "Department",
       id: "department",
-      sortValue: (user) => (user.department || "Sin departamento").toLowerCase(),
+      sortValue: (user) => (user.department || (t ? "Sin departamento" : "No department")).toLowerCase(),
     },
     {
       cell: (user) => (
@@ -111,10 +115,10 @@ export function UserManagementTable({
               : "bg-emerald-100 text-emerald-700",
           )}
         >
-          {user.role === "admin" ? "Control total" : "Acceso estándar"}
+          {user.role === "admin" ? (t ? "Control total" : "Full control") : t ? "Acceso estándar" : "Standard access"}
         </span>
       ),
-      header: "Acceso",
+      header: t ? "Acceso" : "Access",
       id: "access",
     },
     {
@@ -124,7 +128,7 @@ export function UserManagementTable({
             actions={[
               {
                 icon: <PencilIcon className="h-4 w-4" />,
-                label: "Editar usuario",
+                label: t ? "Editar usuario" : "Edit user",
                 onSelect: () => onEdit(user),
               },
               ...(currentUserRole === "admin" && user.username !== "admin"
@@ -132,18 +136,18 @@ export function UserManagementTable({
                     {
                       destructive: true,
                       icon: <TrashIcon className="h-4 w-4" />,
-                      label: "Eliminar usuario",
+                      label: t ? "Eliminar usuario" : "Delete user",
                       onSelect: () => onDelete(user),
                     },
                   ]
                 : []),
             ]}
-            ariaLabel={`Abrir acciones para ${user.username}`}
+            ariaLabel={t ? `Abrir acciones para ${user.username}` : `Open actions for ${user.username}`}
           />
         </div>
       ),
       cellClassName: "w-[1%] whitespace-nowrap text-right",
-      header: "Acciones",
+      header: t ? "Acciones" : "Actions",
       headerClassName: "text-right",
       id: "actions",
     },
@@ -155,16 +159,18 @@ export function UserManagementTable({
       data={users}
       emptyState={
         <div className="mx-auto max-w-md text-center">
-          <p className="text-base font-semibold text-slate-900">No hay usuarios que coincidan.</p>
+          <p className="text-base font-semibold text-slate-900">{t ? "No hay usuarios que coincidan." : "No matching users found."}</p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Ajusta el texto de búsqueda o el filtro de roles para volver a ver resultados.
+            {t
+              ? "Ajusta el texto de búsqueda o el filtro de roles para volver a ver resultados."
+              : "Adjust search text or role filter to see results again."}
           </p>
         </div>
       }
       getRowKey={(user) => user.id}
       initialSort={{ columnId: "user", direction: "asc" }}
       loading={loading}
-      loadingLabel="Cargando usuarios..."
+      loadingLabel={t ? "Cargando usuarios..." : "Loading users..."}
     />
   );
 }

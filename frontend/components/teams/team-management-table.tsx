@@ -1,3 +1,4 @@
+import { useLocale } from "@/components/providers/locale-provider";
 import type { DataTableColumn } from "@/components/ui/data-table";
 import { DataTable } from "@/components/ui/data-table";
 import { RowActionsMenu, type RowActionItem } from "@/components/ui/row-actions-menu";
@@ -19,6 +20,7 @@ export function TeamManagementTable({
   onEdit,
   teams,
 }: TeamManagementTableProps) {
+  const { locale } = useLocale();
   const columns: DataTableColumn<TeamRecord>[] = [
     {
       cell: (team) => (
@@ -38,14 +40,14 @@ export function TeamManagementTable({
                 </span>
               ) : (
                 <span className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-slate-500">
-                  Sin entidad
+                  {locale === "es" ? "Sin entidad" : "No entity"}
                 </span>
               )}
             </div>
           </div>
         </div>
       ),
-      header: "Equipo",
+      header: locale === "es" ? "Equipo" : "Team",
       id: "team",
       sortValue: (team) => `${team.owner_username} ${team.name}`.toLowerCase(),
     },
@@ -53,21 +55,23 @@ export function TeamManagementTable({
       cell: (team) => (
         <div className="space-y-1">
           <p className="text-sm font-semibold text-slate-900">
-            {team.member_count} miembro{team.member_count === 1 ? "" : "s"}
+            {team.member_count} {locale === "es" ? `miembro${team.member_count === 1 ? "" : "s"}` : `member${team.member_count === 1 ? "" : "s"}`}
           </p>
           <div className="flex flex-wrap gap-2 text-xs text-slate-500">
             {team.membership_role ? (
               <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-                {team.membership_role === "owner" ? "Propietario" : "Miembro"}
+                {team.membership_role === "owner"
+                  ? locale === "es" ? "Propietario" : "Owner"
+                  : locale === "es" ? "Miembro" : "Member"}
               </span>
             ) : null}
             <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
-              Actualizado {formatDate(team.updated_at)}
+              {locale === "es" ? "Actualizado" : "Updated"} {formatDate(team.updated_at)}
             </span>
           </div>
         </div>
       ),
-      header: "Resumen",
+      header: locale === "es" ? "Resumen" : "Summary",
       id: "summary",
       sortValue: (team) => team.member_count,
     },
@@ -84,19 +88,19 @@ export function TeamManagementTable({
     {
       cell: (team) => {
         if (!team.canManage) {
-          return <span className="text-sm text-slate-400">Sin acciones</span>;
+          return <span className="text-sm text-slate-400">{locale === "es" ? "Sin acciones" : "No actions"}</span>;
         }
 
         const actions: RowActionItem[] = [
           {
             icon: <PencilIcon className="h-4 w-4" />,
-            label: "Editar equipo",
+            label: locale === "es" ? "Editar equipo" : "Edit team",
             onSelect: () => onEdit(team),
           },
           {
             destructive: true,
             icon: <TrashIcon className="h-4 w-4" />,
-            label: "Eliminar equipo",
+            label: locale === "es" ? "Eliminar equipo" : "Delete team",
             onSelect: () => onDelete(team),
             separatorBefore: true,
           },
@@ -104,12 +108,12 @@ export function TeamManagementTable({
 
         return (
           <div className="flex justify-end">
-            <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${team.name}`} />
+            <RowActionsMenu actions={actions} ariaLabel={locale === "es" ? `Abrir acciones para ${team.name}` : `Open actions for ${team.name}`} />
           </div>
         );
       },
       cellClassName: "w-[1%] whitespace-nowrap text-right",
-      header: "Acciones",
+      header: locale === "es" ? "Acciones" : "Actions",
       headerClassName: "text-right",
       id: "actions",
     },
@@ -122,17 +126,19 @@ export function TeamManagementTable({
       emptyState={
         <div className="mx-auto max-w-md text-center">
           <p className="text-base font-semibold text-slate-900">
-            No hay equipos que coincidan con los filtros.
+            {locale === "es" ? "No hay equipos que coincidan con los filtros." : "No teams match current filters."}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Ajusta la búsqueda o crea un equipo nuevo para empezar a organizar colaboraciones.
+            {locale === "es"
+              ? "Ajusta la búsqueda o crea un equipo nuevo para empezar a organizar colaboraciones."
+              : "Adjust search or create a new team to start organizing collaborations."}
           </p>
         </div>
       }
       getRowKey={(team) => team.id}
       initialSort={{ columnId: "team", direction: "asc" }}
       loading={loading}
-      loadingLabel="Cargando equipos..."
+      loadingLabel={locale === "es" ? "Cargando equipos..." : "Loading teams..."}
     />
   );
 }

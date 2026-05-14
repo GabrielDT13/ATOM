@@ -1,5 +1,6 @@
 "use client";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { formatDate } from "@/components/projects/detail/project-detail-helpers";
 import { PencilIcon, TrashIcon } from "@/components/projects/project-management-icons";
 import { EntityLogo } from "@/components/ui/entity-logo";
@@ -48,6 +49,7 @@ export function EntityManagementBoard({
   onDelete,
   onEdit,
 }: EntityManagementBoardProps) {
+  const { locale } = useLocale();
   if (loading) {
     return (
       <section className="space-y-4">
@@ -56,7 +58,7 @@ export function EntityManagementBoard({
             <EntityBoardSkeleton key={index} />
           ))}
         </div>
-        <p className="text-center text-sm text-slate-400">Cargando entidades...</p>
+        <p className="text-center text-sm text-slate-400">{locale === "es" ? "Cargando entidades..." : "Loading entities..."}</p>
       </section>
     );
   }
@@ -66,10 +68,12 @@ export function EntityManagementBoard({
       <section className="rounded-[28px] border border-slate-200 bg-white p-10 shadow-sm">
         <div className="mx-auto max-w-md text-center">
           <p className="text-base font-semibold text-slate-900">
-            No hay entidades que coincidan con la búsqueda.
+            {locale === "es" ? "No hay entidades que coincidan con la búsqueda." : "No entities match search."}
           </p>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            Ajusta la búsqueda o crea una entidad nueva desde esta pantalla.
+            {locale === "es"
+              ? "Ajusta la búsqueda o crea una entidad nueva desde esta pantalla."
+              : "Adjust search or create a new entity from this screen."}
           </p>
         </div>
       </section>
@@ -82,13 +86,13 @@ export function EntityManagementBoard({
         const actions: RowActionItem[] = [
           {
             icon: <PencilIcon className="h-4 w-4" />,
-            label: "Editar entidad",
+            label: locale === "es" ? "Editar entidad" : "Edit entity",
             onSelect: () => onEdit(entity),
           },
           {
             destructive: true,
             icon: <TrashIcon className="h-4 w-4" />,
-            label: "Eliminar entidad",
+            label: locale === "es" ? "Eliminar entidad" : "Delete entity",
             onSelect: () => onDelete(entity),
             separatorBefore: true,
           },
@@ -112,25 +116,25 @@ export function EntityManagementBoard({
                     </div>
                   </div>
 
-                  <RowActionsMenu actions={actions} ariaLabel={`Abrir acciones para ${entity.name}`} />
+                  <RowActionsMenu actions={actions} ariaLabel={locale === "es" ? `Abrir acciones para ${entity.name}` : `Open actions for ${entity.name}`} />
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-2">
                   <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-700">
-                    {entity.user_count ?? 0} usuarios
+                    {entity.user_count ?? 0} {locale === "es" ? "usuarios" : "users"}
                   </span>
                   <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-700">
-                    {entity.project_count ?? 0} proyectos
+                    {entity.project_count ?? 0} {locale === "es" ? "proyectos" : "projects"}
                   </span>
                   <span className="rounded-full bg-white px-3 py-1 text-sm font-medium text-slate-700">
-                    {entity.team_count ?? 0} equipos
+                    {entity.team_count ?? 0} {locale === "es" ? "equipos" : "teams"}
                   </span>
                 </div>
               </div>
 
               {entity.created_at ? (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">Creada</p>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">{locale === "es" ? "Creada" : "Created"}</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">{formatDate(entity.created_at)}</p>
                 </div>
               ) : null}

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { listEntities } from "@/lib/entities";
 import {
   createTeam,
@@ -109,6 +110,7 @@ export function TeamDialog({
   submitting: boolean;
   title: string;
 }) {
+  const { locale } = useLocale();
   const entityOptions: CreatableSelectOption[] = entities.map((entity) => ({
     label: entity.name,
     value: entity.name,
@@ -118,18 +120,20 @@ export function TeamDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="flex max-h-[calc(100vh-2rem)] max-w-[46rem] flex-col overflow-hidden sm:max-h-[calc(100vh-3rem)]">
         <DialogHero
-          description="Crea un equipo reutilizable, asígnale una entidad y define sus miembros."
+          description={locale === "es"
+            ? "Crea un equipo reutilizable, asígnale una entidad y define sus miembros."
+            : "Create a reusable team, assign an entity and define its members."}
           title={title}
         />
 
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 sm:px-8">
           <label className="flex flex-col gap-2">
-            <span className="text-sm font-semibold text-slate-700">Nombre del equipo</span>
+            <span className="text-sm font-semibold text-slate-700">{locale === "es" ? "Nombre del equipo" : "Team name"}</span>
             <input
               autoFocus
               className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
               onChange={(event) => onChangeName(event.target.value)}
-              placeholder="ej. Equipo de transcriptómica"
+              placeholder={locale === "es" ? "ej. Equipo de transcriptómica" : "e.g. Transcriptomics team"}
               value={formState.name}
             />
           </label>
@@ -139,9 +143,11 @@ export function TeamDialog({
             createPlaceholder="Escribe una nueva entidad"
             label={(
               <span className="inline-flex items-center gap-1">
-                Entidad del equipo
+                {locale === "es" ? "Entidad del equipo" : "Team entity"}
                 <InfoTooltip
-                  content="Entidad ayuda a agrupar equipos y luego filtrar proyectos o comparticiones relacionadas."
+                  content={locale === "es"
+                    ? "Entidad ayuda a agrupar equipos y luego filtrar proyectos o comparticiones relacionadas."
+                    : "Entity helps group teams and later filter related projects or shares."}
                 />
               </span>
             )}
@@ -153,9 +159,11 @@ export function TeamDialog({
           <section className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
             <div className="flex flex-col gap-3">
               <div>
-                <p className="text-sm font-semibold text-slate-900">Propietario</p>
+                <p className="text-sm font-semibold text-slate-900">{locale === "es" ? "Propietario" : "Owner"}</p>
                 <p className="mt-1 text-sm text-slate-500">
-                  El creador del equipo siempre permanece como miembro propietario.
+                  {locale === "es"
+                    ? "El creador del equipo siempre permanece como miembro propietario."
+                    : "Team creator always remains as owner member."}
                 </p>
               </div>
               <div className="inline-flex w-fit rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700">
@@ -178,29 +186,31 @@ export function TeamDialog({
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+                          <div className="flex flex-wrap gap-2">
                 {formState.members.length > 0 ? (
                   formState.members.map((member) => (
                     <TeamMemberChip key={member.id} member={member} onRemove={onRemoveMember} />
                   ))
                 ) : (
                   <p className="text-sm text-slate-500">
-                    No has añadido miembros extra todavía.
+                    {locale === "es" ? "No has añadido miembros extra todavía." : "You have not added extra members yet."}
                   </p>
                 )}
               </div>
 
               <label className="flex flex-col gap-2">
                 <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
-                  Buscar usuarios
+                  {locale === "es" ? "Buscar usuarios" : "Search users"}
                   <InfoTooltip
-                    content="Busqueda excluye propietario y miembros ya añadidos para evitar duplicados."
+                    content={locale === "es"
+                      ? "Busqueda excluye propietario y miembros ya añadidos para evitar duplicados."
+                      : "Search excludes owner and already added members to avoid duplicates."}
                   />
                 </span>
                 <input
                   className="h-12 rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
                   onChange={(event) => onChangeSearch(event.target.value)}
-                  placeholder="Busca por usuario, correo o entidad"
+                  placeholder={locale === "es" ? "Busca por usuario, correo o entidad" : "Search by user, email or entity"}
                   value={formState.memberSearch}
                 />
               </label>
@@ -224,14 +234,14 @@ export function TeamDialog({
                         </p>
                       </div>
                       <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                        Añadir
+                        {locale === "es" ? "Añadir" : "Add"}
                       </span>
                     </button>
                   ))}
                 </div>
               ) : formState.memberSearch.trim() ? (
                 <p className="text-sm text-slate-500">
-                  No se han encontrado candidatos con esa búsqueda.
+                  {locale === "es" ? "No se han encontrado candidatos con esa búsqueda." : "No candidates found for that search."}
                 </p>
               ) : null}
             </div>
@@ -240,10 +250,12 @@ export function TeamDialog({
 
         <DialogFooter className="shrink-0 border-t border-slate-200 px-6 py-6 sm:px-8">
           <DialogClose asChild>
-            <Button variant="secondary">Cancelar</Button>
+            <Button variant="secondary">{locale === "es" ? "Cancelar" : "Cancel"}</Button>
           </DialogClose>
           <Button disabled={submitting} onClick={() => void onSubmit()} type="button">
-            {submitting ? "Guardando..." : "Guardar equipo"}
+            {submitting
+              ? locale === "es" ? "Guardando..." : "Saving..."
+              : locale === "es" ? "Guardar equipo" : "Save team"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -258,6 +270,7 @@ export function TeamManagementSection({
   sessionRole?: "admin" | "user";
   sessionUsername?: string;
 }) {
+  const { locale } = useLocale();
   const appToast = useAppToast();
   const [entities, setEntities] = useState<EntityRecord[]>([]);
   const [teams, setTeams] = useState<TeamSummary[]>([]);
@@ -277,7 +290,7 @@ export function TeamManagementSection({
       setEntities(entitiesPayload);
     } catch (loadError) {
       appToast.error(
-        "No se pudieron cargar los equipos",
+        locale === "es" ? "No se pudieron cargar los equipos" : "Could not load teams",
         loadError instanceof Error ? loadError.message : undefined,
       );
       setTeams([]);
@@ -288,7 +301,7 @@ export function TeamManagementSection({
 
   useEffect(() => {
     void loadTeamsState();
-  }, []);
+  }, [locale]);
 
   const excludedUsernames = useMemo(
     () => [
@@ -359,7 +372,7 @@ export function TeamManagementSection({
       setDialogOpen(true);
     } catch (loadError) {
       appToast.error(
-        "No se pudo cargar el equipo",
+        locale === "es" ? "No se pudo cargar el equipo" : "Could not load team",
         loadError instanceof Error ? loadError.message : undefined,
       );
     } finally {
@@ -374,7 +387,7 @@ export function TeamManagementSection({
   async function handleSubmit() {
     const teamName = formState.name.trim();
     if (!teamName) {
-      appToast.error("El nombre del equipo es obligatorio");
+      appToast.error(locale === "es" ? "El nombre del equipo es obligatorio" : "Team name is required");
       return;
     }
 
@@ -399,7 +412,7 @@ export function TeamManagementSection({
       }
     } catch (submitError) {
       appToast.error(
-        "No se pudo guardar el equipo",
+        locale === "es" ? "No se pudo guardar el equipo" : "Could not save team",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -423,7 +436,7 @@ export function TeamManagementSection({
       }
     } catch (deleteError) {
       appToast.error(
-        "No se pudo eliminar el equipo",
+        locale === "es" ? "No se pudo eliminar el equipo" : "Could not delete team",
         deleteError instanceof Error ? deleteError.message : undefined,
       );
     }
@@ -435,32 +448,35 @@ export function TeamManagementSection({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Equipos
+              {locale === "es" ? "Equipos" : "Teams"}
             </p>
             <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
-              Equipos de trabajo
+              {locale === "es" ? "Equipos de trabajo" : "Work teams"}
             </h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Crea equipos reutilizables, asígnales una entidad y añade usuarios para preparar la
-              colaboración entre proyectos.
+              {locale === "es"
+                ? "Crea equipos reutilizables, asígnales una entidad y añade usuarios para preparar la colaboración entre proyectos."
+                : "Create reusable teams, assign an entity and add users to prepare collaboration across projects."}
             </p>
           </div>
 
           <Button onClick={openCreateDialog} type="button">
             <PlusIcon />
-            Crear equipo
+            {locale === "es" ? "Crear equipo" : "Create team"}
           </Button>
         </div>
 
         {loading ? (
-          <p className="mt-6 text-sm text-slate-500">Cargando equipos...</p>
+          <p className="mt-6 text-sm text-slate-500">{locale === "es" ? "Cargando equipos..." : "Loading teams..."}</p>
         ) : teams.length === 0 ? (
           <div className="mt-6 rounded-[24px] border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
             <p className="text-base font-semibold text-slate-900">
-              Todavía no hay equipos registrados.
+              {locale === "es" ? "Todavía no hay equipos registrados." : "There are no teams registered yet."}
             </p>
             <p className="mt-2 text-sm text-slate-500">
-              Empieza creando un equipo y añadiendo a sus miembros desde aquí.
+              {locale === "es"
+                ? "Empieza creando un equipo y añadiendo a sus miembros desde aquí."
+                : "Start by creating a team and adding its members from here."}
             </p>
           </div>
         ) : (
@@ -470,13 +486,13 @@ export function TeamManagementSection({
               if (canManageTeam(team)) {
                 actions.push({
                   icon: <PencilIcon className="h-4 w-4" />,
-                  label: "Editar equipo",
+                  label: locale === "es" ? "Editar equipo" : "Edit team",
                   onSelect: () => void openEditDialog(team.id),
                 });
                 actions.push({
                   destructive: true,
                   icon: <TrashIcon className="h-4 w-4" />,
-                  label: "Eliminar equipo",
+                  label: locale === "es" ? "Eliminar equipo" : "Delete team",
                   onSelect: () => setPendingDeleteTeam(team),
                   separatorBefore: true,
                 });
@@ -494,23 +510,25 @@ export function TeamManagementSection({
                           {team.name}
                         </h3>
                         <span className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-600">
-                          {team.member_count} miembro{team.member_count === 1 ? "" : "s"}
+                          {team.member_count} {locale === "es" ? `miembro${team.member_count === 1 ? "" : "s"}` : `member${team.member_count === 1 ? "" : "s"}`}
                         </span>
                         {team.membership_role ? (
                           <span className="rounded-full bg-sky-100 px-3 py-1 text-xs font-semibold text-sky-700">
-                            {team.membership_role === "owner" ? "Propietario" : "Miembro"}
+                            {team.membership_role === "owner"
+                              ? locale === "es" ? "Propietario" : "Owner"
+                              : locale === "es" ? "Miembro" : "Member"}
                           </span>
                         ) : null}
                       </div>
                       <p className="mt-2 text-sm text-slate-500">
-                        Responsable: @{team.owner_username}
+                        {locale === "es" ? "Responsable" : "Owner"}: @{team.owner_username}
                       </p>
                     </div>
 
                     {actions.length > 0 ? (
                       <RowActionsMenu
                         actions={actions}
-                        ariaLabel={`Abrir acciones para ${team.name}`}
+                        ariaLabel={locale === "es" ? `Abrir acciones para ${team.name}` : `Open actions for ${team.name}`}
                       />
                     ) : null}
                   </div>
@@ -522,11 +540,11 @@ export function TeamManagementSection({
                       </span>
                     ) : (
                       <span className="rounded-full border border-dashed border-slate-300 px-3 py-1 text-sm text-slate-500">
-                        Sin entidad vinculada
+                        {locale === "es" ? "Sin entidad vinculada" : "No linked entity"}
                       </span>
                     )}
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-700">
-                      Actualizado {formatDate(team.updated_at)}
+                      {locale === "es" ? "Actualizado" : "Updated"} {formatDate(team.updated_at)}
                     </span>
                   </div>
                 </article>
@@ -570,20 +588,25 @@ export function TeamManagementSection({
         open={dialogOpen}
         ownerUsername={ownerUsername}
         submitting={submitting}
-        title={editingTeamId ? "Editar equipo" : "Crear equipo"}
+        title={editingTeamId
+          ? locale === "es" ? "Editar equipo" : "Edit team"
+          : locale === "es" ? "Crear equipo" : "Create team"}
       />
 
       <ConfirmDialog
-        actionLabel="Eliminar equipo"
+        actionLabel={locale === "es" ? "Eliminar equipo" : "Delete team"}
         body={
           pendingDeleteTeam ? (
             <div className="space-y-3">
               <p>
-                Se eliminará <strong>{pendingDeleteTeam.name}</strong> y su composición actual de
-                miembros.
+                {locale === "es"
+                  ? <>Se eliminará <strong>{pendingDeleteTeam.name}</strong> y su composición actual de miembros.</>
+                  : <>This will delete <strong>{pendingDeleteTeam.name}</strong> and its current member composition.</>}
               </p>
               <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                Esta acción no elimina usuarios, solo deshace el equipo.
+                {locale === "es"
+                  ? "Esta acción no elimina usuarios, solo deshace el equipo."
+                  : "This action does not delete users, it only removes the team."}
               </p>
             </div>
           ) : null
@@ -596,7 +619,7 @@ export function TeamManagementSection({
           }
         }}
         open={Boolean(pendingDeleteTeam)}
-        title="Confirmar eliminación del equipo"
+        title={locale === "es" ? "Confirmar eliminación del equipo" : "Confirm team deletion"}
       />
     </>
   );

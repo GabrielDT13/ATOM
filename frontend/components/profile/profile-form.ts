@@ -12,6 +12,7 @@ export type EditableProfileFormValues = {
   interfaceLanguageAuto: boolean;
   loginAlerts: boolean;
   systemTheme: boolean;
+  systemThemeAuto: boolean;
   username: string;
 };
 
@@ -45,6 +46,7 @@ export function buildEditableProfileFormValues(
     interfaceLanguageAuto: profileData?.preferences.interface_language_auto ?? true,
     loginAlerts: profileData?.preferences.security_alerts ?? true,
     systemTheme: profileData?.preferences.dark_mode ?? false,
+    systemThemeAuto: profileData?.preferences.dark_mode_auto ?? true,
     username: profileData?.username ?? user?.username ?? "",
   };
 }

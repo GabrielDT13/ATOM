@@ -11,6 +11,7 @@ import {
   CloseIcon,
   QuestionCircleIcon,
 } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { Button } from "@/components/ui/button";
 
 type WelcomeTourProps = {
@@ -54,55 +55,104 @@ type PointerStyle = {
   nubStyle: CSSProperties;
 };
 
+type Locale = "en" | "es";
+
 const DEFAULT_PANEL_POSITION: TourPanelPosition = {
   className: "bottom-4 left-4 right-4 sm:bottom-6 sm:right-6 sm:left-auto sm:w-[24rem] lg:w-[25rem]",
   connectorSide: "floating",
 };
 
-const TOUR_STEPS: TourStep[] = [
-  {
-    id: "dashboard",
-    route: "/dashboard",
-    selector: "[data-tour='dashboard-hero']",
-    title: "Dashboard principal",
-    description: "Aquí ves estado general, métricas y accesos rápidos para arrancar trabajo.",
-  },
-  {
-    id: "sidebar",
-    route: "/dashboard",
-    selector: "[data-tour='sidebar-nav']",
-    title: "Menú lateral",
-    description: "Desde menú entras en dashboard, proyectos, equipos, usuarios y perfil.",
-  },
-  {
-    id: "explorer",
-    route: "/dashboard",
-    selector: "[data-tour='project-explorer']",
-    title: "Acceso rápido a proyectos",
-    description: "Panel derecho resume proyectos activos y te lleva a ejecución o detalle en un clic.",
-  },
-  {
-    id: "create-project",
-    route: "/dashboard/create_project",
-    selector: "[data-tour='create-project-form']",
-    title: "Crear proyecto",
-    description: "Sube plantilla Excel, añade archivos y vincula entidad o equipo desde esta vista.",
-  },
-  {
-    id: "project-library",
-    route: "/dashboard/projects",
-    selector: "[data-tour='project-library']",
-    title: "Biblioteca e informes",
-    description: "Aquí filtras proyectos, revisas estados y abres detalles o informes publicados.",
-  },
-  {
-    id: "help",
-    route: "/dashboard",
-    selector: "[data-tour='header-help']",
-    title: "Ayuda siempre visible",
-    description: "Este icono reabre manual cuando quieras y te deja contactar soporte.",
-  },
-];
+function getTourSteps(locale: Locale): TourStep[] {
+  return locale === "es"
+    ? [
+        {
+          id: "dashboard",
+          route: "/dashboard",
+          selector: "[data-tour='dashboard-hero']",
+          title: "Dashboard principal",
+          description: "Aquí ves estado general, métricas y accesos rápidos para arrancar trabajo.",
+        },
+        {
+          id: "sidebar",
+          route: "/dashboard",
+          selector: "[data-tour='sidebar-nav']",
+          title: "Menú lateral",
+          description: "Desde menú entras en dashboard, proyectos, equipos, usuarios y perfil.",
+        },
+        {
+          id: "explorer",
+          route: "/dashboard",
+          selector: "[data-tour='project-explorer']",
+          title: "Acceso rápido a proyectos",
+          description: "Panel derecho resume proyectos activos y te lleva a ejecución o detalle en un clic.",
+        },
+        {
+          id: "create-project",
+          route: "/dashboard/create_project",
+          selector: "[data-tour='create-project-form']",
+          title: "Crear proyecto",
+          description: "Sube plantilla Excel, añade archivos y vincula entidad o equipo desde esta vista.",
+        },
+        {
+          id: "project-library",
+          route: "/dashboard/projects",
+          selector: "[data-tour='project-library']",
+          title: "Biblioteca e informes",
+          description: "Aquí filtras proyectos, revisas estados y abres detalles o informes publicados.",
+        },
+        {
+          id: "help",
+          route: "/dashboard",
+          selector: "[data-tour='header-help']",
+          title: "Ayuda siempre visible",
+          description: "Este icono reabre manual cuando quieras y te deja contactar soporte.",
+        },
+      ]
+    : [
+        {
+          id: "dashboard",
+          route: "/dashboard",
+          selector: "[data-tour='dashboard-hero']",
+          title: "Main dashboard",
+          description: "Here you see overall status, metrics and shortcuts to start working fast.",
+        },
+        {
+          id: "sidebar",
+          route: "/dashboard",
+          selector: "[data-tour='sidebar-nav']",
+          title: "Side menu",
+          description: "From menu you enter dashboard, projects, teams, users and profile.",
+        },
+        {
+          id: "explorer",
+          route: "/dashboard",
+          selector: "[data-tour='project-explorer']",
+          title: "Quick project access",
+          description: "Right panel summarizes active projects and takes you to run or detail in one click.",
+        },
+        {
+          id: "create-project",
+          route: "/dashboard/create_project",
+          selector: "[data-tour='create-project-form']",
+          title: "Create project",
+          description: "Upload Excel template, add files and link entity or team from this view.",
+        },
+        {
+          id: "project-library",
+          route: "/dashboard/projects",
+          selector: "[data-tour='project-library']",
+          title: "Library and reports",
+          description: "Here you filter projects, review statuses and open details or published reports.",
+        },
+        {
+          id: "help",
+          route: "/dashboard",
+          selector: "[data-tour='header-help']",
+          title: "Always-visible help",
+          description: "This icon reopens guide anytime and lets you contact support.",
+        },
+      ];
+}
 
 function resolveRect(selector: string): SpotlightRect | null {
   const element = document.querySelector<HTMLElement>(selector);
@@ -278,6 +328,8 @@ export function WelcomeTour({
   open,
   pathname,
 }: WelcomeTourProps) {
+  const { locale } = useLocale();
+  const tourSteps = useMemo(() => getTourSteps(locale), [locale]);
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement | null>(null);
   const dragStateRef = useRef<{
@@ -295,8 +347,8 @@ export function WelcomeTour({
   const [manualPosition, setManualPosition] = useState<ManualPanelPosition | null>(null);
   const [dragging, setDragging] = useState(false);
   const [panelRect, setPanelRect] = useState<DOMRect | null>(null);
-  const activeStep = TOUR_STEPS[stepIndex];
-  const isLastStep = stepIndex === TOUR_STEPS.length - 1;
+  const activeStep = tourSteps[stepIndex];
+  const isLastStep = stepIndex === tourSteps.length - 1;
   const routeReady = pathname === activeStep.route;
 
   useEffect(() => {
@@ -409,8 +461,8 @@ export function WelcomeTour({
   }, [manualPosition, open, spotlightRect, stepIndex]);
 
   const stepLabel = useMemo(
-    () => `${stepIndex + 1} / ${TOUR_STEPS.length}`,
-    [stepIndex],
+    () => `${stepIndex + 1} / ${tourSteps.length}`,
+    [stepIndex, tourSteps.length],
   );
 
   const pointerStyle = useMemo(
@@ -531,7 +583,7 @@ export function WelcomeTour({
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-slate-200">
                     <QuestionCircleIcon className="h-4 w-4" />
-                    Guía de bienvenida
+                    {locale === "es" ? "Guía de bienvenida" : "Welcome guide"}
                   </div>
                   <h3 className="mt-3 text-xl font-semibold tracking-tight sm:text-2xl">
                     {activeStep.title}
@@ -540,10 +592,10 @@ export function WelcomeTour({
 
                 <div className="flex items-center gap-2">
                   <span className="hidden rounded-full border border-slate-700 bg-slate-900 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-300 sm:inline-flex">
-                    Mover
+                    {locale === "es" ? "Mover" : "Move"}
                   </span>
                   <button
-                    aria-label="Cerrar guía"
+                    aria-label={locale === "es" ? "Cerrar guía" : "Close guide"}
                     className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-900 text-slate-200 transition hover:bg-slate-800"
                     onClick={onClose}
                     type="button"
@@ -562,22 +614,26 @@ export function WelcomeTour({
               <div className="flex items-center justify-between gap-3 rounded-[24px] border border-slate-800 bg-slate-900 px-4 py-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    Paso actual
+                    {locale === "es" ? "Paso actual" : "Current step"}
                   </p>
                   <p className="mt-1 text-sm text-slate-100">{stepLabel}</p>
                 </div>
                 <div className="h-2 w-32 overflow-hidden rounded-full bg-white/10">
                   <div
                     className="h-full rounded-full bg-sky-400 transition-[width] duration-300"
-                    style={{ width: `${((stepIndex + 1) / TOUR_STEPS.length) * 100}%` }}
+                    style={{ width: `${((stepIndex + 1) / tourSteps.length) * 100}%` }}
                   />
                 </div>
               </div>
 
               <div className="rounded-[24px] border border-dashed border-slate-700 bg-slate-900/90 px-4 py-4 text-sm leading-6 text-slate-300">
                 {routeReady
-                  ? "Elemento resaltado listo. Puedes seguir recorrido o cerrarlo."
-                  : "Abriendo vista correspondiente para continuar guía."}
+                  ? locale === "es"
+                    ? "Elemento resaltado listo. Puedes seguir recorrido o cerrarlo."
+                    : "Highlighted element ready. You can continue guide or close it."
+                  : locale === "es"
+                    ? "Abriendo vista correspondiente para continuar guía."
+                    : "Opening corresponding view to continue guide."}
               </div>
 
               <div className="flex flex-wrap items-center gap-3">
@@ -589,24 +645,24 @@ export function WelcomeTour({
                   variant="ghost"
                 >
                   <ArrowLeftIcon className="h-4 w-4" />
-                  Anterior
+                  {locale === "es" ? "Anterior" : "Previous"}
                 </Button>
 
                 {isLastStep ? (
                   <Button onClick={onFinish} size="md" tone="on-dark" variant="secondary">
                     <CheckIcon className="h-4 w-4" />
-                    Finalizar
+                    {locale === "es" ? "Finalizar" : "Finish"}
                   </Button>
                 ) : (
                   <Button
                     onClick={() =>
-                      setStepIndex((current) => Math.min(TOUR_STEPS.length - 1, current + 1))
+                      setStepIndex((current) => Math.min(tourSteps.length - 1, current + 1))
                     }
                     size="md"
                     tone="on-dark"
                     variant="secondary"
                   >
-                    Siguiente
+                    {locale === "es" ? "Siguiente" : "Next"}
                     <ArrowRightIcon className="h-4 w-4" />
                   </Button>
                 )}
@@ -626,7 +682,7 @@ export function WelcomeTour({
                   onClick={onFinish}
                   type="button"
                 >
-                  Omitir guía
+                  {locale === "es" ? "Omitir guía" : "Skip guide"}
                 </button>
               </div>
             </div>

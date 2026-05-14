@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 
 import { ArrowRightIcon } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { KeyIcon } from "@/components/profile/profile-icons";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +20,8 @@ export function ForcedPasswordChangeDialog({
   submitting = false,
   userLabel,
 }: ForcedPasswordChangeDialogProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -36,11 +39,19 @@ export function ForcedPasswordChangeDialog({
 
     const normalizedPassword = newPassword.trim();
     if (normalizedPassword.length < 8) {
-      setError("La nueva contraseña debe tener al menos 8 caracteres.");
+      setError(
+        t
+          ? "La nueva contraseña debe tener al menos 8 caracteres."
+          : "New password must be at least 8 characters long.",
+      );
       return;
     }
     if (normalizedPassword !== confirmPassword) {
-      setError("La confirmación no coincide con la nueva contraseña.");
+      setError(
+        t
+          ? "La confirmación no coincide con la nueva contraseña."
+          : "Confirmation does not match new password.",
+      );
       return;
     }
 
@@ -62,61 +73,68 @@ export function ForcedPasswordChangeDialog({
             <div>
               <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.26em] text-slate-200">
                 <KeyIcon className="h-4 w-4" />
-                Primer acceso seguro
+                {t ? "Primer acceso seguro" : "Secure first access"}
               </div>
               <h2 className="mt-5 max-w-xl text-3xl font-semibold tracking-tight sm:text-4xl">
-                Antes de continuar, define nueva contraseña para {userLabel}
+                {t
+                  ? `Antes de continuar, define nueva contraseña para ${userLabel}`
+                  : `Before continuing, set a new password for ${userLabel}`}
               </h2>
               <p className="mt-4 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
-                Has entrado con clave temporal. ATOM bloquea resto de plataforma hasta guardar una
-                contraseña nueva y personal.
+                {t
+                  ? "Has entrado con clave temporal. ATOM bloquea resto de plataforma hasta guardar una contraseña nueva y personal."
+                  : "You signed in with temporary password. ATOM blocks rest of platform until you save a new personal password."}
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-[28px] border border-white/10 bg-white/8 px-4 py-4 backdrop-blur">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                  Requisito
+                  {t ? "Requisito" : "Requirement"}
                 </p>
                 <p className="mt-3 text-sm leading-6 text-slate-100">
-                  Mínimo 8 caracteres.
+                  {t ? "Mínimo 8 caracteres." : "Minimum 8 characters."}
                 </p>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/8 px-4 py-4 backdrop-blur">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                  Estado
+                  {t ? "Estado" : "Status"}
                 </p>
                 <p className="mt-3 text-sm leading-6 text-slate-100">
-                  Cambio obligatorio una sola vez.
+                  {t ? "Cambio obligatorio una sola vez." : "Mandatory one-time change."}
                 </p>
               </div>
               <div className="rounded-[28px] border border-white/10 bg-white/8 px-4 py-4 backdrop-blur">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                  Después
+                  {t ? "Después" : "After"}
                 </p>
                 <p className="mt-3 text-sm leading-6 text-slate-100">
-                  Se activa guía de bienvenida si aún no la viste.
+                  {t
+                    ? "Se activa guía de bienvenida si aún no la viste."
+                    : "Welcome guide starts if you have not seen it yet."}
                 </p>
               </div>
             </div>
           </section>
 
           <section className="rounded-[32px] border border-white/10 bg-white/8 p-6 backdrop-blur-xl">
-            <h3 className="text-lg font-semibold text-white">Actualiza contraseña</h3>
+            <h3 className="text-lg font-semibold text-white">
+              {t ? "Actualiza contraseña" : "Update password"}
+            </h3>
             <p className="mt-2 text-sm leading-6 text-slate-300">
-              Usa una clave nueva que solo tú conozcas.
+              {t ? "Usa una clave nueva que solo tú conozcas." : "Use a new password only you know."}
             </p>
 
             <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
               <label className="block">
                 <span className="text-sm font-semibold text-slate-100">
-                  Nueva contraseña
+                  {t ? "Nueva contraseña" : "New password"}
                 </span>
                 <input
                   autoComplete="new-password"
                   className="mt-2 block h-12 w-full rounded-2xl border border-white/12 bg-white/10 px-4 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-sky-300 focus:ring-4 focus:ring-sky-300/20"
                   onChange={(event) => setNewPassword(event.target.value)}
-                  placeholder="Mínimo 8 caracteres"
+                  placeholder={t ? "Mínimo 8 caracteres" : "Minimum 8 characters"}
                   type="password"
                   value={newPassword}
                 />
@@ -124,13 +142,13 @@ export function ForcedPasswordChangeDialog({
 
               <label className="block">
                 <span className="text-sm font-semibold text-slate-100">
-                  Repite nueva contraseña
+                  {t ? "Repite nueva contraseña" : "Repeat new password"}
                 </span>
                 <input
                   autoComplete="new-password"
                   className="mt-2 block h-12 w-full rounded-2xl border border-white/12 bg-white/10 px-4 text-sm text-white outline-none transition placeholder:text-slate-400 focus:border-sky-300 focus:ring-4 focus:ring-sky-300/20"
                   onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="Repite contraseña"
+                  placeholder={t ? "Repite contraseña" : "Repeat password"}
                   type="password"
                   value={confirmPassword}
                 />
@@ -143,7 +161,7 @@ export function ForcedPasswordChangeDialog({
               ) : null}
 
               <Button className="mt-2 w-full" disabled={submitting} size="lg" type="submit">
-                <span>{submitting ? "Guardando..." : "Guardar y continuar"}</span>
+                <span>{submitting ? (t ? "Guardando..." : "Saving...") : (t ? "Guardar y continuar" : "Save and continue")}</span>
                 <ArrowRightIcon className="h-5 w-5" />
               </Button>
             </form>

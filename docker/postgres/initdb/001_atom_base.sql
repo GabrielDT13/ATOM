@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS internal.profile_preferences (
   email_notifications boolean NOT NULL DEFAULT true,
   security_alerts boolean NOT NULL DEFAULT true,
   dark_mode boolean NOT NULL DEFAULT false,
+  dark_mode_auto boolean NOT NULL DEFAULT true,
   interface_language text NOT NULL DEFAULT 'es',
   interface_language_auto boolean NOT NULL DEFAULT true,
   must_change_password boolean NOT NULL DEFAULT false,
@@ -800,6 +801,7 @@ SELECT
   pp.email_notifications,
   pp.security_alerts,
   pp.dark_mode,
+  pp.dark_mode_auto,
   pp.interface_language,
   pp.created_at,
   pp.updated_at,
@@ -983,20 +985,22 @@ INSERT INTO internal.profile_preferences (
   email_notifications,
   security_alerts,
   dark_mode,
+  dark_mode_auto,
   interface_language,
   interface_language_auto,
   must_change_password,
   welcome_tour_seen
 )
 VALUES
-  ('11111111-1111-1111-1111-111111111111', true, true, false, 'es', true, false, true),
-  ('22222222-2222-2222-2222-222222222222', true, true, true, 'es', true, false, true),
-  ('33333333-3333-3333-3333-333333333333', false, true, false, 'es', true, false, true)
+  ('11111111-1111-1111-1111-111111111111', true, true, false, true, 'es', true, false, true),
+  ('22222222-2222-2222-2222-222222222222', true, true, true, false, 'es', true, false, true),
+  ('33333333-3333-3333-3333-333333333333', false, true, false, true, 'es', true, false, true)
 ON CONFLICT (user_id) DO UPDATE
 SET
   email_notifications = EXCLUDED.email_notifications,
   security_alerts = EXCLUDED.security_alerts,
   dark_mode = EXCLUDED.dark_mode,
+  dark_mode_auto = EXCLUDED.dark_mode_auto,
   interface_language = EXCLUDED.interface_language,
   interface_language_auto = EXCLUDED.interface_language_auto,
   must_change_password = EXCLUDED.must_change_password,

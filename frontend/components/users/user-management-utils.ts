@@ -1,5 +1,7 @@
 import type { UserRecord } from "@/types/api";
 
+type Locale = "en" | "es";
+
 export type UserRoleFilter = "all" | UserRecord["role"];
 export type UserDepartmentFilter = "all" | string;
 
@@ -12,8 +14,9 @@ export function getDisplayName(user: UserRecord) {
   return fullName || user.username;
 }
 
-export function getRoleLabel(role: UserRecord["role"]) {
-  return role === "admin" ? "Administrador" : "Usuario";
+export function getRoleLabel(role: UserRecord["role"], locale: Locale = "es") {
+  const t = locale === "es";
+  return role === "admin" ? (t ? "Administrador" : "Administrator") : t ? "Usuario" : "User";
 }
 
 export function getDepartmentCount(users: UserRecord[]) {
@@ -25,6 +28,7 @@ export function filterUsers(
   search: string,
   roleFilter: UserRoleFilter,
   departmentFilter: UserDepartmentFilter,
+  locale: Locale = "es",
 ) {
   const normalizedSearch = search.trim().toLowerCase();
   const normalizedDepartmentFilter =
@@ -40,7 +44,7 @@ export function filterUsers(
       user.email,
       getDisplayName(user),
       user.department ?? "",
-      getRoleLabel(user.role),
+      getRoleLabel(user.role, locale),
     ]
       .join(" ")
       .toLowerCase();

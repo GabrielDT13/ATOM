@@ -1,5 +1,6 @@
 import type { UserRecord } from "@/types/api";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -32,6 +33,8 @@ export function UserManagementSummary({
   loading = false,
   users,
 }: UserManagementSummaryProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   if (loading) {
     return (
       <section className="grid gap-4 md:grid-cols-3">
@@ -49,23 +52,23 @@ export function UserManagementSummary({
     <section className="grid gap-4 md:grid-cols-3">
       <MetricCard
         accentClassName="bg-sky-100 text-sky-700"
-        description="Cuentas dadas de alta en la plataforma."
+        description={t ? "Cuentas dadas de alta en la plataforma." : "Accounts registered on platform."}
         icon={<UsersClusterIcon />}
-        title="Total de usuarios"
+        title={t ? "Total de usuarios" : "Total users"}
         value={String(users.length)}
       />
       <MetricCard
         accentClassName="bg-indigo-100 text-indigo-700"
-        description="Perfiles con permisos elevados de gestión."
+        description={t ? "Perfiles con permisos elevados de gestión." : "Profiles with elevated management permissions."}
         icon={<ShieldIcon />}
-        title="Administradores"
+        title={t ? "Administradores" : "Administrators"}
         value={String(adminCount)}
       />
       <MetricCard
         accentClassName="bg-emerald-100 text-emerald-700"
-        description="Departamentos distintos representados en el panel."
+        description={t ? "Departamentos distintos representados en el panel." : "Distinct departments represented in panel."}
         icon={<LayersIcon />}
-        title="Áreas activas"
+        title={t ? "Áreas activas" : "Active areas"}
         value={String(departmentCount)}
       />
     </section>

@@ -7,11 +7,18 @@ export function ThemeScript() {
         __html: `
           (function() {
             try {
-              var storageKey = "atom-theme";
-              var stored = window.localStorage.getItem(storageKey);
-              var mode = stored === "dark" || stored === "light"
+              var preferenceKey = "atom-theme-preference";
+              var legacyKey = "atom-theme";
+              var stored = window.localStorage.getItem(preferenceKey);
+              if (stored !== "system" && stored !== "dark" && stored !== "light") {
+                stored = window.localStorage.getItem(legacyKey);
+              }
+              var preference = stored === "dark" || stored === "light" || stored === "system"
                 ? stored
-                : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+                : "system";
+              var mode = preference === "system"
+                ? (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+                : preference;
               document.documentElement.dataset.theme = mode;
               document.documentElement.style.colorScheme = mode;
             } catch (error) {

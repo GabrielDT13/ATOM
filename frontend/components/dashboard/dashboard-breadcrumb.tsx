@@ -4,39 +4,44 @@ import Link from "next/link";
 
 import { useLocale } from "@/components/providers/locale-provider";
 
-const DASHBOARD_LABELS: Record<string, string> = {
+const DASHBOARD_LABELS_ES: Record<string, string> = {
   create_project: "Crear proyecto",
   dashboard: "Dashboard",
   edit_project: "Editar proyecto",
   edit_projects: "Editar proyectos",
   edit_user: "Editar usuario",
   edit_users: "Editar usuarios",
+  entities: "Entidades",
+  public: "Públicos",
+  "public-projects": "Proyectos públicos",
   profile: "Perfil",
   "project-execution": "Ejecución",
   "project-report": "Informe",
   projects: "Proyectos",
   reports: "Informes",
   register: "Registrar usuario",
+  teams: "Equipos",
   users: "Usuarios",
 };
 
 const DASHBOARD_LABELS_EN: Record<string, string> = {
-  "Crear proyecto": "Create project",
-  Dashboard: "Dashboard",
-  "Editar proyecto": "Edit project",
-  "Editar proyectos": "Edit projects",
-  "Editar usuario": "Edit user",
-  "Editar usuarios": "Edit users",
-  Perfil: "Profile",
-  Ejecución: "Execution",
-  Informe: "Report",
-  Proyectos: "Projects",
-  Informes: "Reports",
-  "Registrar usuario": "Register user",
-  Usuarios: "Users",
-  Equipos: "Teams",
-  Entidades: "Entities",
-  Públicos: "Public",
+  create_project: "Create project",
+  dashboard: "Dashboard",
+  edit_project: "Edit project",
+  edit_projects: "Edit projects",
+  edit_user: "Edit user",
+  edit_users: "Edit users",
+  entities: "Entities",
+  public: "Public",
+  "public-projects": "Public projects",
+  profile: "Profile",
+  "project-execution": "Execution",
+  "project-report": "Report",
+  projects: "Projects",
+  reports: "Reports",
+  register: "Register user",
+  teams: "Teams",
+  users: "Users",
 };
 
 export type DashboardBreadcrumbItem = {
@@ -64,9 +69,10 @@ function ChevronRightIcon() {
   );
 }
 
-function formatSegment(segment: string) {
+function formatSegment(segment: string, locale: "en" | "es") {
   const decoded = decodeURIComponent(segment);
-  const mapped = DASHBOARD_LABELS[decoded];
+  const labels = locale === "en" ? DASHBOARD_LABELS_EN : DASHBOARD_LABELS_ES;
+  const mapped = labels[decoded];
 
   if (mapped) {
     return mapped;
@@ -77,7 +83,10 @@ function formatSegment(segment: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function buildDashboardBreadcrumbs(pathname: string): DashboardBreadcrumbItem[] {
+export function buildDashboardBreadcrumbs(
+  pathname: string,
+  locale: "en" | "es" = "es",
+): DashboardBreadcrumbItem[] {
   const segments = pathname.split("/").filter(Boolean);
   const items: DashboardBreadcrumbItem[] = [];
   let currentPath = "";
@@ -86,7 +95,7 @@ export function buildDashboardBreadcrumbs(pathname: string): DashboardBreadcrumb
     currentPath += `/${segment}`;
     items.push({
       href: index === segments.length - 1 ? undefined : currentPath,
-      label: formatSegment(segment),
+      label: formatSegment(segment, locale),
     });
   });
 
@@ -110,21 +119,16 @@ export function DashboardBreadcrumb({ items }: DashboardBreadcrumbProps) {
         <ol className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {items.map((item, index) => (
             <li className="flex items-center gap-2" key={`${item.label}-${index}`}>
-              {(() => {
-                const resolvedLabel =
-                  locale === "en" ? DASHBOARD_LABELS_EN[item.label] ?? item.label : item.label;
-
-                return item.href ? (
-                  <Link
-                    className="rounded-md px-1 py-0.5 font-medium transition hover:text-primary"
-                    href={item.href}
-                  >
-                    {resolvedLabel}
-                  </Link>
-                ) : (
-                  <span className="rounded-md px-1 py-0.5 font-semibold text-slate-900">{resolvedLabel}</span>
-                );
-              })()}
+              {item.href ? (
+                <Link
+                  className="rounded-md px-1 py-0.5 font-medium transition hover:text-primary"
+                  href={item.href}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <span className="rounded-md px-1 py-0.5 font-semibold text-slate-900">{item.label}</span>
+              )}
 
               {index < items.length - 1 ? <ChevronRightIcon /> : null}
             </li>

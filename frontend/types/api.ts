@@ -25,6 +25,7 @@ export type ProfilePreferences = {
   email_notifications: boolean;
   security_alerts: boolean;
   dark_mode: boolean;
+  dark_mode_auto: boolean;
   interface_language: "es" | "en";
   interface_language_auto: boolean;
 };

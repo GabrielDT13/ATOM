@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import type { DepartmentRecord, EntityRecord, UserRecord } from "@/types/api";
 import {
   Dialog,
@@ -78,6 +79,8 @@ export function UserFormDialog({
   submitting = false,
   user,
 }: UserFormDialogProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<UserRecord["role"]>("user");
@@ -126,10 +129,14 @@ export function UserFormDialog({
         <DialogHero
           description={
             isCreateMode
-              ? "Alta rápida para nuevos accesos del panel de administración."
-              : "Actualiza los datos visibles del usuario sin salir de la tabla."
+              ? t
+                ? "Alta rápida para nuevos accesos del panel de administración."
+                : "Quick onboarding for new admin panel access."
+              : t
+                ? "Actualiza los datos visibles del usuario sin salir de la tabla."
+                : "Update visible user data without leaving table."
           }
-          title={isCreateMode ? "Crear nuevo usuario" : "Editar usuario"}
+          title={isCreateMode ? (t ? "Crear nuevo usuario" : "Create new user") : t ? "Editar usuario" : "Edit user"}
         />
 
         <form className="px-6 pb-6 sm:px-8" onSubmit={(event) => void handleSubmit(event)}>
@@ -137,16 +144,16 @@ export function UserFormDialog({
             <div className="grid gap-5 sm:grid-cols-2">
               <InputField
                 autoFocus
-                label="Nombre de usuario"
+                label={t ? "Nombre de usuario" : "Username"}
                 onChange={setUsername}
-                placeholder="ej. usuario_laboratorio"
+                placeholder={t ? "ej. usuario_laboratorio" : "e.g. lab_user"}
                 required
                 value={username}
               />
               <InputField
                 label="Email"
                 onChange={setEmail}
-                placeholder="usuario@empresa.com"
+                placeholder={t ? "usuario@empresa.com" : "user@company.com"}
                 required
                 type="email"
                 value={email}
@@ -155,27 +162,28 @@ export function UserFormDialog({
 
             {isCreateMode ? (
               <div className="rounded-2xl border border-sky-100 bg-sky-50/80 px-4 py-3 text-sm text-slate-700">
-                La contraseña temporal se genera automáticamente al crear el usuario y se muestra
-                al administrador al finalizar el alta.
+                {t
+                  ? "La contraseña temporal se genera automáticamente al crear el usuario y se muestra al administrador al finalizar el alta."
+                  : "Temporary password is generated automatically when user is created and shown to admin after completion."}
               </div>
             ) : null}
 
             <div className="grid gap-5 sm:grid-cols-2">
               <label className="flex flex-col gap-2">
-                <span className="text-sm font-semibold text-slate-700">Rol</span>
+                <span className="text-sm font-semibold text-slate-700">{t ? "Rol" : "Role"}</span>
                 <select
                   className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                   onChange={(event) => setRole(event.target.value as UserRecord["role"])}
                   value={role}
                 >
-                  <option value="admin">Administrador</option>
-                  <option value="user">Usuario estándar</option>
+                  <option value="admin">{t ? "Administrador" : "Administrator"}</option>
+                  <option value="user">{t ? "Usuario estándar" : "Standard user"}</option>
                 </select>
               </label>
 
               <CreatableSelectField
-                createPlaceholder="Escribe un nuevo departamento"
-                label="Departamento"
+                createPlaceholder={t ? "Escribe un nuevo departamento" : "Type a new department"}
+                label={t ? "Departamento" : "Department"}
                 onChange={setDepartment}
                 options={normalizedDepartmentOptions}
                 value={department}
@@ -184,8 +192,8 @@ export function UserFormDialog({
 
             <CreatableSelectField
               allowCreate={false}
-              createPlaceholder="Escribe una nueva entidad"
-              label="Entidad"
+              createPlaceholder={t ? "Escribe una nueva entidad" : "Type a new entity"}
+              label={t ? "Entidad" : "Entity"}
               onChange={setEntityName}
               options={normalizedEntityOptions}
               value={entityName}
@@ -194,16 +202,24 @@ export function UserFormDialog({
 
           <DialogFooter className="mt-8">
             <DialogClose asChild>
-              <Button variant="secondary">Cancelar</Button>
+              <Button variant="secondary">{t ? "Cancelar" : "Cancel"}</Button>
             </DialogClose>
             <Button disabled={submitting} type="submit">
               {submitting
                 ? isCreateMode
-                  ? "Creando..."
-                  : "Guardando..."
+                  ? t
+                    ? "Creando..."
+                    : "Creating..."
+                  : t
+                    ? "Guardando..."
+                    : "Saving..."
                 : isCreateMode
-                  ? "Crear usuario"
-                  : "Guardar cambios"}
+                  ? t
+                    ? "Crear usuario"
+                    : "Create user"
+                  : t
+                    ? "Guardar cambios"
+                    : "Save changes"}
             </Button>
           </DialogFooter>
         </form>

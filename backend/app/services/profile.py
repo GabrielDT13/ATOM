@@ -5,9 +5,14 @@ from datetime import datetime
 from typing import Any
 
 from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
-from backend.app.services.emailing import build_absolute_frontend_url, send_password_changed_email
+from backend.app.services.emailing import (
+    build_absolute_frontend_url,
+    get_email_user_context,
+    send_password_changed_email,
+)
 from backend.app.services.errors import ServiceError
 from backend.app.services.users import _delete_user_projects_dir
+from psycopg.errors import UndefinedColumn
 
 
 @dataclass(frozen=True)
@@ -125,29 +130,52 @@ def _fetch_profile_by_email(email: str) -> dict[str, Any] | None:
 
 
 def _fetch_preferences(user_id: str) -> dict[str, Any]:
-    payload = fetch_one(
-        """
-        SELECT
-          user_id,
-          email_notifications,
-          security_alerts,
-          dark_mode,
-          interface_language,
-          interface_language_auto,
-          must_change_password,
-          welcome_tour_seen
-        FROM public.vw_profile_preferences
-        WHERE user_id = %s
-        LIMIT 1
-        """,
-        (user_id,),
-    )
+    try:
+        payload = fetch_one(
+            """
+            SELECT
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              dark_mode_auto,
+              interface_language,
+              interface_language_auto,
+              must_change_password,
+              welcome_tour_seen
+            FROM public.vw_profile_preferences
+            WHERE user_id = %s
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+    except UndefinedColumn:
+        payload = fetch_one(
+            """
+            SELECT
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              interface_language,
+              interface_language_auto,
+              must_change_password,
+              welcome_tour_seen
+            FROM public.vw_profile_preferences
+            WHERE user_id = %s
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+        if payload is not None:
+            payload["dark_mode_auto"] = True
     if payload:
         return payload
     return {
         "email_notifications": True,
         "security_alerts": True,
         "dark_mode": False,
+        "dark_mode_auto": True,
         "interface_language": "es",
         "interface_language_auto": True,
         "must_change_password": False,
@@ -161,38 +189,73 @@ def _save_preferences(
     email_notifications: bool,
     security_alerts: bool,
     dark_mode: bool,
+    dark_mode_auto: bool,
     interface_language: str,
     interface_language_auto: bool,
 ) -> None:
-    execute(
-        """
-        INSERT INTO internal.profile_preferences (
-          user_id,
-          email_notifications,
-          security_alerts,
-          dark_mode,
-          interface_language,
-          interface_language_auto
+    try:
+        execute(
+            """
+            INSERT INTO internal.profile_preferences (
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              dark_mode_auto,
+              interface_language,
+              interface_language_auto
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+              email_notifications = EXCLUDED.email_notifications,
+              security_alerts = EXCLUDED.security_alerts,
+              dark_mode = EXCLUDED.dark_mode,
+              dark_mode_auto = EXCLUDED.dark_mode_auto,
+              interface_language = EXCLUDED.interface_language,
+              interface_language_auto = EXCLUDED.interface_language_auto,
+              updated_at = now()
+            """,
+            (
+                user_id,
+                email_notifications,
+                security_alerts,
+                dark_mode,
+                dark_mode_auto,
+                interface_language,
+                interface_language_auto,
+            ),
         )
-        VALUES (%s, %s, %s, %s, %s, %s)
-        ON CONFLICT (user_id) DO UPDATE
-        SET
-          email_notifications = EXCLUDED.email_notifications,
-          security_alerts = EXCLUDED.security_alerts,
-          dark_mode = EXCLUDED.dark_mode,
-          interface_language = EXCLUDED.interface_language,
-          interface_language_auto = EXCLUDED.interface_language_auto,
-          updated_at = now()
-        """,
-        (
-            user_id,
-            email_notifications,
-            security_alerts,
-            dark_mode,
-            interface_language,
-            interface_language_auto,
-        ),
-    )
+    except UndefinedColumn:
+        execute(
+            """
+            INSERT INTO internal.profile_preferences (
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              interface_language,
+              interface_language_auto
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+              email_notifications = EXCLUDED.email_notifications,
+              security_alerts = EXCLUDED.security_alerts,
+              dark_mode = EXCLUDED.dark_mode,
+              interface_language = EXCLUDED.interface_language,
+              interface_language_auto = EXCLUDED.interface_language_auto,
+              updated_at = now()
+            """,
+            (
+                user_id,
+                email_notifications,
+                security_alerts,
+                dark_mode,
+                interface_language,
+                interface_language_auto,
+            ),
+        )
 
 
 def _set_must_change_password(user_id: str, value: bool) -> None:
@@ -539,6 +602,7 @@ def _build_profile_response(profile: dict[str, Any]) -> dict[str, Any]:
             "email_notifications": bool(collections.preferences.get("email_notifications", True)),
             "security_alerts": bool(collections.preferences.get("security_alerts", True)),
             "dark_mode": bool(collections.preferences.get("dark_mode", False)),
+            "dark_mode_auto": bool(collections.preferences.get("dark_mode_auto", True)),
             "interface_language": _normalize_interface_language(
                 collections.preferences.get("interface_language"),
             ),
@@ -627,10 +691,10 @@ def _update_auth_user_profile(
         SET
           email = %s,
           raw_user_meta_data = jsonb_build_object(
-            'username', %s,
-            'full_name', COALESCE(%s, ''),
-            'department', COALESCE(%s, ''),
-            'bio', COALESCE(%s, '')
+            'username', %s::text,
+            'full_name', COALESCE(%s::text, ''),
+            'department', COALESCE(%s::text, ''),
+            'bio', COALESCE(%s::text, '')
           )
         WHERE id = %s
         RETURNING id
@@ -704,6 +768,7 @@ def update_my_profile(
             email_notifications=bool(preferences.get("email_notifications", True)),
             security_alerts=bool(preferences.get("security_alerts", True)),
             dark_mode=bool(preferences.get("dark_mode", False)),
+            dark_mode_auto=bool(preferences.get("dark_mode_auto", True)),
             interface_language=normalized_language,
             interface_language_auto=bool(preferences.get("interface_language_auto", True)),
         )
@@ -717,6 +782,28 @@ def update_my_profile(
         return False, str(exc), None
 
     return True, "Perfil actualizado correctamente", get_my_profile(user_id)
+
+
+def update_my_profile_preferences(
+    *,
+    user_id: str,
+    preferences: dict[str, Any],
+) -> tuple[bool, str, dict[str, Any] | None]:
+    try:
+        normalized_language = _normalize_interface_language(preferences.get("interface_language"))
+        _save_preferences(
+            user_id,
+            email_notifications=bool(preferences.get("email_notifications", True)),
+            security_alerts=bool(preferences.get("security_alerts", True)),
+            dark_mode=bool(preferences.get("dark_mode", False)),
+            dark_mode_auto=bool(preferences.get("dark_mode_auto", True)),
+            interface_language=normalized_language,
+            interface_language_auto=bool(preferences.get("interface_language_auto", True)),
+        )
+    except (ServiceError, ValueError) as exc:
+        return False, str(exc), None
+
+    return True, "Preferencias actualizadas correctamente", get_my_profile(user_id)
 
 
 def change_my_password(
@@ -770,7 +857,11 @@ def change_my_password(
         )
         email = str(profile.get("email") or "").strip().lower()
         username = str(profile.get("username") or "").strip()
-        if email and username:
+        try:
+            recipient = get_email_user_context(user_id)
+        except Exception:
+            recipient = None
+        if email and username and (recipient is None or recipient.security_alerts):
             send_password_changed_email(
                 to_email=email,
                 username=username,

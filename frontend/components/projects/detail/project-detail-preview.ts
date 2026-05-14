@@ -37,11 +37,13 @@ export function getPreferredPrimaryPreviewFile(group: ProjectExecutionGroup | nu
 export async function buildProjectPreviewState({
   cacheKey,
   file,
+  locale = "es",
   owner,
   projectName,
 }: {
   cacheKey?: string | null;
   file: ProjectFileEntry;
+  locale?: "en" | "es";
   owner: string;
   projectName: string;
 }): Promise<PreviewState> {
@@ -69,7 +71,7 @@ export async function buildProjectPreviewState({
     }
 
     const blob = await response.blob();
-    return parseOfficePreview(file, blob, downloadUrl);
+    return parseOfficePreview(file, blob, downloadUrl, locale);
   }
 
   if (isPreviewableTextFile(file)) {
@@ -88,8 +90,11 @@ export async function buildProjectPreviewState({
 
   return {
     actionHref: buildProjectFileUrl(owner, projectName, file.path, cacheKey),
-    actionLabel: "Abrir archivo",
-    description: "Este archivo no tiene una vista rápida embebida disponible.",
+    actionLabel: locale === "es" ? "Abrir archivo" : "Open file",
+    description:
+      locale === "es"
+        ? "Este archivo no tiene una vista rápida embebida disponible."
+        : "This file does not have an embedded quick preview available.",
     label: file.path,
     mode: "notice",
   };

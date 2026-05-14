@@ -13,6 +13,7 @@ import {
 } from "@/lib/projects";
 import { useAppToast } from "@/hooks/use-app-toast";
 import type { SessionResponse } from "@/types/api";
+import { useLocale } from "@/components/providers/locale-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { buttonStyles } from "@/components/ui/button";
 import { ProjectEditDialog, type ProjectEditValues } from "@/components/projects/project-edit-dialog";
@@ -38,6 +39,8 @@ type ProjectViewMode = "board" | "list";
 const PROJECT_VIEW_STORAGE_KEY = "atom.project-management.view";
 
 export function ProjectManagement() {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectRecord[]>([]);
   const [session, setSession] = useState<SessionResponse | null>();
@@ -65,7 +68,7 @@ export function ProjectManagement() {
     } catch (loadError) {
       if (!options?.silent) {
         appToast.error(
-          "No se pudieron cargar los proyectos",
+          t ? "No se pudieron cargar los proyectos" : "Could not load projects",
           loadError instanceof Error ? loadError.message : undefined,
         );
         setProjects([]);
@@ -75,7 +78,7 @@ export function ProjectManagement() {
         setLoading(false);
       }
     }
-  }, [appToast]);
+  }, [appToast, t]);
 
   useEffect(() => {
     void fetchSession()
@@ -121,7 +124,7 @@ export function ProjectManagement() {
     );
 
     if (!nextName) {
-      appToast.error("El nombre del proyecto es obligatorio");
+      appToast.error(t ? "El nombre del proyecto es obligatorio" : "Project name is required");
       return;
     }
 
@@ -132,7 +135,7 @@ export function ProjectManagement() {
       && !hasAdditionalFiles
       && !(canManageVisibility && hasVisibilityChange)
     ) {
-      appToast.info("No hay cambios para guardar");
+      appToast.info(t ? "No hay cambios para guardar" : "No changes to save");
       return;
     }
 
@@ -163,7 +166,7 @@ export function ProjectManagement() {
     } catch (submitError) {
       setUploadState("idle");
       appToast.error(
-        "No se pudo actualizar el proyecto",
+        t ? "No se pudo actualizar el proyecto" : "Could not update project",
         submitError instanceof Error ? submitError.message : undefined,
       );
     } finally {
@@ -192,7 +195,7 @@ export function ProjectManagement() {
       }
     } catch (deleteError) {
       appToast.error(
-        "No se pudo eliminar el proyecto",
+        t ? "No se pudo eliminar el proyecto" : "Could not delete project",
         deleteError instanceof Error ? deleteError.message : undefined,
       );
     }
@@ -265,22 +268,23 @@ export function ProjectManagement() {
             <div className="max-w-3xl">
               <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
                 <ProjectStackIcon />
-                Proyectos
+                {t ? "Proyectos" : "Projects"}
               </div>
               <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Gestión visual de proyectos
+                {t ? "Gestión visual de proyectos" : "Visual project management"}
               </h1>
               <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-                Administra tus proyectos, revisa sus archivos y realiza acciones rápidas desde una
-                sola vista.
+                {t
+                  ? "Administra tus proyectos, revisa sus archivos y realiza acciones rápidas desde una sola vista."
+                  : "Manage your projects, review their files and run quick actions from a single view."}
               </p>
               <div className="mt-4 flex flex-wrap gap-3">
                 <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                  {projects.length} proyecto{projects.length === 1 ? "" : "s"} visibles
+                  {projects.length} {t ? `proyecto${projects.length === 1 ? "" : "s"} visibles` : `visible project${projects.length === 1 ? "" : "s"}`}
                 </span>
                 {isAdmin ? (
                   <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-                    Vista multiusuario habilitada
+                    {t ? "Vista multiusuario habilitada" : "Multi-user view enabled"}
                   </span>
                 ) : null}
               </div>
@@ -291,7 +295,7 @@ export function ProjectManagement() {
                 className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
                 href="/dashboard/teams"
               >
-                Gestionar equipos
+                {t ? "Gestionar equipos" : "Manage teams"}
               </Link>
 
               <Link
@@ -299,14 +303,15 @@ export function ProjectManagement() {
                 href="/dashboard/create_project"
               >
                 <PlusIcon />
-                Crear nuevo proyecto
+                {t ? "Crear nuevo proyecto" : "Create new project"}
               </Link>
             </div>
           </div>
         </section>
 
-        <ProjectManagementSummary loading={loading} projects={projects} />
+        <ProjectManagementSummary loading={loading} locale={locale} projects={projects} />
         <ProjectManagementFilters
+          locale={locale}
           onOwnerFilterChange={setOwnerFilter}
           onSearchChange={setSearch}
           onStatusFilterChange={setStatusFilter}
@@ -322,6 +327,7 @@ export function ProjectManagement() {
           <ProjectManagementBoard
             canDeleteProject={canDeleteProject}
             canEditProject={canEditProject}
+            locale={locale}
             loading={loading}
             onDelete={setPendingDeleteProject}
             onEdit={setEditingProject}
@@ -334,6 +340,7 @@ export function ProjectManagement() {
           <ProjectManagementTable
             canDeleteProject={canDeleteProject}
             canEditProject={canEditProject}
+            locale={locale}
             loading={loading}
             onDelete={setPendingDeleteProject}
             onEdit={setEditingProject}
@@ -368,16 +375,19 @@ export function ProjectManagement() {
       />
 
       <ConfirmDialog
-        actionLabel="Eliminar proyecto"
+        actionLabel={t ? "Eliminar proyecto" : "Delete project"}
         body={
           pendingDeleteProject ? (
             <div className="space-y-3">
               <p>
-                Se eliminará <strong>{pendingDeleteProject.name}</strong> y todo su contenido
-                asociado.
+                {t
+                  ? <>Se eliminará <strong>{pendingDeleteProject.name}</strong> y todo su contenido asociado.</>
+                  : <>This will delete <strong>{pendingDeleteProject.name}</strong> and all associated content.</>}
               </p>
               <p className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                Esta acción borra la carpeta del proyecto para @{pendingDeleteProject.owner}.
+                {t
+                  ? `Esta acción borra la carpeta del proyecto para @${pendingDeleteProject.owner}.`
+                  : `This action deletes the project folder for @${pendingDeleteProject.owner}.`}
               </p>
             </div>
           ) : null
@@ -390,7 +400,7 @@ export function ProjectManagement() {
           }
         }}
         open={Boolean(pendingDeleteProject)}
-        title="Confirmar eliminación"
+        title={t ? "Confirmar eliminación" : "Confirm deletion"}
       />
     </>
   );
