@@ -857,8 +857,11 @@ def change_my_password(
         )
         email = str(profile.get("email") or "").strip().lower()
         username = str(profile.get("username") or "").strip()
-        recipient = get_email_user_context(user_id)
-        if email and username and recipient and recipient.security_alerts:
+        try:
+            recipient = get_email_user_context(user_id)
+        except Exception:
+            recipient = None
+        if email and username and (recipient is None or recipient.security_alerts):
             send_password_changed_email(
                 to_email=email,
                 username=username,

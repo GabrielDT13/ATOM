@@ -331,8 +331,11 @@ def reset_password_with_token(token: str, new_password: str) -> None:
         (user_id,),
     )
     clear_must_change_password(user_id)
-    recipient = get_email_user_context(user_id)
-    if recipient and recipient.security_alerts:
+    try:
+        recipient = get_email_user_context(user_id)
+    except Exception:
+        recipient = None
+    if profile_email and profile_username and (recipient is None or recipient.security_alerts):
         send_password_changed_email(
             to_email=profile_email,
             username=profile_username,
