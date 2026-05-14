@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useId, useRef, useState } from "react";
 
 import { CheckIcon, CloseIcon } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -48,6 +49,8 @@ export function ProjectFileDropzone({
   uploadProgress = 0,
   uploadState = "idle",
 }: ProjectFileDropzoneProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -134,13 +137,13 @@ export function ProjectFileDropzone({
             type="button"
             variant="secondary"
           >
-            Seleccionar archivo{multiple ? "s" : ""}
+            {t ? `Seleccionar archivo${multiple ? "s" : ""}` : `Select file${multiple ? "s" : ""}`}
           </Button>
         </div>
 
         <div className="rounded-2xl border border-white/80 bg-white/90 px-4 py-3 text-sm text-slate-500">
           {files.length === 0 ? (
-            <p>Arrastra y suelta aquí o usa el selector.</p>
+            <p>{t ? "Arrastra y suelta aquí o usa el selector." : "Drag and drop here or use selector."}</p>
           ) : (
             <div className="flex flex-col gap-2">
               {files.map((file, index) => (
@@ -152,9 +155,9 @@ export function ProjectFileDropzone({
                     <p className="truncate text-sm font-semibold text-slate-900">{file.name}</p>
                     <p className="text-xs text-slate-500">{formatFileSize(file.size)}</p>
                     {isUploading ? (
-                      <div className="mt-2">
-                        <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
-                          <span className="text-sky-700">Subiendo</span>
+                        <div className="mt-2">
+                          <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-[0.12em]">
+                          <span className="text-sky-700">{t ? "Subiendo" : "Uploading"}</span>
                           <span className="text-sky-600">{uploadProgress}%</span>
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-sky-100">
@@ -167,16 +170,16 @@ export function ProjectFileDropzone({
                     ) : isComplete ? (
                       <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                         <CheckIcon className="h-4 w-4" />
-                        Archivo subido correctamente
+                        {t ? "Archivo subido correctamente" : "File uploaded successfully"}
                       </div>
                     ) : (
                       <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-                        Preparado para subir
+                        {t ? "Preparado para subir" : "Ready to upload"}
                       </div>
                     )}
                   </div>
                   <button
-                    aria-label={`Quitar ${file.name}`}
+                    aria-label={t ? `Quitar ${file.name}` : `Remove ${file.name}`}
                     className="inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-white hover:text-rose-600 disabled:pointer-events-none disabled:opacity-40"
                     disabled={disabled}
                     onClick={() =>

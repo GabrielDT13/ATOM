@@ -33,8 +33,13 @@ export function DashboardOverviewPage({
 
     void loadOverview();
 
+    const intervalId = window.setInterval(() => {
+      void loadOverview();
+    }, 5000);
+
     return () => {
       cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, []);
 

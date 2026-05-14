@@ -4,6 +4,7 @@ import type { MouseEvent, ReactElement, ReactNode } from "react";
 import { useState } from "react";
 
 import { UserIcon } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { getProjectMemberRoleBadgeClassName, getProjectMemberRoleLabel } from "@/components/projects/project-access-utils";
 import { DepartmentIcon, MailIcon } from "@/components/profile/profile-icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -45,11 +46,6 @@ const avatarSizeClassName = {
   sm: "h-10 w-10 rounded-2xl text-sm",
 } as const;
 
-const EMPTY_BIO_TEXT = "Este usuario todavia no ha añadido una biografia corta.";
-const EMPTY_DEPARTMENT_TEXT = "Sin departamento";
-const EMPTY_EMAIL_TEXT = "No disponible";
-const EMPTY_ROLE_TEXT = "Sin asignar";
-
 function getUserInitials(label: string) {
   return (
     label
@@ -66,6 +62,8 @@ function getUserDisplayName(user: UserProfileSummary) {
 }
 
 export function UserAvatar({ className, size = "md", user }: UserAvatarProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [imageError, setImageError] = useState(false);
   const displayLabel = getUserDisplayName(user);
   const initials = getUserInitials(displayLabel);
@@ -74,7 +72,7 @@ export function UserAvatar({ className, size = "md", user }: UserAvatarProps) {
   if (avatarUrl && !imageError) {
     return (
       <img
-        alt={`Avatar de ${displayLabel}`}
+        alt={t ? `Avatar de ${displayLabel}` : `Avatar of ${displayLabel}`}
         className={cn(
           "border border-slate-200 bg-slate-100 object-cover shadow-sm",
           avatarSizeClassName[size],
@@ -128,12 +126,18 @@ export function UserProfilePopover({
   contentClassName,
   profile,
   projectRole = null,
-  projectRoleTitle = "Rol en el proyecto",
+  projectRoleTitle,
   side = "bottom",
   sideOffset = 10,
 }: UserProfilePopoverProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const displayName = getUserDisplayName(profile);
-  const roleLabel = projectRole ? getProjectMemberRoleLabel(projectRole) : EMPTY_ROLE_TEXT;
+  const roleLabel = projectRole ? getProjectMemberRoleLabel(projectRole, locale) : t ? "Sin asignar" : "Unassigned";
+  const departmentText = profile.department || (t ? "Sin departamento" : "No department");
+  const emailText = profile.email || (t ? "No disponible" : "Not available");
+  const bioText = profile.bio || (t ? "Este usuario todavia no ha añadido una biografia corta." : "This user has not added a short bio yet.");
+  const resolvedProjectRoleTitle = projectRoleTitle ?? (t ? "Rol en el proyecto" : "Project role");
 
   return (
     <Popover>
@@ -158,7 +162,7 @@ export function UserProfilePopover({
                     getProjectMemberRoleBadgeClassName(projectRole),
                   )}
                 >
-                  {getProjectMemberRoleLabel(projectRole)}
+                  {getProjectMemberRoleLabel(projectRole, locale)}
                 </span>
               ) : null}
             </div>
@@ -166,22 +170,22 @@ export function UserProfilePopover({
 
           <div className="grid gap-2">
             <DetailRow icon={<MailIcon className="h-4 w-4" />} label="Email">
-              <p className="break-all">{profile.email || EMPTY_EMAIL_TEXT}</p>
+              <p className="break-all">{emailText}</p>
             </DetailRow>
-            <DetailRow icon={<DepartmentIcon className="h-4 w-4" />} label="Departamento">
-              <p>{profile.department || EMPTY_DEPARTMENT_TEXT}</p>
+            <DetailRow icon={<DepartmentIcon className="h-4 w-4" />} label={t ? "Departamento" : "Department"}>
+              <p>{departmentText}</p>
             </DetailRow>
-            <DetailRow icon={<UserIcon className="h-4 w-4" />} label={projectRoleTitle}>
+            <DetailRow icon={<UserIcon className="h-4 w-4" />} label={resolvedProjectRoleTitle}>
               <p>{roleLabel}</p>
             </DetailRow>
           </div>
 
           <div className="rounded-[24px] border border-slate-200 bg-white px-4 py-3.5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Biografia corta
+              {t ? "Biografia corta" : "Short bio"}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              {profile.bio || EMPTY_BIO_TEXT}
+              {bioText}
             </p>
           </div>
         </div>

@@ -19,19 +19,17 @@ def test_create_user_route_forwards_role_and_department(
 
     def fake_create_user(
         username: str,
-        password: str,
         email: str,
         role: str,
         department: str | None,
         actor_user_id: str,
-    ) -> tuple[bool, str]:
+    ) -> tuple[bool, str, str | None]:
         captured["username"] = username
-        captured["password"] = password
         captured["email"] = email
         captured["role"] = role
         captured["department"] = department
         captured["actor_user_id"] = actor_user_id
-        return True, "Usuario registrado correctamente"
+        return True, "Usuario registrado correctamente", "RandPass2345"
 
     monkeypatch.setattr(user_routes, "create_user", fake_create_user)
     monkeypatch.setattr(
@@ -53,7 +51,6 @@ def test_create_user_route_forwards_role_and_department(
         "/api/users",
         json={
             "username": "researcher",
-            "password": "secret123",
             "email": "researcher@example.com",
             "role": "admin",
             "department": "Bioinformatica",
@@ -64,12 +61,12 @@ def test_create_user_route_forwards_role_and_department(
     assert response.json()["success"] is True
     assert captured == {
         "username": "researcher",
-        "password": "secret123",
         "email": "researcher@example.com",
         "role": "admin",
         "department": "Bioinformatica",
         "actor_user_id": "11111111-1111-1111-1111-111111111111",
     }
+    assert response.json()["temporary_password"] == "RandPass2345"
 
 
 def test_update_user_route_requires_admin_and_forwards_role_and_department(
@@ -174,5 +171,6 @@ def test_delete_user_route_returns_controlled_message_when_projects_block_deleti
             "Reasigna o elimina esos proyectos primero."
         ),
         "success": False,
+        "temporary_password": None,
         "user": None,
     }

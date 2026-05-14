@@ -10,6 +10,8 @@ import {
   subscribeToAuthFailure,
 } from "@/lib/api";
 import { AppHeader } from "@/components/dashboard/app-header";
+import { ForcedPasswordChangeDialog } from "@/components/dashboard/forced-password-change-dialog";
+import { WelcomeTour } from "@/components/dashboard/welcome-tour";
 import { Button } from "@/components/ui/button";
 import {
   buildDashboardBreadcrumbs,
@@ -17,7 +19,14 @@ import {
 } from "@/components/dashboard/dashboard-breadcrumb";
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { ProjectExplorer } from "@/components/dashboard/project-explorer";
+import { useLocale } from "@/components/providers/locale-provider";
+import { useTheme } from "@/components/providers/theme-provider";
+import { useAppToast } from "@/hooks/use-app-toast";
+import { updateProfilePreferences } from "@/lib/profile";
 import type {
+  ProfileRecord,
+  ProfileMutationResponse,
+  ProfilePreferences,
   SessionResponse,
   SidebarLink,
   SidebarProjectItem,
@@ -31,7 +40,11 @@ type DashboardShellProps = {
 export function DashboardShell({ children }: DashboardShellProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const appToast = useAppToast();
+  const { locale, syncProfileLocale } = useLocale();
+  const { syncProfileTheme } = useTheme();
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const [profile, setProfile] = useState<ProfileRecord | null>(null);
   const [leftNav, setLeftNav] =
     useState<SidebarResponse<SidebarLink> | null>(null);
   const [rightNav, setRightNav] =
@@ -40,9 +53,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileProjectExplorerOpen, setMobileProjectExplorerOpen] = useState(false);
   const [projectExplorerCollapsed, setProjectExplorerCollapsed] = useState(false);
+  const [passwordChangeSubmitting, setPasswordChangeSubmitting] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const showProjectExplorer = pathname === "/dashboard";
+  const supportEmail = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@atom.local";
 
   useEffect(() => {
     setMobileSidebarOpen(false);
@@ -52,9 +68,11 @@ export function DashboardShell({ children }: DashboardShellProps) {
   useEffect(() => {
     return subscribeToAuthFailure(() => {
       setSession(null);
+      setProfile(null);
       setLeftNav(null);
       setRightNav(null);
       setError(null);
+      setTourOpen(false);
       router.replace("/login");
       router.refresh();
     });
@@ -77,11 +95,12 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         setSession(currentSession);
 
-        const [leftData, rightData] = await Promise.all([
+        const [leftData, rightData, profileData] = await Promise.all([
           apiFetch<SidebarResponse<SidebarLink>>("/api/navigation/sidebar-left"),
           apiFetch<SidebarResponse<SidebarProjectItem>>(
             "/api/navigation/sidebar-right",
           ),
+          apiFetch<ProfileRecord>("/api/profile/me"),
         ]);
 
         if (cancelled) {
@@ -90,6 +109,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
         setLeftNav(leftData);
         setRightNav(rightData);
+        setProfile(profileData);
+        syncProfileTheme(profileData.preferences);
+        syncProfileLocale(profileData.preferences);
       } catch (loadError) {
         if (cancelled) {
           return;
@@ -118,7 +140,88 @@ export function DashboardShell({ children }: DashboardShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [pathname, router]);
+  }, [pathname, router, syncProfileLocale, syncProfileTheme]);
+
+  useEffect(() => {
+    if (!showProjectExplorer || !session?.authenticated || !session.user) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshRightNav() {
+      try {
+        const rightData = await apiFetch<SidebarResponse<SidebarProjectItem>>(
+          "/api/navigation/sidebar-right",
+        );
+
+        if (!cancelled) {
+          setRightNav(rightData);
+        }
+      } catch {
+        // Evita romper el shell por un refresh periódico.
+      }
+    }
+
+    function handleVisibilityRefresh() {
+      if (document.visibilityState === "visible") {
+        void refreshRightNav();
+      }
+    }
+
+    function handleWindowFocus() {
+      void refreshRightNav();
+    }
+
+    void refreshRightNav();
+
+    const intervalId = window.setInterval(() => {
+      void refreshRightNav();
+    }, 5000);
+
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [session, showProjectExplorer]);
+
+  useEffect(() => {
+    if (
+      session?.authenticated
+      && session.user
+      && !session.user.must_change_password
+      && session.user.welcome_tour_seen === false
+    ) {
+      setTourOpen(true);
+    }
+  }, [session]);
+
+  function updateSessionFlags(nextFlags: Partial<NonNullable<SessionResponse["user"]>>) {
+    setSession((current) => {
+      if (!current?.user) {
+        return current;
+      }
+
+      return {
+        ...current,
+        user: {
+          ...current.user,
+          ...nextFlags,
+        },
+      };
+    });
+  }
+
+  async function refreshSessionState() {
+    const nextSession = await fetchSession();
+    setSession(nextSession);
+    return nextSession;
+  }
 
   async function handleLogout() {
     try {
@@ -127,12 +230,126 @@ export function DashboardShell({ children }: DashboardShellProps) {
       // Incluso si falla la revocación remota, la UI debe salir del dashboard.
     }
     setSession(null);
+    setTourOpen(false);
     router.replace("/login");
     router.refresh();
   }
 
+  async function handleSidebarLocaleChange(nextLocale: "es" | "en") {
+    if (!profile) {
+      return;
+    }
+
+    const nextPreferences: ProfilePreferences = {
+      ...profile.preferences,
+      interface_language: nextLocale,
+      interface_language_auto: false,
+    };
+
+    try {
+      const response = await updateProfilePreferences(nextPreferences);
+      if (!response.success || !response.profile) {
+        throw new Error(
+          response.message
+            || (locale === "es" ? "No se pudo actualizar el idioma" : "Could not update language"),
+        );
+      }
+
+      setProfile(response.profile);
+      syncProfileTheme(response.profile.preferences);
+      syncProfileLocale(response.profile.preferences);
+    } catch (error) {
+      appToast.error(
+        locale === "es" ? "No se pudo actualizar el idioma" : "Could not update language",
+        error instanceof Error
+          ? error.message
+          : locale === "es"
+            ? "Inténtalo de nuevo."
+            : "Try again.",
+      );
+    }
+  }
+
+  async function handleRequiredPasswordChange(newPassword: string) {
+    setPasswordChangeSubmitting(true);
+
+    const request = apiFetch<ProfileMutationResponse>("/api/profile/me/password/required", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        new_password: newPassword,
+      }),
+    }).then((response) => {
+      if (!response.success) {
+        throw new Error(response.message || "No se pudo actualizar la contraseña");
+      }
+      return response;
+    });
+
+    appToast.promise(request, {
+      loading: {
+        title: "Guardando contraseña",
+        description: "Actualizando acceso inicial seguro.",
+      },
+      success: {
+        title: "Contraseña actualizada",
+        description: "Ya puedes continuar con la plataforma.",
+      },
+      error: {
+        title: (submitError) =>
+          submitError instanceof Error ? submitError.message : "No se pudo actualizar la contraseña",
+        description: "Revisa la nueva contraseña e inténtalo otra vez.",
+      },
+    });
+
+    try {
+      await request;
+      const nextSession = await refreshSessionState();
+      if (!nextSession.user?.welcome_tour_seen) {
+        setTourOpen(true);
+      }
+      router.refresh();
+    } catch {
+      // El feedback ya se muestra en el toast.
+    } finally {
+      setPasswordChangeSubmitting(false);
+    }
+  }
+
+  async function persistWelcomeTourSeen() {
+    updateSessionFlags({ welcome_tour_seen: true });
+
+    try {
+      await apiFetch<ProfileMutationResponse>("/api/profile/me/welcome-tour/seen", {
+        method: "POST",
+      });
+    } catch {
+      // Mantiene la guía cerrada en la sesión actual aunque falle persistencia remota.
+    }
+  }
+
+  function handleOpenTour() {
+    setTourOpen(true);
+  }
+
+  function handleCloseTour() {
+    setTourOpen(false);
+    if (session?.user?.welcome_tour_seen === false) {
+      void persistWelcomeTourSeen();
+    }
+  }
+
+  function handleFinishTour() {
+    setTourOpen(false);
+    if (session?.user?.welcome_tour_seen === false) {
+      void persistWelcomeTourSeen();
+    }
+  }
+
   if (loading) {
-    return <div className="screen-center">Cargando panel...</div>;
+    return <div className="screen-center">{locale === "es" ? "Cargando panel..." : "Loading dashboard..."}</div>;
   }
 
   if (error) {
@@ -140,7 +357,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }
 
   if (!session?.authenticated || !session.user) {
-    return <div className="screen-center">Redirigiendo...</div>;
+    return <div className="screen-center">{locale === "es" ? "Redirigiendo..." : "Redirecting..."}</div>;
   }
 
   return (
@@ -151,18 +368,21 @@ export function DashboardShell({ children }: DashboardShellProps) {
         isMobileOpen={mobileSidebarOpen}
         items={leftNav?.items ?? []}
         onCloseMobile={() => setMobileSidebarOpen(false)}
+        onLocaleChange={(nextLocale) => void handleSidebarLocaleChange(nextLocale)}
         onLogout={() => void handleLogout()}
         onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
       />
 
       <main className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-slate-50">
         <AppHeader
+          onOpenHelp={handleOpenTour}
           onOpenSidebar={() => setMobileSidebarOpen(true)}
+          supportEmail={supportEmail}
           user={session.user}
         />
 
         <div className="flex-1 overflow-y-auto">
-          <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname)} />
+          <DashboardBreadcrumb items={buildDashboardBreadcrumbs(pathname, locale)} />
 
           <div className="p-4 sm:p-8">
             {showProjectExplorer ? (
@@ -172,7 +392,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   size="sm"
                   variant="ghost"
                 >
-                  Proyectos
+                  {locale === "es" ? "Proyectos" : "Projects"}
                 </Button>
               </div>
             ) : null}
@@ -189,13 +409,27 @@ export function DashboardShell({ children }: DashboardShellProps) {
                   items={rightNav?.items ?? []}
                   onCloseMobile={() => setMobileProjectExplorerOpen(false)}
                   onToggleCollapse={() => setProjectExplorerCollapsed((current) => !current)}
-                  title={rightNav?.title ?? "Mis proyectos"}
+                  title={rightNav?.title ?? (locale === "es" ? "Mis proyectos" : "My projects")}
                 />
               ) : null}
             </div>
           </div>
         </div>
       </main>
+
+      <ForcedPasswordChangeDialog
+        onSubmit={(nextPassword) => void handleRequiredPasswordChange(nextPassword)}
+        open={Boolean(session.user.must_change_password)}
+        submitting={passwordChangeSubmitting}
+        userLabel={session.user.display_name ?? session.user.username}
+      />
+
+      <WelcomeTour
+        onClose={handleCloseTour}
+        onFinish={handleFinishTour}
+        open={tourOpen && !session.user.must_change_password}
+        pathname={pathname}
+      />
     </div>
   );
 }

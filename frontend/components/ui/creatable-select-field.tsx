@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { Button } from "@/components/ui/button";
 
 export type CreatableSelectOption = {
@@ -11,8 +13,9 @@ export type CreatableSelectOption = {
 
 type CreatableSelectFieldProps = {
   addButtonLabel?: string;
+  allowCreate?: boolean;
   createPlaceholder?: string;
-  label: string;
+  label: ReactNode;
   onChange: (value: string) => void;
   options: readonly CreatableSelectOption[];
   value: string;
@@ -76,16 +79,21 @@ function ChevronUpIcon() {
 }
 
 export function CreatableSelectField({
-  addButtonLabel = "Añadir opción",
-  createPlaceholder = "Escribe una nueva opción",
+  addButtonLabel,
+  allowCreate = true,
+  createPlaceholder,
   label,
   onChange,
   options,
   value,
 }: CreatableSelectFieldProps) {
+  const { locale } = useLocale();
   const [customOptions, setCustomOptions] = useState<CreatableSelectOption[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [draftValue, setDraftValue] = useState("");
+  const resolvedAddButtonLabel = addButtonLabel ?? (locale === "es" ? "Añadir opción" : "Add option");
+  const resolvedCreatePlaceholder =
+    createPlaceholder ?? (locale === "es" ? "Escribe una nueva opción" : "Type a new option");
 
   useEffect(() => {
     if (!value) {
@@ -137,7 +145,7 @@ export function CreatableSelectField({
           onChange={(event) => onChange(event.target.value)}
           value={value}
         >
-          <option value="">Selecciona una opción</option>
+          <option value="">{locale === "es" ? "Selecciona una opción" : "Select an option"}</option>
           {mergedOptions.map((option) => (
             <option key={normalizeOptionValue(option.value)} value={option.value}>
               {option.label}
@@ -145,24 +153,26 @@ export function CreatableSelectField({
           ))}
         </select>
 
-        <Button
-          aria-label={addButtonLabel}
-          className="w-12 px-0"
-          onClick={() => setIsCreating((current) => !current)}
-          size="lg"
-          type="button"
-          variant="secondary"
-        >
-          {isCreating ? <ChevronUpIcon /> : <PlusIcon />}
-        </Button>
+        {allowCreate ? (
+          <Button
+            aria-label={resolvedAddButtonLabel}
+            className="w-12 px-0"
+            onClick={() => setIsCreating((current) => !current)}
+            size="lg"
+            type="button"
+            variant="secondary"
+          >
+            {isCreating ? <ChevronUpIcon /> : <PlusIcon />}
+          </Button>
+        ) : null}
       </div>
 
-      {isCreating ? (
+      {allowCreate && isCreating ? (
         <div className="flex gap-2">
           <input
             className="h-12 flex-1 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
             onChange={(event) => setDraftValue(event.target.value)}
-            placeholder={createPlaceholder}
+            placeholder={resolvedCreatePlaceholder}
             value={draftValue}
           />
           <Button
@@ -170,7 +180,7 @@ export function CreatableSelectField({
             size="lg"
             type="button"
           >
-            Añadir
+            {locale === "es" ? "Añadir" : "Add"}
           </Button>
         </div>
       ) : null}

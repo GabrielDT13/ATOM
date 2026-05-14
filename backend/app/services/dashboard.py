@@ -6,11 +6,12 @@ from typing import Any
 from backend.app.core.config import get_settings
 from backend.app.services.dashboard_activity import list_dashboard_events
 from backend.app.services.dashboard_examples import load_public_examples_catalog
+from backend.app.services.errors import ServiceError
+from backend.app.services.project_storage import list_legacy_owner_names, list_legacy_project_dirs
 from backend.app.services.projects import (
     _build_project_payload,
     list_projects_for_user,
 )
-from backend.app.services.supabase import SupabaseError
 
 WORKFLOW_CATALOG: tuple[dict[str, object], ...] = (
     {
@@ -88,27 +89,12 @@ def _parse_timestamp(value: Any) -> datetime | None:
 
 
 def _list_local_projects(session_username: str, role: str) -> list[dict[str, object]]:
-    settings = get_settings()
-    projects_root = settings.projects_dir
-    projects_root.mkdir(parents=True, exist_ok=True)
-
-    owners = (
-        sorted(directory.name for directory in projects_root.iterdir() if directory.is_dir())
-        if role == "admin"
-        else [session_username]
-    )
+    get_settings().projects_dir.mkdir(parents=True, exist_ok=True)
+    owners = list_legacy_owner_names() if role == "admin" else [session_username]
 
     items: list[dict[str, object]] = []
     for owner in owners:
-        owner_dir = projects_root / owner
-        if not owner_dir.exists():
-            continue
-
-        project_dirs = sorted(
-            [directory for directory in owner_dir.iterdir() if directory.is_dir()],
-            key=lambda directory: directory.name.lower(),
-        )
-        for project_dir in project_dirs:
+        for project_dir in list_legacy_project_dirs(owner):
             payload = _build_project_payload(owner, project_dir)
             payload["access_role"] = "owner" if owner == session_username else "viewer"
             items.append(payload)
@@ -125,7 +111,7 @@ def _list_dashboard_projects(
         payload = list_projects_for_user(session_user_id, session_username, role)
         items = payload.get("items", [])
         return [item for item in items if isinstance(item, dict)]
-    except SupabaseError:
+    except ServiceError:
         return _list_local_projects(session_username, role)
 
 
@@ -141,40 +127,8 @@ def _format_day_label(day: date) -> str:
 def _build_activity_timeline(
     events: list[dict[str, object]],
     visible_project_keys: set[tuple[str, str]],
-    projects: list[dict[str, object]],
 ) -> list[dict[str, object]]:
     timeline_days = _day_window(ACTIVITY_TIMELINE_DAYS)
-    if events:
-        buckets = {
-            day.isoformat(): {
-                "bucket_start": day.isoformat(),
-                "completed_analyses": 0,
-                "label": _format_day_label(day),
-                "total_events": 0,
-            }
-            for day in timeline_days
-        }
-
-        for event in events:
-            owner = str(event.get("project_owner_username") or "").strip()
-            project_name = str(event.get("project_name") or "").strip()
-            if (owner, project_name) not in visible_project_keys:
-                continue
-
-            created_at = _parse_timestamp(event.get("created_at"))
-            if not created_at:
-                continue
-
-            bucket = buckets.get(created_at.date().isoformat())
-            if bucket is None:
-                continue
-
-            bucket["total_events"] += 1
-            if event.get("activity_type") == "analysis_completed":
-                bucket["completed_analyses"] += 1
-
-        return list(buckets.values())
-
     buckets = {
         day.isoformat(): {
             "bucket_start": day.isoformat(),
@@ -185,17 +139,22 @@ def _build_activity_timeline(
         for day in timeline_days
     }
 
-    for project in projects:
-        updated_at = _parse_timestamp(project.get("updated_at"))
-        if not updated_at:
+    for event in events:
+        owner = str(event.get("project_owner_username") or "").strip()
+        project_name = str(event.get("project_name") or "").strip()
+        if (owner, project_name) not in visible_project_keys:
             continue
 
-        bucket = buckets.get(updated_at.date().isoformat())
+        created_at = _parse_timestamp(event.get("created_at"))
+        if not created_at:
+            continue
+
+        bucket = buckets.get(created_at.date().isoformat())
         if bucket is None:
             continue
 
         bucket["total_events"] += 1
-        if project.get("status") == "results":
+        if event.get("activity_type") == "analysis_completed":
             bucket["completed_analyses"] += 1
 
     return list(buckets.values())
@@ -239,6 +198,7 @@ def _build_featured_projects(projects: list[dict[str, object]]) -> list[dict[str
         items.append(
             {
                 "access_role": project.get("access_role"),
+                "active_run": project.get("active_run"),
                 "file_count": int(project.get("file_count") or 0),
                 "highlight_files": highlight_files,
                 "name": str(project.get("name") or ""),
@@ -251,52 +211,6 @@ def _build_featured_projects(projects: list[dict[str, object]]) -> list[dict[str
         )
 
     return items
-
-
-def _build_project_activity(project: dict[str, object]) -> dict[str, object]:
-    name = str(project.get("name") or "Proyecto")
-    owner = str(project.get("owner") or "")
-    file_count = int(project.get("file_count") or 0)
-    result_count = len([item for item in project.get("html_files", []) if isinstance(item, str)])
-    created_at = str(project.get("updated_at") or datetime.now(timezone.utc).isoformat())
-    status = str(project.get("status") or "empty")
-
-    if status == "results":
-        title = f"{name} listo para revisar"
-        description = (
-            f"{owner} dispone de {result_count} informe(s) HTML y {file_count} archivo(s) asociados."
-            if owner
-            else f"Hay {result_count} informe(s) HTML y {file_count} archivo(s) asociados."
-        )
-        kind = "result"
-    elif file_count > 0:
-        title = f"{name} preparado para ejecutar"
-        description = (
-            f"El proyecto de {owner} ya tiene plantilla y archivos de entrada cargados."
-            if owner
-            else "El proyecto ya tiene plantilla y archivos de entrada cargados."
-        )
-        kind = "project"
-    else:
-        title = f"{name} creado"
-        description = (
-            f"El espacio de trabajo de {owner} ya puede recibir nuevos datos."
-            if owner
-            else "El espacio de trabajo ya puede recibir nuevos datos."
-        )
-        kind = "project"
-
-    return {
-        "analysis_type": None,
-        "created_at": created_at,
-        "design_id": None,
-        "description": description,
-        "kind": kind,
-        "owner": owner or None,
-        "project_name": name,
-        "status": "success" if kind == "result" else "info",
-        "title": title,
-    }
 
 
 def _event_ui_kind(activity_type: str) -> str:
@@ -373,46 +287,28 @@ def _build_workflows(projects: list[dict[str, object]]) -> list[dict[str, object
 def _build_recent_activity(
     events: list[dict[str, object]],
     visible_project_keys: set[tuple[str, str]],
-    projects: list[dict[str, object]],
 ) -> list[dict[str, object]]:
     visible_events = _filter_visible_events(events, visible_project_keys)
-    if visible_events:
-        activity_items: list[dict[str, object]] = []
-        for event in visible_events:
-            kind = str(event.get("activity_type") or "").strip().lower()
-            activity_items.append(
-                {
-                    "analysis_type": str(event.get("analysis_type") or "").strip() or None,
-                    "created_at": str(event.get("created_at") or datetime.now(timezone.utc).isoformat()),
-                    "description": str(event.get("description") or "").strip(),
-                    "design_id": str(event.get("design_id") or "").strip() or None,
-                    "kind": _event_ui_kind(kind),
-                    "owner": str(event.get("project_owner_username") or "").strip() or None,
-                    "project_name": str(event.get("project_name") or "").strip() or None,
-                    "status": _event_status(kind),
-                    "title": str(event.get("title") or "").strip() or "Actividad registrada",
-                }
-            )
-            if len(activity_items) >= 5:
-                break
-        if activity_items:
-            return activity_items
-
-    project_activity = [
-        _build_project_activity(project)
-        for project in sorted(
-            projects,
-            key=lambda item: _parse_timestamp(item.get("updated_at")) or datetime.min.replace(tzinfo=timezone.utc),
-            reverse=True,
+    activity_items: list[dict[str, object]] = []
+    for event in visible_events:
+        kind = str(event.get("activity_type") or "").strip().lower()
+        activity_items.append(
+            {
+                "analysis_type": str(event.get("analysis_type") or "").strip() or None,
+                "created_at": str(event.get("created_at") or datetime.now(timezone.utc).isoformat()),
+                "description": str(event.get("description") or "").strip(),
+                "design_id": str(event.get("design_id") or "").strip() or None,
+                "kind": _event_ui_kind(kind),
+                "owner": str(event.get("project_owner_username") or "").strip() or None,
+                "project_name": str(event.get("project_name") or "").strip() or None,
+                "status": _event_status(kind),
+                "title": str(event.get("title") or "").strip() or "Actividad registrada",
+            }
         )
-    ]
+        if len(activity_items) >= 5:
+            break
 
-    activity = project_activity
-    activity.sort(
-        key=lambda item: _parse_timestamp(item.get("created_at")) or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )
-    return activity[:5]
+    return activity_items
 
 
 def _build_activity_summary(
@@ -542,14 +438,12 @@ def get_dashboard_overview(
         "activity_timeline": _build_activity_timeline(
             dashboard_events,
             visible_project_keys,
-            projects,
         ),
         "featured_projects": _build_featured_projects(projects),
         "file_breakdown": _build_file_breakdown(projects),
         "recent_activity": _build_recent_activity(
             dashboard_events,
             visible_project_keys,
-            projects,
         ),
         "quick_start_steps": public_examples["quick_start_steps"],
         "example_library": example_library,

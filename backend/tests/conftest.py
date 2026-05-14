@@ -6,6 +6,13 @@ import pytest
 from backend.app.core.config import get_settings
 
 
+@pytest.fixture(autouse=True)
+def default_runtime_env(monkeypatch: pytest.MonkeyPatch):
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture()
 def isolated_app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Path]:
     data_dir = tmp_path / "data"
@@ -25,7 +32,7 @@ def isolated_app_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[st
     monkeypatch.setenv("ATOM_PUBLIC_EXAMPLES_DIR", str(examples_dir))
     monkeypatch.setenv("SESSION_SECRET", "test-session-secret")
     monkeypatch.setenv("JWT_SECRET", "test-jwt-secret")
-    monkeypatch.setenv("SUPABASE_JWT_AUD", "authenticated")
+    monkeypatch.setenv("JWT_AUDIENCE", "authenticated")
 
     get_settings.cache_clear()
     yield {

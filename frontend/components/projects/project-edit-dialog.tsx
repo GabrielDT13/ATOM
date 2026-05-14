@@ -2,6 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
+import { listEntities } from "@/lib/entities";
 import {
   Dialog,
   DialogClose,
@@ -17,16 +19,25 @@ import {
   TemplateIcon,
 } from "@/components/projects/project-management-icons";
 import { ProjectAccessManager } from "@/components/projects/project-access-manager";
+import {
+  CreatableSelectField,
+  type CreatableSelectOption,
+} from "@/components/ui/creatable-select-field";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
+import type { EntityRecord, ProjectVisibility } from "@/types/api";
 import type { ProjectRecord } from "@/components/projects/project-management-utils";
 
 export type ProjectEditValues = {
   additionalFiles: File[];
+  entityName: string;
   name: string;
   templateFiles: File[];
+  visibility: ProjectVisibility;
 };
 
 type ProjectEditDialogProps = {
   canShare?: boolean;
+  canManageVisibility?: boolean;
   onOwnershipTransferred?: () => Promise<void> | void;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: ProjectEditValues) => Promise<void> | void;
@@ -64,24 +75,28 @@ function CurrentFileList({
 }
 
 function CurrentProjectInventory({ project }: { project: ProjectRecord }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   return (
     <section className="rounded-[28px] border border-slate-200 bg-slate-50 p-5">
       <div className="flex flex-col gap-4">
         <div>
-          <p className="text-sm font-semibold text-slate-900">Archivos actuales</p>
+          <p className="text-sm font-semibold text-slate-900">{t ? "Archivos actuales" : "Current files"}</p>
           <p className="mt-1 text-sm leading-6 text-slate-500">
-            Antes de reemplazar nada, revisa qué inventario tiene ahora mismo el proyecto.
+            {t
+              ? "Antes de reemplazar nada, revisa qué inventario tiene ahora mismo el proyecto."
+              : "Before replacing anything, review current project inventory."}
           </p>
         </div>
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="rounded-3xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Plantilla actual
+              {t ? "Plantilla actual" : "Current template"}
             </p>
             <div className="mt-3">
               <CurrentFileList
-                emptyLabel="No hay plantilla cargada."
+                emptyLabel={t ? "No hay plantilla cargada." : "No template uploaded."}
                 items={project.templateFile ? [project.templateFile] : []}
               />
             </div>
@@ -89,11 +104,11 @@ function CurrentProjectInventory({ project }: { project: ProjectRecord }) {
 
           <div className="rounded-3xl border border-slate-200 bg-white p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">
-              Archivos adicionales actuales
+              {t ? "Archivos adicionales actuales" : "Current additional files"}
             </p>
             <div className="mt-3">
               <CurrentFileList
-                emptyLabel="No hay archivos adicionales cargados."
+                emptyLabel={t ? "No hay archivos adicionales cargados." : "No additional files uploaded."}
                 items={project.additionalFiles}
               />
             </div>
@@ -102,9 +117,9 @@ function CurrentProjectInventory({ project }: { project: ProjectRecord }) {
 
         {project.status === "results" ? (
           <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-            Este proyecto ya tiene resultados generados. Si reemplazas la plantilla o los archivos
-            adicionales, los HTML actuales se conservarán, pero podrían dejar de corresponder con
-            los nuevos ficheros.
+            {t
+              ? "Este proyecto ya tiene resultados generados. Si reemplazas la plantilla o los archivos adicionales, los HTML actuales se conservarán, pero podrían dejar de corresponder con los nuevos ficheros."
+              : "This project already has generated results. If you replace template or additional files, current HTML will be kept but may no longer match new files."}
           </p>
         ) : null}
       </div>
@@ -114,6 +129,7 @@ function CurrentProjectInventory({ project }: { project: ProjectRecord }) {
 
 export function ProjectEditDialog({
   canShare = false,
+  canManageVisibility = false,
   onOwnershipTransferred,
   onOpenChange,
   onSubmit,
@@ -123,11 +139,24 @@ export function ProjectEditDialog({
   uploadProgress = 0,
   uploadState = "idle",
 }: ProjectEditDialogProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
+  const [entities, setEntities] = useState<EntityRecord[]>([]);
   const [name, setName] = useState("");
+  const [entityName, setEntityName] = useState("");
+  const [visibility, setVisibility] = useState<ProjectVisibility>("private");
   const [templateFiles, setTemplateFiles] = useState<File[]>([]);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [confirmReplacementOpen, setConfirmReplacementOpen] = useState(false);
   const [resultsReplacementConfirmed, setResultsReplacementConfirmed] = useState(false);
+  const entityOptions: CreatableSelectOption[] = entities.map((entity) => ({
+    label: entity.name,
+    value: entity.name,
+  }));
+
+  useEffect(() => {
+    void listEntities().then(setEntities).catch(() => setEntities([]));
+  }, []);
 
   useEffect(() => {
     if (!open || !project) {
@@ -135,6 +164,8 @@ export function ProjectEditDialog({
     }
 
     setName(project.name);
+    setEntityName(project.entity_name ?? "");
+    setVisibility(project.visibility);
     setTemplateFiles([]);
     setAdditionalFiles([]);
     setConfirmReplacementOpen(false);
@@ -144,8 +175,10 @@ export function ProjectEditDialog({
   async function submitChanges() {
     await onSubmit({
       additionalFiles,
+      entityName: entityName.trim(),
       name: name.trim(),
       templateFiles,
+      visibility,
     });
   }
 
@@ -165,24 +198,56 @@ export function ProjectEditDialog({
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="flex max-h-[calc(100vh-2rem)] max-w-[52rem] flex-col overflow-hidden sm:max-h-[calc(100vh-3rem)]">
         <DialogHero
-          description="Ajusta el nombre del proyecto y actualiza sus archivos."
-          title="Editar proyecto"
+          description={t ? "Ajusta el nombre del proyecto y actualiza sus archivos." : "Adjust project name and update files."}
+          title={t ? "Editar proyecto" : "Edit project"}
         />
 
         <form className="flex min-h-0 flex-1 flex-col overflow-hidden" onSubmit={(event) => void handleSubmit(event)}>
           <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-6 py-6 sm:px-8">
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-semibold text-slate-700">Nombre del proyecto</span>
+              <span className="text-sm font-semibold text-slate-700">{t ? "Nombre del proyecto" : "Project name"}</span>
               <input
                 autoFocus
                 className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-primary focus:ring-4 focus:ring-sky-100"
                 onChange={(event) => setName(event.target.value)}
-                placeholder="ej. RNA Atlas 2026"
+                placeholder={t ? "ej. RNA Atlas 2026" : "e.g. RNA Atlas 2026"}
                 required
                 type="text"
                 value={name}
               />
             </label>
+
+            <CreatableSelectField
+              allowCreate={false}
+              createPlaceholder={t ? "Escribe una nueva entidad" : "Type a new entity"}
+              label={t ? "Entidad vinculada" : "Linked entity"}
+              onChange={setEntityName}
+              options={entityOptions}
+              value={entityName}
+            />
+
+            {canManageVisibility ? (
+              <label className="flex flex-col gap-2">
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                  {t ? "Visibilidad" : "Visibility"}
+                  <InfoTooltip
+                    content={
+                      t
+                        ? "Privado: acceso solo por propiedad o compartición. Público: visible para cualquier usuario autenticado en catálogo público."
+                        : "Private: access only by ownership or sharing. Public: visible to any authenticated user in public catalog."
+                    }
+                  />
+                </span>
+                <select
+                  className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                  onChange={(event) => setVisibility(event.target.value as ProjectVisibility)}
+                  value={visibility}
+                >
+                  <option value="private">{t ? "Privado" : "Private"}</option>
+                  <option value="public">{t ? "Público" : "Public"}</option>
+                </select>
+              </label>
+            ) : null}
 
             {project ? <CurrentProjectInventory project={project} /> : null}
 
@@ -190,28 +255,34 @@ export function ProjectEditDialog({
               <ProjectFileDropzone
                 accept=".xlsx,.xls"
                 accentClassName="bg-sky-100 text-sky-700"
-                description="Opcional. Si subes un nuevo Excel, reemplazará la plantilla actual."
+                description={t ? "Opcional. Si subes un nuevo Excel, reemplazará la plantilla actual." : "Optional. Uploading a new Excel will replace current template."}
                 disabled={submitting}
                 files={templateFiles}
                 helper={
                   project?.templateFile
-                    ? `Actual: ${project.templateFile}`
-                    : "Actualmente no hay plantilla registrada."
+                    ? `${t ? "Actual" : "Current"}: ${project.templateFile}`
+                    : t
+                      ? "Actualmente no hay plantilla registrada."
+                      : "There is currently no registered template."
                 }
                 icon={<TemplateIcon />}
-                label="Reemplazar plantilla"
+                label={t ? "Reemplazar plantilla" : "Replace template"}
                 onChange={setTemplateFiles}
                 uploadProgress={uploadProgress}
                 uploadState={templateFiles.length > 0 ? uploadState : "idle"}
               />
               <ProjectFileDropzone
                 accentClassName="bg-indigo-100 text-indigo-700"
-                description="Opcional. Si adjuntas nuevos ficheros, sustituirán el set actual."
+                description={t ? "Opcional. Si adjuntas nuevos ficheros, sustituirán el set actual." : "Optional. Attaching new files will replace current set."}
                 disabled={submitting}
                 files={additionalFiles}
-                helper={`${project?.additionalFiles.length ?? 0} archivo(s) adicional(es) en el proyecto.`}
+                helper={
+                  t
+                    ? `${project?.additionalFiles.length ?? 0} archivo(s) adicional(es) en el proyecto.`
+                    : `${project?.additionalFiles.length ?? 0} additional file(s) in project.`
+                }
                 icon={<DataFilesIcon />}
-                label="Reemplazar archivos adicionales"
+                label={t ? "Reemplazar archivos adicionales" : "Replace additional files"}
                 multiple
                 onChange={setAdditionalFiles}
                 uploadProgress={uploadProgress}
@@ -230,30 +301,31 @@ export function ProjectEditDialog({
 
           <DialogFooter className="shrink-0 border-t border-slate-200 px-6 py-6 sm:px-8">
             <DialogClose asChild>
-              <Button variant="secondary">Cancelar</Button>
+              <Button variant="secondary">{t ? "Cancelar" : "Cancel"}</Button>
             </DialogClose>
             <Button
               disabled={submitting}
               type="submit"
             >
-              {submitting ? "Guardando..." : "Guardar cambios"}
+              {submitting ? (t ? "Guardando..." : "Saving...") : t ? "Guardar cambios" : "Save changes"}
             </Button>
           </DialogFooter>
         </form>
       </DialogContent>
 
       <ConfirmDialog
-        actionLabel="Confirmar reemplazo"
+        actionLabel={t ? "Confirmar reemplazo" : "Confirm replacement"}
         body={
           <div className="space-y-4">
             <p>
-              Vas a sustituir los archivos de entrada del proyecto actual.
+              {t ? "Vas a sustituir los archivos de entrada del proyecto actual." : "You are about to replace current project input files."}
             </p>
             {project?.status === "results" ? (
               <>
                 <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-                  Los resultados HTML actuales se conservarán, pero podrían dejar de corresponder
-                  con la nueva plantilla o con los nuevos archivos adicionales.
+                  {t
+                    ? "Los resultados HTML actuales se conservarán, pero podrían dejar de corresponder con la nueva plantilla o con los nuevos archivos adicionales."
+                    : "Current HTML results will be kept, but they may no longer match new template or additional files."}
                 </p>
                 <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                   <input
@@ -263,15 +335,17 @@ export function ProjectEditDialog({
                     type="checkbox"
                   />
                   <span>
-                    Confirmo que quiero reemplazar los archivos de entrada aunque el proyecto ya
-                    tenga resultados existentes.
+                    {t
+                      ? "Confirmo que quiero reemplazar los archivos de entrada aunque el proyecto ya tenga resultados existentes."
+                      : "I confirm I want to replace input files even though project already has existing results."}
                   </span>
                 </label>
               </>
             ) : (
               <p className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-700">
-                Se sustituirá la plantilla actual o el conjunto actual de archivos adicionales por
-                los nuevos ficheros seleccionados.
+                {t
+                  ? "Se sustituirá la plantilla actual o el conjunto actual de archivos adicionales por los nuevos ficheros seleccionados."
+                  : "Current template or current additional file set will be replaced by selected new files."}
               </p>
             )}
           </div>
@@ -291,7 +365,7 @@ export function ProjectEditDialog({
           }
         }}
         open={confirmReplacementOpen}
-        title="Confirmar reemplazo de inputs"
+        title={t ? "Confirmar reemplazo de inputs" : "Confirm input replacement"}
       />
     </Dialog>
   );

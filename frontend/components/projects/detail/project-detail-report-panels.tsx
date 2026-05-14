@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { BrainSparkIcon, ExpandIcon } from "@/components/projects/project-management-icons";
 import { type ParsedProjectReport } from "@/components/projects/project-report-utils";
 import { buttonStyles } from "@/components/ui/button";
@@ -13,6 +14,8 @@ export function ReportCarousel({
 }: {
   images: ParsedProjectReport["images"];
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [activeIndex, setActiveIndex] = useState(0);
   const [expanded, setExpanded] = useState(false);
 
@@ -23,7 +26,9 @@ export function ReportCarousel({
   if (!images.length) {
     return (
       <div className="flex h-[32rem] items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm leading-6 text-slate-500">
-        Esta ejecución no incluye imágenes destacadas para mostrar en la galería.
+        {t
+          ? "Esta ejecución no incluye imágenes destacadas para mostrar en la galería."
+          : "This execution does not include featured images for gallery."}
       </div>
     );
   }
@@ -40,7 +45,7 @@ export function ReportCarousel({
             src={activeImage.src}
           />
           <button
-            aria-label="Ampliar gráfico"
+            aria-label={t ? "Ampliar gráfico" : "Expand chart"}
             className="absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/95 text-slate-700 shadow-sm transition hover:border-slate-300 hover:text-slate-950"
             onClick={() => setExpanded(true)}
             type="button"
@@ -65,7 +70,7 @@ export function ReportCarousel({
             onClick={() => setActiveIndex((current) => Math.max(0, current - 1))}
             type="button"
           >
-            Anterior
+            {t ? "Anterior" : "Previous"}
           </button>
           <button
             className={buttonStyles({ size: "sm", variant: "ghost" })}
@@ -73,7 +78,7 @@ export function ReportCarousel({
             onClick={() => setActiveIndex((current) => Math.min(images.length - 1, current + 1))}
             type="button"
           >
-            Siguiente
+            {t ? "Siguiente" : "Next"}
           </button>
         </div>
       </div>
@@ -105,7 +110,9 @@ export function ReportCarousel({
           <DialogHeader className="dialog-hero-surface shrink-0 border-b border-white/10 px-6 py-5 text-white sm:px-8">
             <DialogTitle className="text-white">{activeImage.alt}</DialogTitle>
             <DialogDescription className="text-slate-200">
-              Visualiza el gráfico ampliado para revisar mejor sus detalles.
+              {t
+                ? "Visualiza el gráfico ampliado para revisar mejor sus detalles."
+                : "View enlarged chart to inspect details more clearly."}
             </DialogDescription>
           </DialogHeader>
 
@@ -127,10 +134,14 @@ export function ReportInsightsPanel({
 }: {
   report: ParsedProjectReport | null;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   if (!report) {
     return (
       <div className="flex h-[32rem] items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm leading-6 text-slate-500">
-        Selecciona una ejecución para consultar el resumen del informe.
+        {t
+          ? "Selecciona una ejecución para consultar el resumen del informe."
+          : "Select execution to review report summary."}
       </div>
     );
   }
@@ -141,15 +152,16 @@ export function ReportInsightsPanel({
         <div className="flex items-center gap-2">
           <BrainSparkIcon className="h-4 w-4 text-sky-700" />
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-            Resumen del informe
+            {t ? "Resumen del informe" : "Report summary"}
           </p>
         </div>
         <h3 className="mt-2 text-lg font-semibold tracking-tight text-slate-950">
-          {report.title ?? "Informe detectado"}
+          {report.title ?? (t ? "Informe detectado" : "Detected report")}
         </h3>
         <p className="mt-2 text-sm leading-6 text-slate-600">
-          Consulta los puntos más relevantes de la ejecución seleccionada y revisa sus apartados
-          principales sin salir de esta página.
+          {t
+            ? "Consulta los puntos más relevantes de la ejecución seleccionada y revisa sus apartados principales sin salir de esta página."
+            : "Review key points from selected execution and inspect main sections without leaving page."}
         </p>
         <div className="mt-4 space-y-3">
           {report.highlights.length > 0 ? (
@@ -160,7 +172,9 @@ export function ReportInsightsPanel({
             ))
           ) : (
             <p className="text-sm leading-6 text-slate-600">
-              No se han encontrado fragmentos destacados en el informe seleccionado.
+              {t
+                ? "No se han encontrado fragmentos destacados en el informe seleccionado."
+                : "No highlighted fragments found in selected report."}
             </p>
           )}
         </div>

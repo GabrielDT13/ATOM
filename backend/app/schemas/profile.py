@@ -7,7 +7,9 @@ class ProfilePreferencesPayload(BaseModel):
     email_notifications: bool = True
     security_alerts: bool = True
     dark_mode: bool = False
+    dark_mode_auto: bool = True
     interface_language: str = "es"
+    interface_language_auto: bool = True
 
     @field_validator("interface_language")
     @classmethod
@@ -51,11 +53,27 @@ class ProfileUpdateRequest(BaseModel):
         return normalized
 
 
+class ProfilePreferencesUpdateRequest(BaseModel):
+    preferences: ProfilePreferencesPayload = Field(default_factory=ProfilePreferencesPayload)
+
+
 class ProfilePasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str
 
     @field_validator("current_password", "new_password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        normalized = value.strip()
+        if len(normalized) < 8:
+            raise ValueError("La contraseña debe tener al menos 8 caracteres")
+        return normalized
+
+
+class ProfileRequiredPasswordChangeRequest(BaseModel):
+    new_password: str
+
+    @field_validator("new_password")
     @classmethod
     def validate_password(cls, value: str) -> str:
         normalized = value.strip()
@@ -98,6 +116,12 @@ class ProfileSummaryResponse(BaseModel):
     pending_reviews: int
 
 
+class PublicProfileSummaryResponse(BaseModel):
+    public_projects: int
+    results_ready: int
+    member_connections: int
+
+
 class ProfileResponse(BaseModel):
     id: str
     email: str
@@ -112,6 +136,29 @@ class ProfileResponse(BaseModel):
     summary: ProfileSummaryResponse
     activity: list[ProfileActivityResponse]
     projects_preview: ProfileProjectsPreviewResponse
+
+
+class PublicProfileProjectResponse(BaseModel):
+    id: str
+    name: str
+    slug: str | None = None
+    status: str
+    updated_at: str
+    member_count: int
+
+
+class PublicProfileResponse(BaseModel):
+    id: str
+    username: str
+    display_name: str
+    role: str
+    department: str | None = None
+    bio: str | None = None
+    joined_at: str
+    updated_at: str
+    summary: PublicProfileSummaryResponse
+    activity: list[ProfileActivityResponse]
+    public_projects: list[PublicProfileProjectResponse]
 
 
 class ProfileMutationResponse(BaseModel):

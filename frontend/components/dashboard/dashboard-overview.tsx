@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import {
   ChartLineIcon,
-  CheckIcon,
   DashboardIcon,
   DatabaseIcon,
   FileIcon,
@@ -15,9 +14,10 @@ import {
   DashboardActivityChart,
   DashboardStatusChart,
 } from "@/components/dashboard/dashboard-overview-charts";
+import { useLocale } from "@/components/providers/locale-provider";
 import { buttonStyles } from "@/components/ui/button";
 import {
-  createEmptyDashboardOverview,
+  createEmptyDashboardOverviewForLocale,
   formatDateTime,
   formatBytes,
   formatDate,
@@ -36,42 +36,55 @@ type DashboardOverviewProps = {
 };
 
 export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
-  const dashboard = overview ?? createEmptyDashboardOverview();
+  const { locale } = useLocale();
+  const t = locale === "es";
+  const dashboard = overview ?? createEmptyDashboardOverviewForLocale(locale);
 
   const metrics = [
     {
       accentClassName: "bg-sky-100 text-sky-700",
-      description: `${formatNumber(dashboard.summary.results_ready)} con informes listos y ${formatNumber(dashboard.summary.pending_analysis)} en preparación.`,
+      description: t
+        ? `${formatNumber(dashboard.summary.results_ready, locale)} con informes listos y ${formatNumber(dashboard.summary.pending_analysis, locale)} en preparación.`
+        : `${formatNumber(dashboard.summary.results_ready, locale)} with reports ready and ${formatNumber(dashboard.summary.pending_analysis, locale)} in preparation.`,
       icon: <FolderIcon className="h-6 w-6" />,
-      title: "Proyectos visibles",
-      value: formatNumber(dashboard.summary.total_projects),
+      title: t ? "Proyectos visibles" : "Visible projects",
+      value: formatNumber(dashboard.summary.total_projects, locale),
     },
     {
       accentClassName: "bg-emerald-100 text-emerald-700",
-      description: `Cobertura actual del portafolio: ${dashboard.summary.completion_rate}% con resultados accesibles.`,
+      description: t
+        ? `Cobertura actual del portafolio: ${dashboard.summary.completion_rate}% con resultados accesibles.`
+        : `Current portfolio coverage: ${dashboard.summary.completion_rate}% with accessible results.`,
       icon: <ChartLineIcon className="h-6 w-6" />,
-      title: "Entregables listos",
-      value: formatNumber(dashboard.summary.results_ready),
+      title: t ? "Entregables listos" : "Ready deliverables",
+      value: formatNumber(dashboard.summary.results_ready, locale),
     },
     {
       accentClassName: "bg-amber-100 text-amber-700",
-      description: `${formatNumber(dashboard.summary.example_files)} archivos públicos de ejemplo y ${formatNumber(dashboard.summary.total_files)} archivos inventariados.`,
+      description: t
+        ? `${formatNumber(dashboard.summary.example_files, locale)} archivos públicos de ejemplo y ${formatNumber(dashboard.summary.total_files, locale)} archivos inventariados.`
+        : `${formatNumber(dashboard.summary.example_files, locale)} public example files and ${formatNumber(dashboard.summary.total_files, locale)} inventoried files.`,
       icon: <DatabaseIcon className="h-6 w-6" />,
-      title: "Biblioteca de datos",
-      value: formatNumber(dashboard.summary.total_files),
+      title: t ? "Biblioteca de datos" : "Data library",
+      value: formatNumber(dashboard.summary.total_files, locale),
     },
     {
       accentClassName: "bg-indigo-100 text-indigo-700",
-      description: `${formatNumber(dashboard.summary.distinct_owners)} propietario(s) y catálogo listo para nuevas ejecuciones.`,
+      description: t
+        ? `${formatNumber(dashboard.summary.distinct_owners, locale)} propietario(s) y catálogo listo para nuevas ejecuciones.`
+        : `${formatNumber(dashboard.summary.distinct_owners, locale)} owner(s) and catalog ready for new runs.`,
       icon: <ScienceIcon className="h-6 w-6" />,
-      title: "Flujos disponibles",
-      value: formatNumber(dashboard.summary.workflow_count),
+      title: t ? "Flujos disponibles" : "Available workflows",
+      value: formatNumber(dashboard.summary.workflow_count, locale),
     },
   ];
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_32px_80px_rgba(15,23,42,0.28)] sm:px-8 lg:px-10">
+      <section
+        className="relative overflow-hidden rounded-[36px] bg-slate-950 px-6 py-8 text-white shadow-[0_32px_80px_rgba(15,23,42,0.28)] sm:px-8 lg:px-10"
+        data-tour="dashboard-hero"
+      >
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.28),_transparent_30%),radial-gradient(circle_at_bottom_right,_rgba(16,185,129,0.24),_transparent_28%),linear-gradient(135deg,_#0f172a_0%,_#111827_45%,_#0b1120_100%)]" />
         <div className="absolute -left-16 top-10 h-40 w-40 rounded-full bg-sky-400/10 blur-3xl" />
         <div className="absolute bottom-0 right-0 h-56 w-56 rounded-full bg-emerald-400/10 blur-3xl" />
@@ -82,23 +95,25 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
               Panel Atlantic Omics
             </span>
             <h2 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
-              Analítica visual para entender el estado real de la plataforma
+              {t
+                ? "Analítica visual para entender el estado real de la plataforma"
+                : "Visual analytics to understand the real platform status"}
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Consulta proyectos, flujos soportados, archivos de ejemplo y la
-              actividad reciente desde una portada pensada para orientar al
-              usuario desde el primer acceso.
+              {t
+                ? "Consulta proyectos, flujos soportados, archivos de ejemplo y la actividad reciente desde una portada pensada para orientar al usuario desde el primer acceso."
+                : "Review projects, supported workflows, example files and recent activity from a landing surface designed to orient the user from first access."}
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
               <span className="rounded-full bg-white/10 px-4 py-2 text-sm text-slate-200">
-                {formatNumber(dashboard.summary.example_files)} archivos de ejemplo
+                {formatNumber(dashboard.summary.example_files, locale)} {t ? "archivos de ejemplo" : "example files"}
               </span>
               <span className="rounded-full bg-white/10 px-4 py-2 text-sm text-slate-200">
-                {formatNumber(dashboard.summary.workflow_count)} flujos preparados
+                {formatNumber(dashboard.summary.workflow_count, locale)} {t ? "flujos preparados" : "prepared workflows"}
               </span>
               <span className="rounded-full bg-white/10 px-4 py-2 text-sm text-slate-200">
-                {formatNumber(dashboard.summary.results_ready)} proyectos con salida lista
+                {formatNumber(dashboard.summary.results_ready, locale)} {t ? "proyectos con salida lista" : "projects with ready output"}
               </span>
             </div>
 
@@ -107,13 +122,13 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                 className={buttonStyles({ size: "lg", tone: "on-dark", variant: "secondary" })}
                 href="/dashboard/create_project"
               >
-                Crear proyecto
+                {t ? "Crear proyecto" : "Create project"}
               </Link>
               <Link
                 className={buttonStyles({ size: "lg", tone: "on-dark", variant: "ghost" })}
                 href="/dashboard/projects"
               >
-                Ver proyectos
+                {t ? "Ver proyectos" : "View projects"}
               </Link>
             </div>
           </div>
@@ -121,7 +136,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
             <div className="rounded-[28px] border border-white/10 bg-white/6 p-5 backdrop-blur">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                Panorama actual
+                {t ? "Panorama actual" : "Current overview"}
               </p>
               <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
                 <div>
@@ -129,15 +144,15 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                     {dashboard.summary.completion_rate}%
                   </p>
                   <p className="mt-1 text-sm text-slate-300">
-                    Cobertura con resultados
+                    {t ? "Cobertura con resultados" : "Coverage with results"}
                   </p>
                 </div>
                 <div>
                   <p className="text-3xl font-semibold">
-                    {formatNumber(dashboard.summary.distinct_owners)}
+                    {formatNumber(dashboard.summary.distinct_owners, locale)}
                   </p>
                   <p className="mt-1 text-sm text-slate-300">
-                    Espacios activos
+                    {t ? "Espacios activos" : "Active spaces"}
                   </p>
                 </div>
               </div>
@@ -145,25 +160,25 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
 
             <div className="rounded-[28px] border border-white/10 bg-white/6 p-5 backdrop-blur">
               <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-400">
-                Entrada rápida
+                {t ? "Entrada rápida" : "Quick glance"}
               </p>
               <div className="mt-4 space-y-3">
                 <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
-                  <span className="text-sm text-slate-200">Pendientes de análisis</span>
+                  <span className="text-sm text-slate-200">{t ? "Pendientes de análisis" : "Pending analysis"}</span>
                   <span className="text-sm font-semibold text-white">
-                    {formatNumber(dashboard.summary.pending_analysis)}
+                    {formatNumber(dashboard.summary.pending_analysis, locale)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
-                  <span className="text-sm text-slate-200">Ejemplos públicos</span>
+                  <span className="text-sm text-slate-200">{t ? "Ejemplos públicos" : "Public examples"}</span>
                   <span className="text-sm font-semibold text-white">
-                    {formatNumber(dashboard.summary.example_files)}
+                    {formatNumber(dashboard.summary.example_files, locale)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between rounded-2xl bg-white/10 px-4 py-3">
-                  <span className="text-sm text-slate-200">Archivos inventariados</span>
+                  <span className="text-sm text-slate-200">{t ? "Archivos inventariados" : "Inventoried files"}</span>
                   <span className="text-sm font-semibold text-white">
-                    {formatNumber(dashboard.summary.total_files)}
+                    {formatNumber(dashboard.summary.total_files, locale)}
                   </span>
                 </div>
               </div>
@@ -193,60 +208,15 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
         />
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Inicio rápido
-              </p>
-              <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Cómo empezar con un proyecto
-              </h3>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Resumen del flujo recomendado para subir una plantilla, cargar
-                datos y revisar resultados desde la plataforma.
-              </p>
-            </div>
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-              <CheckIcon className="h-5 w-5" />
-            </div>
-          </div>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {dashboard.quick_start_steps.length ? dashboard.quick_start_steps.map((step) => (
-              <article
-                className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-5"
-                key={step.step}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-sm font-semibold text-white">
-                    {step.step}
-                  </span>
-                  <h4 className="text-base font-semibold text-slate-950">
-                    {step.title}
-                  </h4>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-slate-500">
-                  {step.description}
-                </p>
-              </article>
-            )) : (
-              <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50/70 px-5 py-10 text-center text-sm text-slate-500 md:col-span-3">
-                La guía de inicio aparecerá aquí cuando el resumen real del dashboard esté disponible.
-              </div>
-            )}
-          </div>
-        </div>
-
+      <section>
         <aside className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Inventario
+                {t ? "Inventario" : "Inventory"}
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Acceso y tipos de archivo
+                {t ? "Acceso y tipos de archivo" : "Access and file types"}
               </h3>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
@@ -257,49 +227,49 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="mt-6 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-slate-50 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                Propios
+                {t ? "Propios" : "Owned"}
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
-                {formatNumber(dashboard.access_summary.owned_projects)}
+                {formatNumber(dashboard.access_summary.owned_projects, locale)}
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                Compartidos
+                {t ? "Compartidos" : "Shared"}
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
-                {formatNumber(dashboard.access_summary.shared_projects)}
+                {formatNumber(dashboard.access_summary.shared_projects, locale)}
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                Editables
+                {t ? "Editables" : "Editable"}
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
-                {formatNumber(dashboard.access_summary.editable_projects)}
+                {formatNumber(dashboard.access_summary.editable_projects, locale)}
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 px-4 py-4">
               <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                Plantillas
+                {t ? "Plantillas" : "Templates"}
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
-                {formatNumber(dashboard.file_breakdown.templates)}
+                {formatNumber(dashboard.file_breakdown.templates, locale)}
               </p>
             </div>
           </div>
 
           <div className="mt-5 space-y-3">
             <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
-              <span className="text-sm text-slate-600">Resultados HTML</span>
+              <span className="text-sm text-slate-600">{t ? "Resultados HTML" : "HTML results"}</span>
               <span className="text-sm font-semibold text-slate-950">
-                {formatNumber(dashboard.file_breakdown.results)}
+                {formatNumber(dashboard.file_breakdown.results, locale)}
               </span>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-slate-200 px-4 py-3">
-              <span className="text-sm text-slate-600">Archivos adicionales</span>
+              <span className="text-sm text-slate-600">{t ? "Archivos adicionales" : "Additional files"}</span>
               <span className="text-sm font-semibold text-slate-950">
-                {formatNumber(dashboard.file_breakdown.additional)}
+                {formatNumber(dashboard.file_breakdown.additional, locale)}
               </span>
             </div>
           </div>
@@ -311,18 +281,19 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Tipos de análisis
+                {t ? "Tipos de análisis" : "Analysis types"}
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Flujos visibles para el usuario final
+                {t ? "Flujos visibles para el usuario final" : "Workflows visible to the end user"}
               </h3>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                Los flujos se muestran a partir de los scripts reales detectados
-                en la plataforma y de su relación con el inventario actual.
+                {t
+                  ? "Los flujos se muestran a partir de los scripts reales detectados en la plataforma y de su relación con el inventario actual."
+                  : "Workflows are shown from the real scripts detected in the platform and their relation to the current inventory."}
               </p>
             </div>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-              {formatNumber(dashboard.workflows.length)} disponibles
+              {formatNumber(dashboard.workflows.length, locale)} {t ? "disponibles" : "available"}
             </span>
           </div>
 
@@ -341,8 +312,10 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                       </span>
                       <span className="rounded-full bg-slate-950 px-3 py-1 text-xs font-semibold text-white">
                         {workflow.project_matches > 0
-                          ? `${formatNumber(workflow.project_matches)} proyecto(s)`
-                          : "Sin proyectos vinculados"}
+                          ? t
+                            ? `${formatNumber(workflow.project_matches, locale)} proyecto(s)`
+                            : `${formatNumber(workflow.project_matches, locale)} project(s)`
+                          : t ? "Sin proyectos vinculados" : "No linked projects"}
                       </span>
                     </div>
 
@@ -358,7 +331,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
 
                       <div className="relative mx-auto h-28 w-28 transition duration-300 group-hover:scale-105">
                         <Image
-                          alt={`Ilustración de ${workflow.title}`}
+                          alt={t ? `Ilustración de ${workflow.title}` : `Illustration of ${workflow.title}`}
                           className="object-contain drop-shadow-[0_16px_24px_rgba(14,165,233,0.22)]"
                           fill
                           sizes="112px"
@@ -371,7 +344,9 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
               </article>
             )) : (
               <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500 md:col-span-2">
-                No se han detectado scripts de análisis disponibles en este momento.
+                {t
+                  ? "No se han detectado scripts de análisis disponibles en este momento."
+                  : "No analysis scripts are currently available."}
               </div>
             )}
           </div>
@@ -381,10 +356,10 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Actividad reciente
+                {t ? "Actividad reciente" : "Recent activity"}
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Últimos movimientos visibles
+                {t ? "Últimos movimientos visibles" : "Latest visible activity"}
               </h3>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
@@ -395,43 +370,43 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="mt-6 grid grid-cols-2 gap-3">
             <div className="rounded-2xl bg-slate-50 px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                Eventos
+                {t ? "Eventos" : "Events"}
               </p>
               <p className="mt-2 text-2xl font-semibold text-slate-950">
-                {formatNumber(dashboard.activity_summary.total_events)}
+                {formatNumber(dashboard.activity_summary.total_events, locale)}
               </p>
             </div>
             <div className="rounded-2xl bg-slate-50 px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                Última señal
+                {t ? "Última señal" : "Latest signal"}
               </p>
               <p className="mt-2 text-sm font-semibold text-slate-950">
                 {dashboard.activity_summary.last_event_at
-                  ? formatDateTime(dashboard.activity_summary.last_event_at)
-                  : "Sin registros"}
+                  ? formatDateTime(dashboard.activity_summary.last_event_at, locale)
+                  : t ? "Sin registros" : "No records"}
               </p>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.18em] text-emerald-600">
-                Completados
+                {t ? "Completados" : "Completed"}
               </p>
               <p className="mt-2 text-2xl font-semibold text-emerald-700">
-                {formatNumber(dashboard.activity_summary.analyses_completed)}
+                {formatNumber(dashboard.activity_summary.analyses_completed, locale)}
               </p>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50/70 px-4 py-4">
               <p className="text-[11px] uppercase tracking-[0.18em] text-amber-600">
-                Con incidencias
+                {t ? "Con incidencias" : "With issues"}
               </p>
               <p className="mt-2 text-2xl font-semibold text-amber-700">
-                {formatNumber(dashboard.activity_summary.analyses_failed)}
+                {formatNumber(dashboard.activity_summary.analyses_failed, locale)}
               </p>
             </div>
           </div>
 
           <div className="mt-5 space-y-3">
             {dashboard.recent_activity.length ? dashboard.recent_activity.map((item) => {
-              const meta = getDashboardActivityMeta(item);
+              const meta = getDashboardActivityMeta(item, locale);
 
               const Icon =
                 item.kind === "analysis"
@@ -462,7 +437,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                           {meta.label}
                         </span>
                         <span className="text-xs text-slate-400">
-                          {formatDate(item.created_at)}
+                          {formatDate(item.created_at, locale)}
                         </span>
                       </div>
                       {(item.project_name || item.analysis_type || item.design_id) ? (
@@ -481,7 +456,9 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
               );
             }) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                Aún no se han registrado movimientos recientes de proyectos o ejecuciones.
+                {t
+                  ? "Aún no se han registrado movimientos recientes de proyectos o ejecuciones."
+                  : "No recent project or execution activity has been recorded yet."}
               </div>
             )}
           </div>
@@ -493,23 +470,23 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Proyectos
+                {t ? "Proyectos" : "Projects"}
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Proyectos destacados
+                {t ? "Proyectos destacados" : "Featured projects"}
               </h3>
             </div>
             <Link
               className="inline-flex items-center rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200"
               href="/dashboard/projects"
             >
-              Abrir inventario
+              {t ? "Abrir inventario" : "Open inventory"}
             </Link>
           </div>
 
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             {dashboard.featured_projects.length ? dashboard.featured_projects.map((project) => {
-              const statusMeta = getStatusMeta(project.status);
+              const statusMeta = getStatusMeta(project.status, project.active_run, locale);
 
               return (
                 <article
@@ -533,7 +510,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                   </div>
 
                   <p className="mt-4 text-sm leading-6 text-slate-600">
-                    {getProjectSupportingText(project)}
+                    {getProjectSupportingText(project, locale)}
                   </p>
 
                   <div className="mt-5 flex flex-wrap gap-2">
@@ -548,14 +525,16 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                   </div>
 
                   <div className="mt-6 flex items-center justify-between text-xs text-slate-500">
-                    <span>{formatNumber(project.file_count)} archivo(s)</span>
-                    <span>{formatDateLong(project.updated_at)}</span>
+                    <span>{t ? `${formatNumber(project.file_count, locale)} archivo(s)` : `${formatNumber(project.file_count, locale)} file(s)`}</span>
+                    <span>{formatDateLong(project.updated_at, locale)}</span>
                   </div>
                 </article>
               );
             }) : (
               <div className="rounded-[28px] border border-dashed border-slate-200 bg-slate-50 px-5 py-10 text-center text-sm text-slate-500 lg:col-span-2">
-                Todavía no hay suficientes proyectos para destacar resultados o configuraciones recientes.
+                {t
+                  ? "Todavía no hay suficientes proyectos para destacar resultados o configuraciones recientes."
+                  : "There are not enough projects yet to highlight recent results or configurations."}
               </div>
             )}
           </div>
@@ -565,10 +544,10 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-                Recursos
+                {t ? "Recursos" : "Resources"}
               </p>
               <h3 className="mt-2 text-xl font-semibold text-slate-950">
-                Biblioteca pública de ejemplos
+                {t ? "Biblioteca pública de ejemplos" : "Public example library"}
               </h3>
             </div>
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
@@ -578,7 +557,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
 
           <div className="mt-6 space-y-2.5">
             {dashboard.example_library.length ? dashboard.example_library.map((exampleFile) => {
-              const meta = getExampleKindMeta(exampleFile);
+              const meta = getExampleKindMeta(exampleFile, locale);
 
               return (
                 <div
@@ -603,7 +582,7 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                   <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
                     <div className="flex items-center gap-3">
                       <span>{formatBytes(exampleFile.size_bytes)}</span>
-                      <span>{formatDate(exampleFile.updated_at)}</span>
+                      <span>{formatDate(exampleFile.updated_at, locale)}</span>
                     </div>
                     <a
                       className="font-semibold text-primary transition hover:text-primary-dark"
@@ -611,14 +590,16 @@ export function DashboardOverviewView({ overview }: DashboardOverviewProps) {
                       rel="noreferrer"
                       target="_blank"
                     >
-                      Descargar
+                      {t ? "Descargar" : "Download"}
                     </a>
                   </div>
                 </div>
               );
             }) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                No hay archivos públicos de ejemplo visibles en este momento.
+                {t
+                  ? "No hay archivos públicos de ejemplo visibles en este momento."
+                  : "There are no visible public example files at the moment."}
               </div>
             )}
           </div>

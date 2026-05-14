@@ -34,6 +34,7 @@ def test_get_projects_route_returns_project_map_and_items(
                     "status": "results",
                     "template_file": "template.xlsx",
                     "updated_at": "2026-03-09T17:30:00+00:00",
+                    "visibility": "private",
                 }
             ],
         },
@@ -58,6 +59,70 @@ def test_get_projects_route_returns_project_map_and_items(
                 "status": "results",
                 "template_file": "template.xlsx",
                 "updated_at": "2026-03-09T17:30:00+00:00",
+                "visibility": "private",
+            }
+        ],
+        "projects": {"researcher": ["RNA Atlas"]},
+    }
+
+
+def test_get_public_projects_route_returns_public_project_map_and_items(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "get_current_user",
+        lambda request: {"id": "user-2", "username": "visitor", "role": "user"},
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "list_public_projects_for_user",
+        lambda user_id, username, role: {
+            "projects": {"researcher": ["RNA Atlas"]},
+            "items": [
+                {
+                    "access_role": "viewer",
+                    "additional_files": ["notes.csv"],
+                    "created_at": "2026-03-09T17:00:00+00:00",
+                    "file_count": 3,
+                    "files": ["notes.csv", "report/index.html", "template.xlsx"],
+                    "html_files": ["report/index.html"],
+                    "id": "project-1",
+                    "name": "RNA Atlas",
+                    "owner": "researcher",
+                    "slug": "researcher-rna-atlas",
+                    "status": "results",
+                    "template_file": "template.xlsx",
+                    "updated_at": "2026-03-09T17:30:00+00:00",
+                    "visibility": "public",
+                }
+            ],
+        },
+    )
+
+    response = client.get("/api/projects/public")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "items": [
+            {
+                "access_role": "viewer",
+                "additional_files": ["notes.csv"],
+                "created_at": "2026-03-09T17:00:00+00:00",
+                "file_count": 3,
+                "files": ["notes.csv", "report/index.html", "template.xlsx"],
+                "html_files": ["report/index.html"],
+                "id": "project-1",
+                "name": "RNA Atlas",
+                "owner": "researcher",
+                "slug": "researcher-rna-atlas",
+                "status": "results",
+                "template_file": "template.xlsx",
+                "updated_at": "2026-03-09T17:30:00+00:00",
+                "visibility": "public",
             }
         ],
         "projects": {"researcher": ["RNA Atlas"]},
@@ -97,6 +162,7 @@ def test_get_project_route_returns_structured_project_details(
             "status": "results",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -131,12 +197,27 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         lambda request: {"id": "user-1", "username": "researcher", "role": "user"},
     )
 
-    async def fake_create_project(actor_user_id, username, project_name, template_file, additional_files):
+    async def fake_create_project(
+        actor_user_id,
+        username,
+        project_name,
+        template_file,
+        additional_files,
+        *,
+        entity_name=None,
+        team_id=None,
+        visibility="private",
+        actor_role="user",
+    ):
         captured["actor_user_id"] = actor_user_id
         captured["username"] = username
         captured["project_name"] = project_name
         captured["template_file"] = template_file.filename
         captured["additional_files"] = [upload.filename for upload in additional_files]
+        captured["entity_name"] = entity_name
+        captured["team_id"] = team_id
+        captured["visibility"] = visibility
+        captured["actor_role"] = actor_role
         return True, "Proyecto creado correctamente"
 
     monkeypatch.setattr(project_routes, "create_project", fake_create_project)
@@ -166,6 +247,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -211,6 +293,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
         "success": True,
     }
@@ -220,6 +303,10 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         "project_name": "RNA Atlas",
         "template_file": "template.xlsx",
         "additional_files": ["notes.csv"],
+        "entity_name": None,
+        "team_id": None,
+        "visibility": "private",
+        "actor_role": "user",
     }
 
 
@@ -243,7 +330,17 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         lambda request: {"id": "user-1", "username": "researcher", "role": "user"},
     )
 
-    async def fake_update_project(actor_user_id, actor_username, owner, project_name, new_name, excel_file, additional_files):
+    async def fake_update_project(
+        actor_user_id,
+        actor_username,
+        owner,
+        project_name,
+        new_name,
+        excel_file,
+        additional_files,
+        entity_name=None,
+        visibility=None,
+    ):
         captured["actor_user_id"] = actor_user_id
         captured["actor_username"] = actor_username
         captured["owner"] = owner
@@ -251,6 +348,8 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         captured["new_name"] = new_name
         captured["excel_file"] = excel_file.filename if excel_file else None
         captured["additional_files"] = [upload.filename for upload in additional_files]
+        captured["entity_name"] = entity_name
+        captured["visibility"] = visibility
         return True, "Proyecto actualizado correctamente", new_name or project_name
 
     monkeypatch.setattr(project_routes, "update_project", fake_update_project)
@@ -280,6 +379,7 @@ def test_put_project_route_forwards_name_and_uploaded_files(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T18:00:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -325,6 +425,7 @@ def test_put_project_route_forwards_name_and_uploaded_files(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T18:00:00+00:00",
+            "visibility": "private",
         },
         "success": True,
     }
@@ -338,6 +439,8 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         "new_name": "RNA Atlas 2026",
         "excel_file": "template.xlsx",
         "additional_files": ["fresh.csv"],
+        "entity_name": None,
+        "visibility": None,
     }
 
 
@@ -350,11 +453,14 @@ def test_get_project_members_route_returns_members(client: TestClient, monkeypat
         "get_project_members",
         lambda owner, project_name: [
             {
+                "access_via_teams": [],
                 "avatar_url": "https://example.com/owner.png",
                 "bio": "Dirige el proyecto RNA Atlas.",
                 "department": "Bioinformatica",
+                "direct_member_role": "owner",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
+                "has_direct_access": True,
                 "id": "user-1",
                 "is_owner": True,
                 "member_role": "owner",
@@ -369,11 +475,14 @@ def test_get_project_members_route_returns_members(client: TestClient, monkeypat
     assert response.json() == {
         "members": [
             {
+                "access_via_teams": [],
                 "avatar_url": "https://example.com/owner.png",
                 "bio": "Dirige el proyecto RNA Atlas.",
                 "department": "Bioinformatica",
+                "direct_member_role": "owner",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
+                "has_direct_access": True,
                 "id": "user-1",
                 "is_owner": True,
                 "member_role": "owner",
@@ -418,6 +527,7 @@ def test_get_project_by_ref_route_resolves_slug_and_returns_project(
             "status": "results",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -451,11 +561,14 @@ def test_get_project_members_by_ref_route_returns_members(
         "get_project_members_by_ref",
         lambda project_ref: [
             {
+                "access_via_teams": [],
                 "avatar_url": None,
                 "bio": None,
                 "department": "Bioinformatica",
+                "direct_member_role": "owner",
                 "display_name": "Research Owner",
                 "email": "owner@example.com",
+                "has_direct_access": True,
                 "id": "user-1",
                 "is_owner": True,
                 "member_role": "owner",
@@ -469,6 +582,55 @@ def test_get_project_members_by_ref_route_returns_members(
     assert response.status_code == 200
     assert response.json()["members"][0]["id"] == "user-1"
     assert response.json()["members"][0]["username"] == "researcher"
+
+
+def test_get_project_share_candidates_route_returns_overlap_metadata(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(project_routes, "_require_project_owner", lambda request, owner: None)
+    monkeypatch.setattr(
+        project_routes,
+        "search_project_share_candidates",
+        lambda owner, project_name, q, limit: [
+            {
+                "access_via_teams": ["Equipo Alpha"],
+                "avatar_url": None,
+                "bio": None,
+                "department": "Bioinformatica",
+                "direct_member_role": None,
+                "display_name": "Team Collaborator",
+                "email": "collab@example.com",
+                "has_direct_access": False,
+                "id": "user-2",
+                "member_role": "viewer",
+                "username": "collab",
+            }
+        ],
+    )
+
+    response = client.get("/api/projects/researcher/RNA%20Atlas/share-candidates?q=col")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "users": [
+            {
+                "access_via_teams": ["Equipo Alpha"],
+                "avatar_url": None,
+                "bio": None,
+                "department": "Bioinformatica",
+                "direct_member_role": None,
+                "display_name": "Team Collaborator",
+                "email": "collab@example.com",
+                "has_direct_access": False,
+                "id": "user-2",
+                "member_role": "viewer",
+                "username": "collab",
+            }
+        ]
+    }
 
 
 def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -> None:
@@ -485,11 +647,14 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
         "get_project_members",
         lambda owner, project_name: [
             {
+                "access_via_teams": [],
                 "avatar_url": None,
                 "bio": "Visualiza resultados y valida informes.",
                 "department": None,
+                "direct_member_role": "viewer",
                 "display_name": "Shared Viewer",
                 "email": "viewer@example.com",
+                "has_direct_access": True,
                 "id": "user-2",
                 "is_owner": False,
                 "member_role": "viewer",
@@ -506,11 +671,14 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
     assert response.status_code == 200
     assert response.json() == {
         "member": {
+            "access_via_teams": [],
             "avatar_url": None,
             "bio": "Visualiza resultados y valida informes.",
             "department": None,
+            "direct_member_role": "viewer",
             "display_name": "Shared Viewer",
             "email": "viewer@example.com",
+            "has_direct_access": True,
             "id": "user-2",
             "is_owner": False,
             "member_role": "viewer",
@@ -518,6 +686,156 @@ def test_put_project_member_route_adds_member(client: TestClient, monkeypatch) -
         },
         "message": "Proyecto compartido correctamente",
         "success": True,
+    }
+
+
+def test_get_project_team_candidates_route_returns_overlap_metadata(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "_require_project_owner",
+        lambda request, owner: {"id": "user-1", "username": owner, "role": "user"},
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "search_project_team_candidates",
+        lambda owner, project_name, session_user_id, session_username, role, query, limit: [
+            {
+                "direct_member_overlap_count": 1,
+                "direct_member_overlap_usernames": ["analyst"],
+                "entity_name": "ULPGC",
+                "id": "team-1",
+                "linked_at": "",
+                "member_count": 3,
+                "member_role": "viewer",
+                "name": "Equipo Alpha",
+                "owner_username": session_username,
+                "slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+
+    response = client.get("/api/projects/researcher/RNA%20Atlas/team-candidates?q=equipo")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "teams": [
+            {
+                "direct_member_overlap_count": 1,
+                "direct_member_overlap_usernames": ["analyst"],
+                "entity_name": "ULPGC",
+                "id": "team-1",
+                "linked_at": "",
+                "member_count": 3,
+                "member_role": "viewer",
+                "name": "Equipo Alpha",
+                "owner_username": "researcher",
+                "slug": "researcher-equipo-alpha",
+            }
+        ]
+    }
+
+
+def test_get_project_teams_route_returns_linked_teams(client: TestClient, monkeypatch) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(project_routes, "_require_project_view_access", lambda request, owner, project_name: None)
+    monkeypatch.setattr(
+        project_routes,
+        "list_project_teams",
+        lambda owner, project_name: [
+            {
+                "entity_name": "Universidad de Las Palmas de Gran Canaria",
+                "id": "team-1",
+                "linked_at": "2026-04-14T10:00:00+00:00",
+                "member_count": 3,
+                "member_role": "editor",
+                "name": "Equipo Alpha",
+                "owner_username": "researcher",
+                "slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+
+    response = client.get("/api/projects/researcher/RNA%20Atlas/teams")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "teams": [
+            {
+                "direct_member_overlap_count": 0,
+                "direct_member_overlap_usernames": [],
+                "entity_name": "Universidad de Las Palmas de Gran Canaria",
+                "id": "team-1",
+                "linked_at": "2026-04-14T10:00:00+00:00",
+                "member_count": 3,
+                "member_role": "editor",
+                "name": "Equipo Alpha",
+                "owner_username": "researcher",
+                "slug": "researcher-equipo-alpha",
+            }
+        ]
+    }
+
+
+def test_put_project_team_route_adds_team(client: TestClient, monkeypatch) -> None:
+    from backend.app.api.routes import projects as project_routes
+
+    monkeypatch.setattr(
+        project_routes,
+        "_require_project_owner",
+        lambda request, owner: {"id": "user-1", "username": owner, "role": "user"},
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "add_project_team",
+        lambda owner, project_name, team_id, session_user_id, session_username, role, member_role: (
+            True,
+            "Proyecto compartido con el equipo correctamente",
+        ),
+    )
+    monkeypatch.setattr(
+        project_routes,
+        "list_project_teams",
+        lambda owner, project_name: [
+            {
+                "entity_name": None,
+                "id": "team-1",
+                "linked_at": "2026-04-14T10:00:00+00:00",
+                "member_count": 2,
+                "member_role": "viewer",
+                "name": "Equipo Alpha",
+                "owner_username": owner,
+                "slug": "researcher-equipo-alpha",
+            }
+        ],
+    )
+
+    response = client.put(
+        "/api/projects/researcher/RNA%20Atlas/teams/team-1",
+        json={"member_role": "viewer"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "message": "Proyecto compartido con el equipo correctamente",
+        "success": True,
+        "team": {
+            "direct_member_overlap_count": 0,
+            "direct_member_overlap_usernames": [],
+            "entity_name": None,
+            "id": "team-1",
+            "linked_at": "2026-04-14T10:00:00+00:00",
+            "member_count": 2,
+            "member_role": "viewer",
+            "name": "Equipo Alpha",
+            "owner_username": "researcher",
+            "slug": "researcher-equipo-alpha",
+        },
     }
 
 
@@ -563,6 +881,7 @@ def test_post_transfer_project_ownership_route_returns_updated_project(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
     )
 
@@ -594,6 +913,7 @@ def test_post_transfer_project_ownership_route_returns_updated_project(
             "status": "configured",
             "template_file": "template.xlsx",
             "updated_at": "2026-03-09T17:30:00+00:00",
+            "visibility": "private",
         },
         "success": True,
     }

@@ -15,7 +15,7 @@ from fastapi import APIRouter, Request
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-@router.get("", response_model=list[UserResponse])
+@router.get("", response_model=list[UserResponse], response_model_exclude_none=True)
 async def get_users(request: Request) -> list[UserResponse]:
     current_user = get_current_user(request)
     users = list_users()
@@ -24,24 +24,39 @@ async def get_users(request: Request) -> list[UserResponse]:
     return [UserResponse(**user) for user in users]
 
 
-@router.post("", response_model=UserMutationResponse)
+@router.post("", response_model=UserMutationResponse, response_model_exclude_none=True)
 async def post_user(payload: UserCreateRequest, request: Request) -> UserMutationResponse:
     current_user = require_admin(request)
-    success, message = create_user(
-        payload.username,
-        payload.password,
-        payload.email,
-        payload.role,
-        payload.department,
-        str(current_user["id"]),
-    )
+    entity_requested = "entity_name" in payload.model_fields_set
+    if not entity_requested:
+        success, message, temporary_password = create_user(
+            payload.username,
+            payload.email,
+            payload.role,
+            payload.department,
+            str(current_user["id"]),
+        )
+    else:
+        success, message, temporary_password = create_user(
+            payload.username,
+            payload.email,
+            payload.role,
+            payload.department,
+            str(current_user["id"]),
+            entity_name=payload.entity_name,
+        )
     user = None
     if success:
         user = UserResponse(**get_user_by_username(payload.username))
-    return UserMutationResponse(success=success, message=message, user=user)
+    return UserMutationResponse(
+        success=success,
+        message=message,
+        user=user,
+        temporary_password=temporary_password if success else None,
+    )
 
 
-@router.put("/{username}", response_model=UserMutationResponse)
+@router.put("/{username}", response_model=UserMutationResponse, response_model_exclude_none=True)
 async def put_user(
     username: str,
     payload: UserUpdateRequest,
@@ -49,15 +64,28 @@ async def put_user(
 ) -> UserMutationResponse:
     current_user = require_admin(request)
 
-    success, message, effective_username = update_user(
-        username,
-        payload.username,
-        payload.email,
-        payload.password,
-        payload.role,
-        payload.department,
-        str(current_user["id"]),
-    )
+    entity_requested = "entity_name" in payload.model_fields_set
+    if not entity_requested:
+        success, message, effective_username = update_user(
+            username,
+            payload.username,
+            payload.email,
+            payload.password,
+            payload.role,
+            payload.department,
+            str(current_user["id"]),
+        )
+    else:
+        success, message, effective_username = update_user(
+            username,
+            payload.username,
+            payload.email,
+            payload.password,
+            payload.role,
+            payload.department,
+            str(current_user["id"]),
+            entity_name=payload.entity_name,
+        )
 
     if not success:
         return UserMutationResponse(success=False, message=message, user=None)

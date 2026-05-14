@@ -7,6 +7,8 @@ export type SessionUser = {
   last_name?: string | null;
   department?: string | null;
   display_name?: string | null;
+  must_change_password?: boolean;
+  welcome_tour_seen?: boolean;
 };
 
 export type SessionResponse = {
@@ -14,11 +16,18 @@ export type SessionResponse = {
   user: SessionUser | null;
 };
 
+export type AuthMessageResponse = {
+  success: boolean;
+  message: string;
+};
+
 export type ProfilePreferences = {
   email_notifications: boolean;
   security_alerts: boolean;
   dark_mode: boolean;
+  dark_mode_auto: boolean;
   interface_language: "es" | "en";
+  interface_language_auto: boolean;
 };
 
 export type ProfileActivityRecord = {
@@ -77,6 +86,103 @@ export type ProfileMutationResponse = {
   profile: ProfileRecord | null;
 };
 
+export type PublicProfileSummary = {
+  public_projects: number;
+  results_ready: number;
+  member_connections: number;
+};
+
+export type PublicProfileProject = {
+  id: string;
+  name: string;
+  slug?: string | null;
+  status: ProjectStatus;
+  updated_at: string;
+  member_count: number;
+};
+
+export type PublicProfileRecord = {
+  id: string;
+  username: string;
+  display_name: string;
+  role: "admin" | "user";
+  department?: string | null;
+  bio?: string | null;
+  joined_at: string;
+  updated_at: string;
+  summary: PublicProfileSummary;
+  activity: ProfileActivityRecord[];
+  public_projects: PublicProfileProject[];
+};
+
+export type AnalysisRunStatus =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
+export type AnalysisRun = {
+  id: string;
+  project_id: string;
+  project_name: string;
+  project_owner_username: string;
+  requested_by_user_id: string;
+  requested_by_username: string;
+  status: AnalysisRunStatus;
+  total_designs: number;
+  processed_designs: number;
+  successful_designs: number;
+  failed_designs: number;
+  current_design_id?: string | null;
+  current_analysis_type?: string | null;
+  error_message?: string | null;
+  trigger_source: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AnalysisRunMutationResponse = {
+  created: boolean;
+  run: AnalysisRun;
+};
+
+export type AnalysisRunEventType =
+  | "run_started"
+  | "run_completed"
+  | "run_failed"
+  | "design_started"
+  | "design_completed"
+  | "design_failed"
+  | "cleanup_completed"
+  | "cleanup_failed"
+  | "log";
+
+export type AnalysisRunEvent = {
+  id: number;
+  run_id: string;
+  event_type: AnalysisRunEventType;
+  level: "error" | "info" | "success" | "warning" | string;
+  message: string;
+  analysis_type?: string | null;
+  design_id?: string | null;
+  current_index?: number | null;
+  total_designs?: number | null;
+  duration_seconds?: number | null;
+  exit_code?: number | null;
+  created_at?: string | null;
+};
+
+export type AnalysisRunCollectionResponse = {
+  items: AnalysisRun[];
+};
+
+export type AnalysisRunEventCollectionResponse = {
+  items: AnalysisRunEvent[];
+};
+
 export type SidebarLink = {
   name: string;
   url: string;
@@ -95,6 +201,7 @@ export type SidebarTreeItem = {
 
 export type SidebarProjectItem = {
   access_role?: ProjectMemberRole | null;
+  active_run?: AnalysisRun | null;
   can_run: boolean;
   file_count: number;
   html_count: number;
@@ -112,6 +219,37 @@ export type SidebarResponse<T> = {
   items: T[];
 };
 
+export type NotificationRecord = {
+  action_label?: string | null;
+  action_url?: string | null;
+  actor_display_name?: string | null;
+  actor_user_id?: string | null;
+  actor_username?: string | null;
+  created_at?: string | null;
+  id: number;
+  is_read: boolean;
+  message: string;
+  project_id?: string | null;
+  project_name?: string | null;
+  project_owner_username?: string | null;
+  project_slug?: string | null;
+  read_at?: string | null;
+  title: string;
+  type: string;
+  user_id: string;
+};
+
+export type NotificationCollectionResponse = {
+  items: NotificationRecord[];
+  unread_count: number;
+};
+
+export type NotificationMutationResponse = {
+  success: boolean;
+  unread_count: number;
+  updated_count: number;
+};
+
 export type UserRecord = {
   id: string;
   username: string;
@@ -120,6 +258,7 @@ export type UserRecord = {
   first_name?: string | null;
   last_name?: string | null;
   department?: string | null;
+  entity_name?: string | null;
   display_name?: string | null;
 };
 
@@ -129,13 +268,32 @@ export type DepartmentRecord = {
   slug: string;
 };
 
+export type EntityRecord = {
+  created_at?: string | null;
+  id: string;
+  logo_url?: string | null;
+  name: string;
+  project_count?: number;
+  slug: string;
+  team_count?: number;
+  user_count?: number;
+};
+
+export type EntityMutationResponse = {
+  success: boolean;
+  message: string;
+  entity: EntityRecord | null;
+};
+
 export type MutationResponse = {
   success: boolean;
   message: string;
+  temporary_password?: string | null;
   user?: UserRecord | null;
 };
 
 export type ProjectStatus = "configured" | "empty" | "results";
+export type ProjectVisibility = "private" | "public";
 
 export type ProjectFileKind = "additional" | "result" | "template";
 
@@ -149,8 +307,13 @@ export type ProjectFileEntry = {
 
 export type ProjectSummary = {
   access_role?: ProjectMemberRole | null;
+  active_run?: AnalysisRun | null;
   additional_files: string[];
   created_at: string;
+  entity_id?: string | null;
+  entity_logo_url?: string | null;
+  entity_name?: string | null;
+  entity_slug?: string | null;
   file_count: number;
   files: string[];
   html_files: string[];
@@ -161,6 +324,7 @@ export type ProjectSummary = {
   status: ProjectStatus;
   template_file: string | null;
   updated_at: string;
+  visibility: ProjectVisibility;
 };
 
 export type ProjectMapResponse = {
@@ -178,14 +342,74 @@ export type ProjectMutationResponse = {
   project: ProjectDetails | null;
 };
 
-export type ProjectMemberRole = "editor" | "owner" | "viewer";
+export type TeamMemberRole = "member" | "owner";
 
-export type ProjectMemberRecord = {
+export type TeamMember = {
   avatar_url?: string | null;
-  bio?: string | null;
   department?: string | null;
   display_name: string;
   email?: string | null;
+  entity_name?: string | null;
+  id: string;
+  is_owner: boolean;
+  member_role: TeamMemberRole;
+  username: string;
+};
+
+export type TeamSummary = {
+  created_at: string;
+  entity_id?: string | null;
+  entity_name?: string | null;
+  entity_slug?: string | null;
+  id: string;
+  member_count: number;
+  membership_role?: TeamMemberRole | null;
+  name: string;
+  owner_id: string;
+  owner_username: string;
+  slug: string;
+  updated_at: string;
+};
+
+export type TeamDetails = TeamSummary & {
+  members: TeamMember[];
+};
+
+export type TeamCollectionResponse = {
+  items: TeamSummary[];
+};
+
+export type TeamMutationResponse = {
+  success: boolean;
+  message: string;
+  team: TeamDetails | null;
+};
+
+export type TeamMemberCandidate = {
+  avatar_url?: string | null;
+  department?: string | null;
+  display_name: string;
+  email?: string | null;
+  entity_name?: string | null;
+  id: string;
+  username: string;
+};
+
+export type TeamMemberCandidatesResponse = {
+  users: TeamMemberCandidate[];
+};
+
+export type ProjectMemberRole = "editor" | "owner" | "viewer";
+
+export type ProjectMemberRecord = {
+  access_via_teams?: string[];
+  avatar_url?: string | null;
+  bio?: string | null;
+  department?: string | null;
+  direct_member_role?: ProjectMemberRole | null;
+  display_name: string;
+  email?: string | null;
+  has_direct_access?: boolean;
   id: string;
   is_owner: boolean;
   member_role: ProjectMemberRole;
@@ -197,12 +421,16 @@ export type ProjectMembersResponse = {
 };
 
 export type ProjectShareCandidate = {
+  access_via_teams?: string[];
   avatar_url?: string | null;
   bio?: string | null;
   department?: string | null;
+  direct_member_role?: ProjectMemberRole | null;
   display_name: string;
   email?: string | null;
+  has_direct_access?: boolean;
   id: string;
+  member_role?: ProjectMemberRole | null;
   username: string;
 };
 
@@ -214,6 +442,33 @@ export type ProjectMemberMutationResponse = {
   success: boolean;
   member: ProjectMemberRecord | null;
   message: string;
+};
+
+export type ProjectSharedTeam = {
+  direct_member_overlap_count?: number;
+  direct_member_overlap_usernames?: string[];
+  entity_name?: string | null;
+  id: string;
+  linked_at: string;
+  member_count: number;
+  member_role: Extract<ProjectMemberRole, "editor" | "viewer">;
+  name: string;
+  owner_username: string;
+  slug: string;
+};
+
+export type ProjectTeamsResponse = {
+  teams: ProjectSharedTeam[];
+};
+
+export type ProjectTeamCandidatesResponse = {
+  teams: ProjectSharedTeam[];
+};
+
+export type ProjectTeamMutationResponse = {
+  success: boolean;
+  message: string;
+  team: ProjectSharedTeam | null;
 };
 
 export type FileContentResponse = {
@@ -327,6 +582,7 @@ export type DashboardStatusBreakdown = {
 
 export type DashboardProjectHighlight = {
   access_role?: ProjectMemberRole | null;
+  active_run?: AnalysisRun | null;
   file_count: number;
   highlight_files: string[];
   name: string;

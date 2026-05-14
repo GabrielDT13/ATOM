@@ -28,7 +28,9 @@ def test_get_my_profile_route_returns_profile(client: TestClient, monkeypatch) -
                 "email_notifications": True,
                 "security_alerts": True,
                 "dark_mode": False,
+                "dark_mode_auto": True,
                 "interface_language": "es",
+                "interface_language_auto": True,
             },
             "summary": {
                 "active_projects": 2,
@@ -54,6 +56,59 @@ def test_get_my_profile_route_returns_profile(client: TestClient, monkeypatch) -
 
     assert response.status_code == 200
     assert response.json()["username"] == "doctor"
+
+
+def test_get_public_profile_route_returns_public_profile(client: TestClient, monkeypatch) -> None:
+    from backend.app.api.routes import profile as profile_routes
+
+    monkeypatch.setattr(
+        profile_routes,
+        "get_current_user",
+        lambda request: {"id": "viewer-1", "username": "viewer", "role": "user"},
+    )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_public_profile",
+        lambda username: {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "username": username,
+            "display_name": "Dra. Ada",
+            "role": "user",
+            "department": "Genómica",
+            "bio": "Perfil público",
+            "joined_at": "2026-03-01T10:00:00+00:00",
+            "updated_at": "2026-03-10T12:00:00+00:00",
+            "summary": {
+                "public_projects": 2,
+                "results_ready": 1,
+                "member_connections": 3,
+            },
+            "activity": [
+                {
+                    "kind": "project_updated",
+                    "title": "Proyecto público actualizado",
+                    "description": "Se actualizaron los datos visibles de Atlas.",
+                    "created_at": "2026-03-10T12:00:00+00:00",
+                }
+            ],
+            "public_projects": [
+                {
+                    "id": "project-1",
+                    "name": "Atlas",
+                    "slug": "doctor-atlas",
+                    "status": "results",
+                    "updated_at": "2026-03-10T12:00:00+00:00",
+                    "member_count": 3,
+                }
+            ],
+        },
+    )
+
+    response = client.get("/api/profile/public/doctor")
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "doctor"
+    assert response.json()["public_projects"][0]["slug"] == "doctor-atlas"
 
 
 def test_update_my_profile_route_forwards_payload_and_refreshes_session(
@@ -92,7 +147,9 @@ def test_update_my_profile_route_forwards_payload_and_refreshes_session(
                     "email_notifications": False,
                     "security_alerts": True,
                     "dark_mode": True,
+                    "dark_mode_auto": False,
                     "interface_language": "es",
+                    "interface_language_auto": False,
                 },
                 "summary": {
                     "active_projects": 2,
@@ -133,7 +190,9 @@ def test_update_my_profile_route_forwards_payload_and_refreshes_session(
                 "email_notifications": False,
                 "security_alerts": True,
                 "dark_mode": True,
+                "dark_mode_auto": False,
                 "interface_language": "es",
+                "interface_language_auto": False,
             },
         },
     )
@@ -152,7 +211,89 @@ def test_update_my_profile_route_forwards_payload_and_refreshes_session(
             "email_notifications": False,
             "security_alerts": True,
             "dark_mode": True,
+            "dark_mode_auto": False,
             "interface_language": "es",
+            "interface_language_auto": False,
+        },
+    }
+
+
+def test_update_my_profile_preferences_route_forwards_payload(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import profile as profile_routes
+
+    captured_payload: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        profile_routes,
+        "get_current_user",
+        lambda request: {"id": "11111111-1111-1111-1111-111111111111"},
+    )
+    monkeypatch.setattr(
+        profile_routes,
+        "update_my_profile_preferences",
+        lambda **kwargs: captured_payload.update(kwargs) or (
+            True,
+            "Preferencias actualizadas correctamente",
+            {
+                "id": kwargs["user_id"],
+                "email": "doctor@example.com",
+                "username": "doctor",
+                "display_name": "Dra. Ada",
+                "role": "user",
+                "department": "Genómica",
+                "bio": "Perfil",
+                "joined_at": "2026-03-01T10:00:00+00:00",
+                "updated_at": "2026-03-10T12:00:00+00:00",
+                "preferences": {
+                    "email_notifications": True,
+                    "security_alerts": True,
+                    "dark_mode": False,
+                    "dark_mode_auto": True,
+                    "interface_language": "en",
+                    "interface_language_auto": False,
+                },
+                "summary": {
+                    "active_projects": 2,
+                    "collaborations": 1,
+                    "pending_reviews": 1,
+                },
+                "projects_preview": {
+                    "owned": [],
+                    "collaborations": [],
+                },
+                "activity": [],
+            },
+        ),
+    )
+
+    response = client.put(
+        "/api/profile/me/preferences",
+        json={
+            "preferences": {
+                "email_notifications": True,
+                "security_alerts": True,
+                "dark_mode": False,
+                "dark_mode_auto": True,
+                "interface_language": "en",
+                "interface_language_auto": False,
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert captured_payload == {
+        "user_id": "11111111-1111-1111-1111-111111111111",
+        "preferences": {
+            "email_notifications": True,
+            "security_alerts": True,
+            "dark_mode": False,
+            "dark_mode_auto": True,
+            "interface_language": "en",
+            "interface_language_auto": False,
         },
     }
 
@@ -174,6 +315,19 @@ def test_change_my_password_route_forwards_payload(client: TestClient, monkeypat
         "change_my_password",
         lambda **kwargs: captured_payload.update(kwargs) or (True, "Contraseña actualizada correctamente"),
     )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_session_user_by_id",
+        lambda user_id: {
+            "id": user_id,
+            "email": "doctor@example.com",
+            "username": "doctor",
+            "role": "user",
+            "display_name": "Dra. Ada",
+            "must_change_password": False,
+            "welcome_tour_seen": False,
+        },
+    )
 
     response = client.post(
         "/api/profile/me/password",
@@ -193,6 +347,104 @@ def test_change_my_password_route_forwards_payload(client: TestClient, monkeypat
         "access_token": "session-access-token",
         "current_password": "actual123",
         "new_password": "nueva123",
+    }
+
+
+def test_complete_required_password_change_route_forwards_payload(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import profile as profile_routes
+
+    def fake_get_current_user(request):
+        request.session["auth"] = {"access_token": "session-access-token"}
+        request.session["user"] = {"id": "11111111-1111-1111-1111-111111111111"}
+        return {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "email": "doctor@example.com",
+        }
+
+    captured_payload: dict[str, object] = {}
+    monkeypatch.setattr(profile_routes, "get_current_user", fake_get_current_user)
+    monkeypatch.setattr(
+        profile_routes,
+        "complete_required_password_change",
+        lambda **kwargs: captured_payload.update(kwargs) or (True, "Contraseña actualizada correctamente"),
+    )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_session_user_by_id",
+        lambda user_id: {
+            "id": user_id,
+            "email": "doctor@example.com",
+            "username": "doctor",
+            "role": "user",
+            "display_name": "Dra. Ada",
+            "must_change_password": False,
+            "welcome_tour_seen": False,
+        },
+    )
+
+    response = client.post(
+        "/api/profile/me/password/required",
+        json={
+            "new_password": "NuevaSegura123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "message": "Contraseña actualizada correctamente",
+        "profile": None,
+    }
+    assert captured_payload == {
+        "access_token": "session-access-token",
+        "new_password": "NuevaSegura123",
+    }
+
+
+def test_mark_welcome_tour_seen_route_updates_session(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    from backend.app.api.routes import profile as profile_routes
+
+    def fake_get_current_user(request):
+        request.session["auth"] = {"access_token": "session-access-token"}
+        request.session["user"] = {"id": "11111111-1111-1111-1111-111111111111"}
+        return {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "email": "doctor@example.com",
+        }
+
+    monkeypatch.setattr(profile_routes, "get_current_user", fake_get_current_user)
+    monkeypatch.setattr(
+        profile_routes,
+        "mark_welcome_tour_seen",
+        lambda user_id: (True, "Guía de bienvenida actualizada"),
+    )
+    monkeypatch.setattr(
+        profile_routes,
+        "get_session_user_by_id",
+        lambda user_id: {
+            "id": user_id,
+            "email": "doctor@example.com",
+            "username": "doctor",
+            "role": "user",
+            "display_name": "Dra. Ada",
+            "must_change_password": False,
+            "welcome_tour_seen": True,
+        },
+    )
+
+    response = client.post("/api/profile/me/welcome-tour/seen")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "message": "Guía de bienvenida actualizada",
+        "profile": None,
     }
 
 

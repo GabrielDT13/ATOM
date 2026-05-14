@@ -9,8 +9,10 @@ export type EditableProfileFormValues = {
   email: string;
   emailNotifications: boolean;
   interfaceLanguage: "es" | "en";
+  interfaceLanguageAuto: boolean;
   loginAlerts: boolean;
   systemTheme: boolean;
+  systemThemeAuto: boolean;
   username: string;
 };
 
@@ -41,8 +43,10 @@ export function buildEditableProfileFormValues(
     email: profileData?.email ?? user?.email ?? "",
     emailNotifications: profileData?.preferences.email_notifications ?? true,
     interfaceLanguage: profileData?.preferences.interface_language ?? "es",
+    interfaceLanguageAuto: profileData?.preferences.interface_language_auto ?? true,
     loginAlerts: profileData?.preferences.security_alerts ?? true,
     systemTheme: profileData?.preferences.dark_mode ?? false,
+    systemThemeAuto: profileData?.preferences.dark_mode_auto ?? true,
     username: profileData?.username ?? user?.username ?? "",
   };
 }

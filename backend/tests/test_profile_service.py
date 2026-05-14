@@ -52,7 +52,9 @@ def test_get_my_profile_builds_response_from_profile_preferences_and_activity(mo
                 "email_notifications": True,
                 "security_alerts": False,
                 "dark_mode": True,
+                "dark_mode_auto": False,
                 "interface_language": "es",
+                "interface_language_auto": False,
             },
             activity=[
                 {
@@ -74,7 +76,9 @@ def test_get_my_profile_builds_response_from_profile_preferences_and_activity(mo
         "email_notifications": True,
         "security_alerts": False,
         "dark_mode": True,
+        "dark_mode_auto": False,
         "interface_language": "es",
+        "interface_language_auto": False,
     }
     assert payload["summary"] == {
         "active_projects": 3,
@@ -145,7 +149,9 @@ def test_get_my_profile_uses_defaults_when_preferences_are_missing(monkeypatch) 
         "email_notifications": True,
         "security_alerts": True,
         "dark_mode": False,
+        "dark_mode_auto": True,
         "interface_language": "es",
+        "interface_language_auto": True,
     }
     assert payload["summary"] == {
         "active_projects": 0,
@@ -155,8 +161,96 @@ def test_get_my_profile_uses_defaults_when_preferences_are_missing(monkeypatch) 
     assert payload["activity"] == []
 
 
-def test_update_my_profile_updates_auth_rpc_preferences_and_activity(monkeypatch) -> None:
-    captured_rpc: dict[str, object] = {}
+def test_get_public_profile_returns_only_public_data(monkeypatch) -> None:
+    monkeypatch.setattr(
+        profile_service,
+        "_fetch_profile_by_username",
+        lambda username: {
+            "id": "11111111-1111-1111-1111-111111111111",
+            "username": username,
+            "full_name": "Dra. Ada",
+            "department": "Bioinformática",
+            "bio": "Perfil público",
+            "is_active": True,
+            "created_at": "2026-03-01T10:00:00+00:00",
+            "updated_at": "2026-03-10T12:00:00+00:00",
+            "roles": ["user"],
+        },
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_fetch_public_owned_projects",
+        lambda user_id: [
+            {
+                "id": "project-1",
+                "name": "Atlas",
+                "slug": "doctor-atlas",
+                "status": "results",
+                "updated_at": "2026-03-12T08:00:00+00:00",
+                "member_count": 3,
+            },
+            {
+                "id": "project-2",
+                "name": "Draft",
+                "slug": "doctor-draft",
+                "status": "configured",
+                "updated_at": "2026-03-11T08:00:00+00:00",
+                "member_count": 1,
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_fetch_profile_activity",
+        lambda user_id, limit=6: [
+            {
+                "activity_type": "profile_updated",
+                "title": "Perfil actualizado",
+                "description": "Se actualizó la biografía.",
+                "created_at": "2026-03-13T09:00:00+00:00",
+            },
+            {
+                "activity_type": "password_changed",
+                "title": "Cambio de contraseña",
+                "description": "No debe aparecer.",
+                "created_at": "2026-03-14T09:00:00+00:00",
+            },
+        ],
+    )
+
+    payload = profile_service.get_public_profile("doctor")
+
+    assert payload["username"] == "doctor"
+    assert payload["display_name"] == "Dra. Ada"
+    assert payload["summary"] == {
+        "public_projects": 2,
+        "results_ready": 1,
+        "member_connections": 2,
+    }
+    assert payload["public_projects"] == [
+        {
+            "id": "project-1",
+            "name": "Atlas",
+            "slug": "doctor-atlas",
+            "status": "results",
+            "updated_at": "2026-03-12T08:00:00+00:00",
+            "member_count": 3,
+        },
+        {
+            "id": "project-2",
+            "name": "Draft",
+            "slug": "doctor-draft",
+            "status": "configured",
+            "updated_at": "2026-03-11T08:00:00+00:00",
+            "member_count": 1,
+        },
+    ]
+    assert payload["activity"][0]["title"] == "Perfil actualizado"
+    assert all(item["kind"] != "password_changed" for item in payload["activity"])
+
+
+def test_update_my_profile_updates_profile_preferences_and_activity(monkeypatch) -> None:
+    executed_updates: list[tuple[str, tuple[object, ...]]] = []
     saved_preferences: dict[str, object] = {}
     logged_activity: dict[str, str] = {}
 
@@ -164,14 +258,12 @@ def test_update_my_profile_updates_auth_rpc_preferences_and_activity(monkeypatch
     monkeypatch.setattr(profile_service, "_fetch_profile_by_email", lambda email: None)
     monkeypatch.setattr(profile_service, "_update_auth_user_profile", lambda *args, **kwargs: None)
 
-    def fake_request_with_anon_key(method: str, path: str, *, bearer_token: str | None = None, json_body=None):
-        captured_rpc["method"] = method
-        captured_rpc["path"] = path
-        captured_rpc["bearer_token"] = bearer_token
-        captured_rpc["json_body"] = json_body
-        return [{"id": "11111111-1111-1111-1111-111111111111"}]
-
-    monkeypatch.setattr(profile_service, "request_with_anon_key", fake_request_with_anon_key)
+    monkeypatch.setattr(
+        profile_service,
+        "execute_returning",
+        lambda query, params=(): executed_updates.append((query, params))
+        or [{"id": "11111111-1111-1111-1111-111111111111"}],
+    )
     monkeypatch.setattr(
         profile_service,
         "_save_preferences",
@@ -206,7 +298,9 @@ def test_update_my_profile_updates_auth_rpc_preferences_and_activity(monkeypatch
                 "email_notifications": False,
                 "security_alerts": True,
                 "dark_mode": True,
+                "dark_mode_auto": False,
                 "interface_language": "es",
+                "interface_language_auto": False,
             },
             "summary": {
                 "active_projects": 2,
@@ -233,31 +327,25 @@ def test_update_my_profile_updates_auth_rpc_preferences_and_activity(monkeypatch
             "email_notifications": False,
             "security_alerts": True,
             "dark_mode": True,
+            "dark_mode_auto": False,
             "interface_language": "es",
+            "interface_language_auto": False,
         },
     )
 
     assert success is True
     assert message == "Perfil actualizado correctamente"
     assert payload is not None
-    assert captured_rpc == {
-        "method": "POST",
-        "path": "/rest/v1/rpc/update_my_profile",
-        "bearer_token": "access-token",
-        "json_body": {
-            "p_username": "doctor",
-            "p_full_name": "Dra. Ada",
-            "p_avatar_url": None,
-            "p_department": "Genómica",
-            "p_bio": "Nueva biografía",
-        },
-    }
+    assert len(executed_updates) == 1
+    assert "UPDATE internal.profiles" in executed_updates[0][0]
     assert saved_preferences == {
         "user_id": "11111111-1111-1111-1111-111111111111",
         "email_notifications": False,
         "security_alerts": True,
         "dark_mode": True,
+        "dark_mode_auto": False,
         "interface_language": "es",
+        "interface_language_auto": False,
     }
     assert logged_activity == {
         "user_id": "11111111-1111-1111-1111-111111111111",
@@ -283,7 +371,9 @@ def test_update_my_profile_rejects_invalid_interface_language(monkeypatch) -> No
             "email_notifications": True,
             "security_alerts": True,
             "dark_mode": False,
+            "dark_mode_auto": True,
             "interface_language": "fr",
+            "interface_language_auto": True,
         },
     )
 
@@ -292,18 +382,29 @@ def test_update_my_profile_rejects_invalid_interface_language(monkeypatch) -> No
     assert payload is None
 
 
-def test_change_my_password_calls_rpc(monkeypatch) -> None:
-    captured_request: dict[str, object] = {}
+def test_change_my_password_updates_postgres_credentials(monkeypatch) -> None:
+    executed_queries: list[tuple[str, tuple[object, ...]]] = []
 
-    def fake_request_with_anon_key(method: str, path: str, *, bearer_token: str | None = None, json_body=None, schema=None):
-        captured_request["method"] = method
-        captured_request["path"] = path
-        captured_request["bearer_token"] = bearer_token
-        captured_request["json_body"] = json_body
-        captured_request["schema"] = schema
-        return True
-
-    monkeypatch.setattr(profile_service, "request_with_anon_key", fake_request_with_anon_key)
+    monkeypatch.setattr(
+        "backend.app.services.auth.validate_access_token",
+        lambda access_token: {"sub": "11111111-1111-1111-1111-111111111111"},
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "fetch_one",
+        lambda query, params=(): (
+            {"encrypted_password": "hashed-password"}
+            if "FROM auth.users" in query
+            else {"password_valid": True}
+        ),
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "execute",
+        lambda query, params=(): executed_queries.append((query, params)),
+    )
+    monkeypatch.setattr(profile_service, "_set_must_change_password", lambda user_id, value: None)
+    monkeypatch.setattr(profile_service, "_log_profile_activity", lambda *args, **kwargs: None)
 
     success, message = profile_service.change_my_password(
         access_token="access-token",
@@ -313,26 +414,25 @@ def test_change_my_password_calls_rpc(monkeypatch) -> None:
 
     assert success is True
     assert message == "Contraseña actualizada correctamente"
-    assert captured_request == {
-        "method": "POST",
-        "path": "/rest/v1/rpc/change_my_password",
-        "bearer_token": "access-token",
-        "json_body": {
-            "p_current_password": "actual123",
-            "p_new_password": "nueva123",
-        },
-        "schema": None,
-    }
+    assert len(executed_queries) == 1
+    assert "UPDATE auth.users" in executed_queries[0][0]
 
 
-def test_change_my_password_returns_rpc_error(monkeypatch) -> None:
+def test_change_my_password_returns_validation_error(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "backend.app.services.auth.validate_access_token",
+        lambda access_token: {"sub": "11111111-1111-1111-1111-111111111111"},
+    )
     monkeypatch.setattr(
         profile_service,
-        "request_with_anon_key",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            profile_service.SupabaseError("Email o contraseña incorrectos"),
+        "fetch_one",
+        lambda query, params=(): (
+            {"encrypted_password": "hashed-password"}
+            if "FROM auth.users" in query
+            else {"password_valid": False}
         ),
     )
+    monkeypatch.setattr(profile_service, "_set_must_change_password", lambda user_id, value: None)
 
     success, message = profile_service.change_my_password(
         access_token="access-token",
@@ -344,22 +444,70 @@ def test_change_my_password_returns_rpc_error(monkeypatch) -> None:
     assert message == "Email o contraseña incorrectos"
 
 
-def test_delete_my_account_calls_rpc_and_deletes_local_directory(monkeypatch) -> None:
-    captured_request: dict[str, object] = {}
+def test_complete_required_password_change_updates_credentials(monkeypatch) -> None:
+    executed_queries: list[tuple[str, tuple[object, ...]]] = []
+    logged_activity: dict[str, str] = {}
+    password_flags: list[tuple[str, bool]] = []
+
+    monkeypatch.setattr(
+        "backend.app.services.auth.validate_access_token",
+        lambda access_token: {"sub": "11111111-1111-1111-1111-111111111111"},
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "execute",
+        lambda query, params=(): executed_queries.append((query, params)),
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_set_must_change_password",
+        lambda user_id, value: password_flags.append((user_id, value)),
+    )
+    monkeypatch.setattr(
+        profile_service,
+        "_log_profile_activity",
+        lambda user_id, *, activity_type, title, description: logged_activity.update(
+            {
+                "user_id": user_id,
+                "activity_type": activity_type,
+                "title": title,
+                "description": description,
+            }
+        ),
+    )
+
+    success, message = profile_service.complete_required_password_change(
+        access_token="access-token",
+        new_password="NuevaSegura123",
+    )
+
+    assert success is True
+    assert message == "Contraseña actualizada correctamente"
+    assert len(executed_queries) == 1
+    assert "UPDATE auth.users" in executed_queries[0][0]
+    assert password_flags == [("11111111-1111-1111-1111-111111111111", False)]
+    assert logged_activity == {
+        "user_id": "11111111-1111-1111-1111-111111111111",
+        "activity_type": "password_changed",
+        "title": "Cambio de contraseña",
+        "description": "Se actualizó la contraseña inicial de la cuenta.",
+    }
+
+
+def test_delete_my_account_deletes_local_directory_after_postgres_delete(monkeypatch) -> None:
+    executed_queries: list[tuple[str, tuple[object, ...]]] = []
     deleted_dirs: list[str] = []
 
     monkeypatch.setattr(
+        "backend.app.services.auth.validate_access_token",
+        lambda access_token: {"sub": "11111111-1111-1111-1111-111111111111"},
+    )
+    monkeypatch.setattr(profile_service, "fetch_one", lambda query, params=(): None)
+    monkeypatch.setattr(
         profile_service,
-        "request_with_anon_key",
-        lambda method, path, *, bearer_token=None, json_body=None, schema=None: captured_request.update(
-            {
-                "method": method,
-                "path": path,
-                "bearer_token": bearer_token,
-                "json_body": json_body,
-                "schema": schema,
-            }
-        ) or True,
+        "execute_returning",
+        lambda query, params=(): executed_queries.append((query, params))
+        or [{"id": "11111111-1111-1111-1111-111111111111"}],
     )
     monkeypatch.setattr(
         profile_service,
@@ -374,25 +522,23 @@ def test_delete_my_account_calls_rpc_and_deletes_local_directory(monkeypatch) ->
 
     assert success is True
     assert message == "Cuenta eliminada correctamente"
-    assert captured_request == {
-        "method": "POST",
-        "path": "/rest/v1/rpc/delete_my_account",
-        "bearer_token": "access-token",
-        "json_body": None,
-        "schema": None,
-    }
+    assert len(executed_queries) == 1
+    assert "DELETE FROM auth.users" in executed_queries[0][0]
     assert deleted_dirs == ["doctor"]
 
 
-def test_delete_my_account_does_not_delete_local_directory_when_rpc_fails(monkeypatch) -> None:
+def test_delete_my_account_does_not_delete_local_directory_when_delete_fails(monkeypatch) -> None:
     deleted_dirs: list[str] = []
 
     monkeypatch.setattr(
+        "backend.app.services.auth.validate_access_token",
+        lambda access_token: {"sub": "11111111-1111-1111-1111-111111111111"},
+    )
+    monkeypatch.setattr(profile_service, "fetch_one", lambda query, params=(): None)
+    monkeypatch.setattr(
         profile_service,
-        "request_with_anon_key",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            profile_service.SupabaseError("No se pudo eliminar la cuenta"),
-        ),
+        "execute_returning",
+        lambda *args, **kwargs: [],
     )
     monkeypatch.setattr(
         profile_service,

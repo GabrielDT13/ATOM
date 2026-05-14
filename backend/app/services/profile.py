@@ -4,8 +4,15 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from backend.app.services.supabase import SupabaseError, build_query_string, request_with_anon_key, request_with_service_role
+from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
+from backend.app.services.emailing import (
+    build_absolute_frontend_url,
+    get_email_user_context,
+    send_password_changed_email,
+)
+from backend.app.services.errors import ServiceError
 from backend.app.services.users import _delete_user_projects_dir
+from psycopg.errors import UndefinedColumn
 
 
 @dataclass(frozen=True)
@@ -63,75 +70,116 @@ def _parse_timestamp(value: str) -> datetime:
 
 
 def _fetch_profile_by_user_id(user_id: str) -> dict[str, Any]:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_profiles?"
-        + build_query_string(
-            {
-                "select": "id,email,username,full_name,avatar_url,department,bio,is_active,created_at,updated_at,roles",
-                "id": f"eq.{user_id}",
-                "limit": 1,
-            }
-        ),
+    profile = fetch_one(
+        """
+        SELECT
+          id,
+          email,
+          username,
+          full_name,
+          avatar_url,
+          department,
+          bio,
+          is_active,
+          created_at,
+          updated_at,
+          roles
+        FROM public.vw_profiles
+        WHERE id = %s
+        LIMIT 1
+        """,
+        (user_id,),
     )
-    if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
-        raise SupabaseError("No se encontró el perfil solicitado")
-    return payload[0]
+    if not profile:
+        raise ServiceError("No se encontró el perfil solicitado")
+    return profile
 
 
 def _fetch_profile_by_username(username: str) -> dict[str, Any] | None:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_profiles?"
-        + build_query_string(
-            {
-                "select": "id,username,email",
-                "username": f"eq.{username}",
-                "limit": 1,
-            }
-        ),
+    return fetch_one(
+        """
+        SELECT
+          id,
+          username,
+          email,
+          full_name,
+          department,
+          bio,
+          is_active,
+          created_at,
+          updated_at,
+          roles
+        FROM public.vw_profiles
+        WHERE username = %s
+        LIMIT 1
+        """,
+        (username,),
     )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de perfiles inválida")
-    return payload[0] if payload and isinstance(payload[0], dict) else None
 
 
 def _fetch_profile_by_email(email: str) -> dict[str, Any] | None:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_profiles?"
-        + build_query_string(
-            {
-                "select": "id,username,email",
-                "email": f"eq.{email}",
-                "limit": 1,
-            }
-        ),
+    return fetch_one(
+        """
+        SELECT id, username, email
+        FROM public.vw_profiles
+        WHERE email = %s
+        LIMIT 1
+        """,
+        (email,),
     )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de perfiles inválida")
-    return payload[0] if payload and isinstance(payload[0], dict) else None
 
 
 def _fetch_preferences(user_id: str) -> dict[str, Any]:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_profile_preferences?"
-        + build_query_string(
-            {
-                "select": "user_id,email_notifications,security_alerts,dark_mode,interface_language",
-                "user_id": f"eq.{user_id}",
-                "limit": 1,
-            }
-        ),
-    )
-    if isinstance(payload, list) and payload and isinstance(payload[0], dict):
-        return payload[0]
+    try:
+        payload = fetch_one(
+            """
+            SELECT
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              dark_mode_auto,
+              interface_language,
+              interface_language_auto,
+              must_change_password,
+              welcome_tour_seen
+            FROM public.vw_profile_preferences
+            WHERE user_id = %s
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+    except UndefinedColumn:
+        payload = fetch_one(
+            """
+            SELECT
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              interface_language,
+              interface_language_auto,
+              must_change_password,
+              welcome_tour_seen
+            FROM public.vw_profile_preferences
+            WHERE user_id = %s
+            LIMIT 1
+            """,
+            (user_id,),
+        )
+        if payload is not None:
+            payload["dark_mode_auto"] = True
+    if payload:
+        return payload
     return {
         "email_notifications": True,
         "security_alerts": True,
         "dark_mode": False,
+        "dark_mode_auto": True,
         "interface_language": "es",
+        "interface_language_auto": True,
+        "must_change_password": False,
+        "welcome_tour_seen": True,
     }
 
 
@@ -141,93 +189,171 @@ def _save_preferences(
     email_notifications: bool,
     security_alerts: bool,
     dark_mode: bool,
+    dark_mode_auto: bool,
     interface_language: str,
+    interface_language_auto: bool,
 ) -> None:
-    existing = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_profile_preferences?"
-        + build_query_string(
-            {
-                "select": "user_id",
-                "user_id": f"eq.{user_id}",
-                "limit": 1,
-            }
-        ),
-    )
-
-    payload = {
-        "user_id": user_id,
-        "email_notifications": email_notifications,
-        "security_alerts": security_alerts,
-        "dark_mode": dark_mode,
-        "interface_language": interface_language,
-    }
-
-    if isinstance(existing, list) and existing:
-        request_with_service_role(
-            "PATCH",
-            "/rest/v1/vw_profile_preferences?" + build_query_string({"user_id": f"eq.{user_id}"}),
-            json_body=payload,
+    try:
+        execute(
+            """
+            INSERT INTO internal.profile_preferences (
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              dark_mode_auto,
+              interface_language,
+              interface_language_auto
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+              email_notifications = EXCLUDED.email_notifications,
+              security_alerts = EXCLUDED.security_alerts,
+              dark_mode = EXCLUDED.dark_mode,
+              dark_mode_auto = EXCLUDED.dark_mode_auto,
+              interface_language = EXCLUDED.interface_language,
+              interface_language_auto = EXCLUDED.interface_language_auto,
+              updated_at = now()
+            """,
+            (
+                user_id,
+                email_notifications,
+                security_alerts,
+                dark_mode,
+                dark_mode_auto,
+                interface_language,
+                interface_language_auto,
+            ),
         )
-        return
+    except UndefinedColumn:
+        execute(
+            """
+            INSERT INTO internal.profile_preferences (
+              user_id,
+              email_notifications,
+              security_alerts,
+              dark_mode,
+              interface_language,
+              interface_language_auto
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+              email_notifications = EXCLUDED.email_notifications,
+              security_alerts = EXCLUDED.security_alerts,
+              dark_mode = EXCLUDED.dark_mode,
+              interface_language = EXCLUDED.interface_language,
+              interface_language_auto = EXCLUDED.interface_language_auto,
+              updated_at = now()
+            """,
+            (
+                user_id,
+                email_notifications,
+                security_alerts,
+                dark_mode,
+                interface_language,
+                interface_language_auto,
+            ),
+        )
 
-    request_with_service_role(
-        "POST",
-        "/rest/v1/vw_profile_preferences",
-        json_body=payload,
+
+def _set_must_change_password(user_id: str, value: bool) -> None:
+    execute(
+        """
+        INSERT INTO internal.profile_preferences (
+          user_id,
+          must_change_password
+        )
+        VALUES (%s, %s)
+        ON CONFLICT (user_id) DO UPDATE
+        SET
+          must_change_password = EXCLUDED.must_change_password,
+          updated_at = now()
+        """,
+        (user_id, value),
     )
+
+
+def mark_welcome_tour_seen(user_id: str) -> tuple[bool, str]:
+    try:
+        execute(
+            """
+            INSERT INTO internal.profile_preferences (
+              user_id,
+              welcome_tour_seen
+            )
+            VALUES (%s, true)
+            ON CONFLICT (user_id) DO UPDATE
+            SET
+              welcome_tour_seen = true,
+              updated_at = now()
+            """,
+            (user_id,),
+        )
+    except ServiceError as exc:
+        return False, str(exc)
+
+    return True, "Guía de bienvenida actualizada"
 
 
 def _fetch_owned_projects(user_id: str) -> list[dict[str, Any]]:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_projects?"
-        + build_query_string(
-            {
-                "select": "id,name,status,updated_at,member_count",
-                "owner_id": f"eq.{user_id}",
-                "order": "updated_at.desc",
-            }
-        ),
+    payload = fetch_all(
+        """
+        SELECT id, name, status, updated_at, member_count
+        FROM public.vw_projects
+        WHERE owner_id = %s
+        ORDER BY updated_at DESC
+        """,
+        (user_id,),
     )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de proyectos inválida")
+    return [row for row in payload if isinstance(row, dict)]
+
+
+def _fetch_public_owned_projects(user_id: str) -> list[dict[str, Any]]:
+    payload = fetch_all(
+        """
+        SELECT id, name, slug, status, updated_at, member_count
+        FROM public.vw_projects
+        WHERE owner_id = %s
+          AND visibility = 'public'
+        ORDER BY updated_at DESC
+        """,
+        (user_id,),
+    )
     return [row for row in payload if isinstance(row, dict)]
 
 
 def _fetch_collaborations(user_id: str) -> list[dict[str, Any]]:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_projects_with_users?"
-        + build_query_string(
-            {
-                "select": "project_id,project_name,project_status,member_role,member_created_at",
-                "member_id": f"eq.{user_id}",
-                "member_role": "neq.owner",
-                "order": "member_created_at.desc",
-            }
-        ),
+    payload = fetch_all(
+        """
+        SELECT
+          project_id,
+          project_name,
+          project_status,
+          member_role,
+          member_created_at
+        FROM public.vw_projects_with_users
+        WHERE member_id = %s
+          AND member_role <> 'owner'
+        ORDER BY member_created_at DESC
+        """,
+        (user_id,),
     )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de colaboraciones inválida")
     return [row for row in payload if isinstance(row, dict)]
 
 
 def _fetch_profile_activity(user_id: str, limit: int = 6) -> list[dict[str, Any]]:
-    payload = request_with_service_role(
-        "GET",
-        "/rest/v1/vw_profile_activity?"
-        + build_query_string(
-            {
-                "select": "activity_type,title,description,created_at",
-                "user_id": f"eq.{user_id}",
-                "order": "created_at.desc",
-                "limit": limit,
-            }
-        ),
+    payload = fetch_all(
+        """
+        SELECT activity_type, title, description, created_at
+        FROM public.vw_profile_activity
+        WHERE user_id = %s
+        ORDER BY created_at DESC
+        LIMIT %s
+        """,
+        (user_id, limit),
     )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de actividad inválida")
     return [row for row in payload if isinstance(row, dict)]
 
 
@@ -247,15 +373,12 @@ def _log_profile_activity(
     title: str,
     description: str,
 ) -> None:
-    request_with_service_role(
-        "POST",
-        "/rest/v1/vw_profile_activity",
-        json_body={
-            "user_id": user_id,
-            "activity_type": activity_type,
-            "title": title,
-            "description": description,
-        },
+    execute(
+        """
+        INSERT INTO internal.profile_activity (user_id, activity_type, title, description)
+        VALUES (%s, %s, %s, %s)
+        """,
+        (user_id, activity_type, title, description),
     )
 
 
@@ -386,6 +509,80 @@ def _build_projects_preview(
     }
 
 
+def _build_public_summary(public_projects: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "public_projects": len(public_projects),
+        "results_ready": len(
+            [
+                project
+                for project in public_projects
+                if str(project.get("status") or "").strip().lower() == "results"
+            ]
+        ),
+        "member_connections": sum(
+            max(int(project.get("member_count") or 0) - 1, 0)
+            for project in public_projects
+        ),
+    }
+
+
+def _build_public_activity(
+    *,
+    public_projects: list[dict[str, Any]],
+    profile_activity: list[dict[str, Any]],
+) -> list[dict[str, str]]:
+    activity_items: list[dict[str, str]] = []
+
+    for item in profile_activity:
+        activity_type = str(item.get("activity_type") or "").strip().lower()
+        created_at = _normalize_timestamp(item.get("created_at"))
+        if activity_type != "profile_updated" or not created_at:
+            continue
+        activity_items.append(
+            {
+                "kind": activity_type,
+                "title": str(item.get("title") or "").strip() or "Perfil actualizado",
+                "description": str(item.get("description") or "").strip()
+                or "Se actualizó la información pública del perfil.",
+                "created_at": created_at,
+            }
+        )
+
+    for project in public_projects[:4]:
+        created_at = _normalize_timestamp(project.get("updated_at"))
+        if not created_at:
+            continue
+        project_name = str(project.get("name") or "").strip()
+        if not project_name:
+            continue
+        activity_items.append(
+            {
+                "kind": "project_updated",
+                "title": "Proyecto público actualizado",
+                "description": f"Se actualizaron los datos visibles de {project_name}.",
+                "created_at": created_at,
+            }
+        )
+
+    activity_items.sort(key=lambda item: _parse_timestamp(item["created_at"]), reverse=True)
+    return activity_items[:6]
+
+
+def _build_public_projects(public_projects: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": str(project.get("id") or "").strip(),
+            "name": str(project.get("name") or "").strip(),
+            "slug": _normalize_optional_text(project.get("slug")),
+            "status": str(project.get("status") or "").strip().lower() or "draft",
+            "updated_at": _normalize_timestamp(project.get("updated_at")),
+            "member_count": int(project.get("member_count") or 0),
+        }
+        for project in public_projects
+        if str(project.get("id") or "").strip() and str(project.get("name") or "").strip()
+    ]
+
+
 def _build_profile_response(profile: dict[str, Any]) -> dict[str, Any]:
     user_id = str(profile.get("id") or "").strip()
     collections = _collect_profile_data(user_id)
@@ -405,8 +602,12 @@ def _build_profile_response(profile: dict[str, Any]) -> dict[str, Any]:
             "email_notifications": bool(collections.preferences.get("email_notifications", True)),
             "security_alerts": bool(collections.preferences.get("security_alerts", True)),
             "dark_mode": bool(collections.preferences.get("dark_mode", False)),
+            "dark_mode_auto": bool(collections.preferences.get("dark_mode_auto", True)),
             "interface_language": _normalize_interface_language(
                 collections.preferences.get("interface_language"),
+            ),
+            "interface_language_auto": bool(
+                collections.preferences.get("interface_language_auto", True)
             ),
         },
         "summary": _build_summary(
@@ -427,6 +628,35 @@ def _build_profile_response(profile: dict[str, Any]) -> dict[str, Any]:
 
 def get_my_profile(user_id: str) -> dict[str, Any]:
     return _build_profile_response(_fetch_profile_by_user_id(user_id))
+
+
+def get_public_profile(username: str) -> dict[str, Any]:
+    normalized_username = _normalize_username(username)
+    profile = _fetch_profile_by_username(normalized_username)
+    if not profile or profile.get("is_active") is False:
+        raise ServiceError("No se encontró el perfil solicitado")
+
+    user_id = str(profile.get("id") or "").strip()
+    public_projects = _fetch_public_owned_projects(user_id)
+    profile_activity = _fetch_profile_activity(user_id)
+
+    return {
+        "id": user_id,
+        "username": str(profile.get("username") or "").strip(),
+        "display_name": str(profile.get("full_name") or "").strip()
+        or str(profile.get("username") or "").strip(),
+        "role": _resolve_role(profile.get("roles")),
+        "department": _normalize_optional_text(profile.get("department")),
+        "bio": _normalize_optional_text(profile.get("bio")),
+        "joined_at": _normalize_timestamp(profile.get("created_at")),
+        "updated_at": _normalize_timestamp(profile.get("updated_at")),
+        "summary": _build_public_summary(public_projects),
+        "activity": _build_public_activity(
+            public_projects=public_projects,
+            profile_activity=profile_activity,
+        ),
+        "public_projects": _build_public_projects(public_projects),
+    }
 
 
 def _validate_profile_uniqueness(
@@ -455,19 +685,24 @@ def _update_auth_user_profile(
     department: str | None,
     bio: str | None,
 ) -> None:
-    request_with_service_role(
-        "PUT",
-        f"/auth/v1/admin/users/{user_id}",
-        json_body={
-            "email": email,
-            "user_metadata": {
-                "username": username,
-                "full_name": display_name or "",
-                "department": department or "",
-                "bio": bio or "",
-            },
-        },
+    rows = execute_returning(
+        """
+        UPDATE auth.users
+        SET
+          email = %s,
+          raw_user_meta_data = jsonb_build_object(
+            'username', %s::text,
+            'full_name', COALESCE(%s::text, ''),
+            'department', COALESCE(%s::text, ''),
+            'bio', COALESCE(%s::text, '')
+          )
+        WHERE id = %s
+        RETURNING id
+        """,
+        (email, username, display_name, department, bio, user_id),
     )
+    if not rows:
+        raise ServiceError("Usuario no encontrado")
 
 
 def update_my_profile(
@@ -505,26 +740,37 @@ def update_my_profile(
             department=_normalize_optional_text(department),
             bio=_normalize_optional_text(bio),
         )
-        payload = request_with_anon_key(
-            "POST",
-            "/rest/v1/rpc/update_my_profile",
-            bearer_token=access_token,
-            json_body={
-                "p_username": normalized_username,
-                "p_full_name": _normalize_optional_text(display_name),
-                "p_avatar_url": None,
-                "p_department": _normalize_optional_text(department),
-                "p_bio": _normalize_optional_text(bio),
-            },
+        updated = execute_returning(
+            """
+            UPDATE internal.profiles
+            SET
+              email = %s,
+              username = %s,
+              full_name = %s,
+              department = %s,
+              bio = %s
+            WHERE id = %s
+            RETURNING id
+            """,
+            (
+                normalized_email,
+                normalized_username,
+                _normalize_optional_text(display_name),
+                _normalize_optional_text(department),
+                _normalize_optional_text(bio),
+                user_id,
+            ),
         )
-        if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
-            raise SupabaseError("Supabase no devolvió el perfil actualizado")
+        if not updated:
+            raise ServiceError("No se pudo actualizar el perfil")
         _save_preferences(
             user_id,
             email_notifications=bool(preferences.get("email_notifications", True)),
             security_alerts=bool(preferences.get("security_alerts", True)),
             dark_mode=bool(preferences.get("dark_mode", False)),
+            dark_mode_auto=bool(preferences.get("dark_mode_auto", True)),
             interface_language=normalized_language,
+            interface_language_auto=bool(preferences.get("interface_language_auto", True)),
         )
         _log_profile_activity(
             user_id,
@@ -532,10 +778,32 @@ def update_my_profile(
             title="Perfil actualizado",
             description="Se actualizó la información principal del perfil.",
         )
-    except SupabaseError as exc:
+    except ServiceError as exc:
         return False, str(exc), None
 
     return True, "Perfil actualizado correctamente", get_my_profile(user_id)
+
+
+def update_my_profile_preferences(
+    *,
+    user_id: str,
+    preferences: dict[str, Any],
+) -> tuple[bool, str, dict[str, Any] | None]:
+    try:
+        normalized_language = _normalize_interface_language(preferences.get("interface_language"))
+        _save_preferences(
+            user_id,
+            email_notifications=bool(preferences.get("email_notifications", True)),
+            security_alerts=bool(preferences.get("security_alerts", True)),
+            dark_mode=bool(preferences.get("dark_mode", False)),
+            dark_mode_auto=bool(preferences.get("dark_mode_auto", True)),
+            interface_language=normalized_language,
+            interface_language_auto=bool(preferences.get("interface_language_auto", True)),
+        )
+    except (ServiceError, ValueError) as exc:
+        return False, str(exc), None
+
+    return True, "Preferencias actualizadas correctamente", get_my_profile(user_id)
 
 
 def change_my_password(
@@ -545,18 +813,99 @@ def change_my_password(
     new_password: str,
 ) -> tuple[bool, str]:
     try:
-        payload = request_with_anon_key(
-            "POST",
-            "/rest/v1/rpc/change_my_password",
-            bearer_token=access_token,
-            json_body={
-                "p_current_password": current_password,
-                "p_new_password": new_password,
-            },
+        from backend.app.services.auth import validate_access_token
+
+        claims = validate_access_token(access_token)
+        user_id = str(claims.get("sub") or "").strip()
+        if not user_id:
+            raise ServiceError("No autorizado")
+        payload = fetch_one(
+            """
+            SELECT encrypted_password
+            FROM auth.users
+            WHERE id = %s
+            LIMIT 1
+            """,
+            (user_id,),
         )
-        if payload is not True:
-            raise SupabaseError("No se pudo actualizar la contraseña")
-    except SupabaseError as exc:
+        current_hash = str((payload or {}).get("encrypted_password") or "").strip()
+        if not current_hash:
+            raise ServiceError("Usuario no encontrado")
+        password_valid = fetch_one(
+            """
+            SELECT crypt(%s, %s) = %s AS password_valid
+            """,
+            (current_password, current_hash, current_hash),
+        )
+        if not password_valid or password_valid.get("password_valid") is not True:
+            raise ServiceError("Email o contraseña incorrectos")
+        execute(
+            """
+            UPDATE auth.users
+            SET encrypted_password = crypt(%s, gen_salt('bf'))
+            WHERE id = %s
+            """,
+            (new_password, user_id),
+        )
+        _set_must_change_password(user_id, False)
+        profile = _fetch_profile_by_user_id(user_id)
+        _log_profile_activity(
+            user_id,
+            activity_type="password_changed",
+            title="Cambio de contraseña",
+            description="Se actualizó la contraseña de la cuenta.",
+        )
+        email = str(profile.get("email") or "").strip().lower()
+        username = str(profile.get("username") or "").strip()
+        try:
+            recipient = get_email_user_context(user_id)
+        except Exception:
+            recipient = None
+        if email and username and (recipient is None or recipient.security_alerts):
+            send_password_changed_email(
+                to_email=email,
+                username=username,
+                login_url=build_absolute_frontend_url("/login"),
+            )
+    except ServiceError as exc:
+        return False, str(exc)
+
+    return True, "Contraseña actualizada correctamente"
+
+
+def complete_required_password_change(
+    *,
+    access_token: str,
+    new_password: str,
+) -> tuple[bool, str]:
+    normalized_password = new_password.strip()
+    if len(normalized_password) < 8:
+        return False, "La contraseña debe tener al menos 8 caracteres"
+
+    try:
+        from backend.app.services.auth import validate_access_token
+
+        claims = validate_access_token(access_token)
+        user_id = str(claims.get("sub") or "").strip()
+        if not user_id:
+            raise ServiceError("No autorizado")
+
+        execute(
+            """
+            UPDATE auth.users
+            SET encrypted_password = crypt(%s, gen_salt('bf'))
+            WHERE id = %s
+            """,
+            (normalized_password, user_id),
+        )
+        _set_must_change_password(user_id, False)
+        _log_profile_activity(
+            user_id,
+            activity_type="password_changed",
+            title="Cambio de contraseña",
+            description="Se actualizó la contraseña inicial de la cuenta.",
+        )
+    except ServiceError as exc:
         return False, str(exc)
 
     return True, "Contraseña actualizada correctamente"
@@ -568,15 +917,38 @@ def delete_my_account(
     username: str,
 ) -> tuple[bool, str]:
     try:
-        payload = request_with_anon_key(
-            "POST",
-            "/rest/v1/rpc/delete_my_account",
-            bearer_token=access_token,
+        from backend.app.services.auth import validate_access_token
+
+        claims = validate_access_token(access_token)
+        user_id = str(claims.get("sub") or "").strip()
+        if not user_id:
+            raise ServiceError("No autorizado")
+        owned_project = fetch_one(
+            """
+            SELECT 1 AS found
+            FROM internal.projects
+            WHERE owner_id = %s
+            LIMIT 1
+            """,
+            (user_id,),
         )
-        if payload is not True:
-            raise SupabaseError("No se pudo eliminar la cuenta")
+        if owned_project:
+            raise ServiceError(
+                "No se puede eliminar la cuenta porque todavía eres propietario "
+                "de proyectos. Reasigna o elimina esos proyectos primero."
+            )
+        deleted = execute_returning(
+            """
+            DELETE FROM auth.users
+            WHERE id = %s
+            RETURNING id
+            """,
+            (user_id,),
+        )
+        if not deleted:
+            raise ServiceError("No se pudo eliminar la cuenta")
         _delete_user_projects_dir(username)
-    except (SupabaseError, ValueError) as exc:
+    except (ServiceError, ValueError) as exc:
         return False, str(exc)
 
     return True, "Cuenta eliminada correctamente"

@@ -5,13 +5,17 @@ import Link from "next/link";
 
 import type { SidebarLink } from "@/types/api";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
+  ChartLineIcon,
   CloseIcon,
   DashboardIcon,
+  DatabaseIcon,
   FileIcon,
   FolderIcon,
+  GlobeIcon,
   LogoutIcon,
   UserIcon,
   UsersIcon,
@@ -23,6 +27,7 @@ type AppSidebarProps = {
   isMobileOpen: boolean;
   items: SidebarLink[];
   onCloseMobile: () => void;
+  onLocaleChange: (locale: "es" | "en") => void;
   onLogout: () => void;
   onToggleCollapse: () => void;
 };
@@ -46,6 +51,18 @@ function getNavIcon(label: string) {
     return <FolderIcon className="h-5 w-5" />;
   }
 
+  if (normalized.includes("informe") || normalized.includes("report")) {
+    return <ChartLineIcon className="h-5 w-5" />;
+  }
+
+  if (normalized.includes("equipo")) {
+    return <UsersIcon className="h-5 w-5" />;
+  }
+
+  if (normalized.includes("entidad")) {
+    return <DatabaseIcon className="h-5 w-5" />;
+  }
+
   if (normalized.includes("perfil")) {
     return <UserIcon className="h-5 w-5" />;
   }
@@ -57,15 +74,45 @@ function getNavIcon(label: string) {
   return <FileIcon className="h-5 w-5" />;
 }
 
+function getLocalizedNavLabel(url: string, fallback: string, locale: "en" | "es") {
+  if (locale === "es") {
+    return fallback;
+  }
+
+  switch (url) {
+    case "/dashboard":
+      return "Dashboard";
+    case "/dashboard/projects":
+      return "Projects";
+    case "/dashboard/public-projects":
+      return "Public";
+    case "/dashboard/reports":
+      return "Reports";
+    case "/dashboard/teams":
+      return "Teams";
+    case "/dashboard/entities":
+      return "Entities";
+    case "/dashboard/profile":
+      return "Profile";
+    case "/dashboard/users":
+      return "Users";
+    default:
+      return fallback;
+  }
+}
+
 export function AppSidebar({
   currentPathname,
   isCollapsed,
   isMobileOpen,
   items,
   onCloseMobile,
+  onLocaleChange,
   onLogout,
   onToggleCollapse,
 }: AppSidebarProps) {
+  const { locale } = useLocale();
+
   return (
     <>
       <div
@@ -101,8 +148,8 @@ export function AppSidebar({
                 <div
                   className={`flex min-w-0 flex-col overflow-hidden whitespace-nowrap transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                     isCollapsed
-                      ? "lg:max-w-0 lg:opacity-0 lg:translate-x-1"
-                      : "lg:max-w-[11rem] lg:opacity-100 lg:translate-x-0"
+                      ? "lg:max-w-0 lg:translate-x-1 lg:opacity-0"
+                      : "lg:max-w-[11rem] lg:translate-x-0 lg:opacity-100"
                   }`}
                 >
                   <h1 className="truncate text-lg font-bold leading-none tracking-tight text-slate-900">
@@ -113,7 +160,7 @@ export function AppSidebar({
               </div>
 
               <button
-                aria-label="Cerrar menú lateral"
+                aria-label={locale === "es" ? "Cerrar menú lateral" : "Close side menu"}
                 className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 hover:text-primary lg:hidden"
                 onClick={onCloseMobile}
                 type="button"
@@ -122,7 +169,7 @@ export function AppSidebar({
               </button>
             </div>
 
-            <nav className="flex flex-col gap-2">
+            <nav className="flex flex-col gap-2" data-tour="sidebar-nav">
               {items.map((item) => {
                 const active = isCurrentPath(currentPathname, item.url);
 
@@ -132,21 +179,21 @@ export function AppSidebar({
                       active
                         ? "bg-primary/10 text-primary"
                         : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-                    } ${isCollapsed ? "lg:justify-center lg:px-0 lg:gap-0" : ""}`}
+                    } ${isCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : ""}`}
                     href={item.url}
                     key={item.url}
                     onClick={onCloseMobile}
-                    title={item.name}
+                    title={getLocalizedNavLabel(item.url, item.name, locale)}
                   >
                     <span className="shrink-0">{getNavIcon(item.name)}</span>
                     <span
-                      className={`truncate font-medium overflow-hidden whitespace-nowrap transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                      className={`overflow-hidden truncate whitespace-nowrap font-medium transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                         isCollapsed
-                          ? "lg:max-w-0 lg:opacity-0 lg:translate-x-1"
-                          : "lg:max-w-[10rem] lg:opacity-100 lg:translate-x-0"
+                          ? "lg:max-w-0 lg:translate-x-1 lg:opacity-0"
+                          : "lg:max-w-[10rem] lg:translate-x-0 lg:opacity-100"
                       }`}
                     >
-                      {item.name}
+                      {getLocalizedNavLabel(item.url, item.name, locale)}
                     </span>
                   </Link>
                 );
@@ -154,27 +201,66 @@ export function AppSidebar({
             </nav>
           </div>
 
-          <button
-            className={`group flex items-center gap-3 rounded-lg px-4 py-3 text-slate-600 transition-colors hover:bg-slate-100 hover:text-red-600 ${
-              isCollapsed ? "lg:justify-center lg:px-0 lg:gap-0" : ""
-            }`}
-            onClick={onLogout}
-            type="button"
-          >
-            <LogoutIcon className="h-5 w-5 shrink-0" />
-            <span
-              className={`font-medium overflow-hidden whitespace-nowrap transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
-                isCollapsed
-                  ? "lg:max-w-0 lg:opacity-0 lg:translate-x-1"
-                  : "lg:max-w-[8rem] lg:opacity-100 lg:translate-x-0"
+          <div className="flex flex-col gap-3">
+            <label
+              className={`flex items-center gap-3 rounded-2xl px-2 py-1 ${
+                isCollapsed ? "lg:justify-center lg:px-0" : ""
               }`}
             >
-              Cerrar sesión
-            </span>
-          </button>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+                <GlobeIcon className="h-5 w-5" />
+              </span>
+              <div
+                className={`min-w-0 flex-1 overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  isCollapsed
+                    ? "lg:max-w-0 lg:translate-x-1 lg:opacity-0"
+                    : "lg:max-w-[12rem] lg:translate-x-0 lg:opacity-100"
+                }`}
+              >
+                <select
+                  aria-label={locale === "es" ? "Cambiar idioma" : "Change language"}
+                  className="w-full border-0 bg-transparent pr-6 text-sm font-semibold text-slate-700 outline-none"
+                  onChange={(event) => onLocaleChange(event.target.value as "es" | "en")}
+                  value={locale}
+                >
+                  <option value="es">🇪🇸 ES</option>
+                  <option value="en">🇬🇧 EN</option>
+                </select>
+              </div>
+            </label>
+
+            <div className="border-t border-slate-200 pt-3">
+            <button
+              className={`group flex items-center gap-3 rounded-lg px-4 py-3 text-slate-600 transition-colors hover:bg-slate-100 hover:text-red-600 ${
+                isCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : ""
+              }`}
+              onClick={onLogout}
+              type="button"
+            >
+              <LogoutIcon className="h-5 w-5 shrink-0" />
+              <span
+                className={`overflow-hidden whitespace-nowrap font-medium transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                  isCollapsed
+                    ? "lg:max-w-0 lg:translate-x-1 lg:opacity-0"
+                    : "lg:max-w-[8rem] lg:translate-x-0 lg:opacity-100"
+                }`}
+              >
+                {locale === "es" ? "Cerrar sesión" : "Sign out"}
+              </span>
+            </button>
+            </div>
+          </div>
 
           <button
-            aria-label={isCollapsed ? "Expandir menú lateral" : "Contraer menú lateral"}
+            aria-label={
+              locale === "es"
+                ? isCollapsed
+                  ? "Expandir menú lateral"
+                  : "Contraer menú lateral"
+                : isCollapsed
+                  ? "Expand side menu"
+                  : "Collapse side menu"
+            }
             className="absolute right-0 top-1/2 hidden h-9 w-9 -translate-y-1/2 translate-x-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:text-primary lg:flex"
             onClick={onToggleCollapse}
             type="button"

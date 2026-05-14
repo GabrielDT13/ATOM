@@ -1,5 +1,8 @@
 "use client";
 
+import Link from "next/link";
+
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   buildProjectFileUrl,
   formatDate,
@@ -11,6 +14,7 @@ import {
   DetailMetaRow,
   DeliverableCard,
   ExecutionSelectorCard,
+  LinkedProjectTeamCard,
   PreviewPanel,
   SectionCard,
   SupportFileRow,
@@ -25,37 +29,48 @@ import {
   ProjectStackIcon,
   RefreshIcon,
 } from "@/components/projects/project-management-icons";
+import { PublicProjectShareButton } from "@/components/projects/public-project-share-button";
+import { getProjectVisibilityMeta } from "@/components/projects/project-management-utils";
 import type { ProjectExecutionGroup } from "@/components/projects/project-detail-utils";
 import type { ParsedProjectReport } from "@/components/projects/project-report-utils";
 import { buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
+import { EntityLogo } from "@/components/ui/entity-logo";
+import { Skeleton } from "@/components/ui/skeleton";
+import { buildPublicProfileHref } from "@/lib/profile";
 import { cn } from "@/lib/utils";
-import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord } from "@/types/api";
+import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord, ProjectSharedTeam } from "@/types/api";
 
 export function ProjectDetailLoadingState() {
+  const { locale } = useLocale();
+  const t = locale === "es";
   return (
     <div className="grid gap-6">
       <section className="page-hero-surface rounded-[32px] border border-white/10 p-6 sm:p-8">
-        <div className="h-8 w-48 animate-pulse rounded-full bg-white/10" />
-        <div className="mt-5 h-12 w-full max-w-2xl animate-pulse rounded-2xl bg-white/10" />
-        <div className="mt-3 h-6 w-full max-w-3xl animate-pulse rounded-xl bg-white/10" />
+        <Skeleton className="h-8 w-48 rounded-full bg-white/12" />
+        <Skeleton className="mt-5 h-12 w-full max-w-2xl rounded-2xl bg-white/12" />
+        <Skeleton className="mt-3 h-6 w-full max-w-3xl rounded-xl bg-white/12" />
       </section>
       <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="h-[24rem] animate-pulse rounded-[28px] bg-white" />
-        <div className="h-[24rem] animate-pulse rounded-[28px] bg-white" />
+        <Skeleton className="h-[24rem] rounded-[28px] bg-slate-200/80" />
+        <Skeleton className="h-[24rem] rounded-[28px] bg-slate-200/80" />
       </div>
     </div>
   );
 }
 
 export function ProjectDetailErrorState({ message }: { message: string }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   return (
     <section className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-800 shadow-sm">
-      <h1 className="text-lg font-semibold">No se pudo abrir el proyecto</h1>
+      <h1 className="text-lg font-semibold">
+        {t ? "No se pudo abrir el proyecto" : "Could not open project"}
+      </h1>
       <p className="mt-2 text-sm leading-6">{message}</p>
       <div className="mt-5">
         <ButtonLink href="/dashboard/projects" variant="secondary">
-          Volver a proyectos
+          {t ? "Volver a proyectos" : "Back to projects"}
         </ButtonLink>
       </div>
     </section>
@@ -66,43 +81,89 @@ export function ProjectDetailHero({
   accessRole,
   canEdit,
   project,
+  projectRef,
+  teamCount,
 }: {
   accessRole: string;
   canEdit: boolean;
   project: ProjectDetails;
+  projectRef: string | null;
+  teamCount: number;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
+  const visibilityMeta = getProjectVisibilityMeta(project.visibility, locale);
+
   return (
     <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
-          <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
-            <ProjectStackIcon />
-            Proyecto
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
+              <ProjectStackIcon />
+              {t ? "Proyecto" : "Project"}
+            </div>
           </div>
           <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
             {project.name}
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-            Consulta el estado del proyecto, abre sus resultados y accede a los archivos
-            principales desde un único lugar.
+            {t
+              ? "Consulta el estado del proyecto, abre sus resultados y accede a los archivos principales desde un único lugar."
+              : "Review project status, open its results, and access main files from one place."}
           </p>
           <div className="mt-4 flex flex-wrap gap-3">
-            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+            <Link
+              className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 transition hover:border-white/20 hover:bg-white/14"
+              href={buildPublicProfileHref(project.owner)}
+            >
               @{project.owner}
+            </Link>
+            {project.entity_name ? (
+              <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                {project.entity_name}
+              </span>
+            ) : null}
+            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              {t ? "Acceso" : "Access"}: {accessRole}
             </span>
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-              Acceso: {accessRole}
+              {t ? "Visibilidad" : "Visibility"}: {visibilityMeta.label}
             </span>
+            {teamCount > 0 ? (
+              <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                {t
+                  ? `${teamCount} equipo${teamCount === 1 ? "" : "s"} vinculado${teamCount === 1 ? "" : "s"}`
+                  : `${teamCount} linked team${teamCount === 1 ? "" : "s"}`}
+              </span>
+            ) : null}
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
-              {project.file_count} archivos
+              {t
+                ? `${project.file_count} archivos`
+                : `${project.file_count} files`}
             </span>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col items-start gap-4 xl:items-end">
+          {project.entity_name || project.entity_logo_url ? (
+            <EntityLogo
+              className="h-20 w-20 bg-white/95 shadow-lg shadow-slate-950/20 sm:h-24 sm:w-24"
+              logoUrl={project.entity_logo_url}
+              name={project.entity_name ?? project.name}
+            />
+          ) : null}
+
+          <div className="flex flex-wrap gap-3 xl:justify-end">
           <ButtonLink href="/dashboard/projects" size="lg" tone="on-dark" variant="secondary">
-            Volver al listado
+            {t ? "Volver al listado" : "Back to list"}
           </ButtonLink>
+          <PublicProjectShareButton
+            project={project}
+            projectRef={projectRef}
+            tone="on-dark"
+            variant="ghost"
+          />
           {canEdit ? (
             <ButtonLink
               href={`/dashboard/edit_project/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`}
@@ -111,9 +172,10 @@ export function ProjectDetailHero({
               variant="ghost"
             >
               <PencilIcon className="h-4 w-4" />
-              Editar proyecto
+              {t ? "Editar proyecto" : "Edit project"}
             </ButtonLink>
           ) : null}
+          </div>
         </div>
       </div>
     </section>
@@ -121,37 +183,39 @@ export function ProjectDetailHero({
 }
 
 export function ProjectQuickActions({
+  activeRun,
   activeDeliverablesCount,
   canRegenerate,
   downloadZipFile,
+  executionHref,
   executionCount,
   htmlCount,
-  onRegenerate,
   project,
   supportFileCount,
 }: {
+  activeRun: ProjectDetails["active_run"];
   activeDeliverablesCount: number;
   canRegenerate: boolean;
   downloadZipFile: ProjectFileEntry | null;
+  executionHref: string | null;
   executionCount: number;
   htmlCount: number;
-  onRegenerate: () => void;
   project: ProjectDetails;
   supportFileCount: number;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   return (
     <SectionCard
       actions={
         <>
-          {canRegenerate ? (
-            <button
-              className={buttonStyles({ size: "md", variant: "secondary" })}
-              onClick={onRegenerate}
-              type="button"
-            >
+          {canRegenerate && executionHref ? (
+            <ButtonLink href={executionHref} size="md" variant="secondary">
               <RefreshIcon className="h-4 w-4" />
-              Volver a ejecutar
-            </button>
+              {activeRun?.status === "queued" || activeRun?.status === "running"
+                ? t ? "Ver ejecución activa" : "View active execution"
+                : t ? "Volver a ejecutar" : "Run again"}
+            </ButtonLink>
           ) : null}
           {downloadZipFile ? (
             <a
@@ -161,26 +225,41 @@ export function ProjectQuickActions({
               target="_blank"
             >
               <DownloadIcon className="h-4 w-4" />
-              Descargar resultados
+              {t ? "Descargar resultados" : "Download results"}
             </a>
           ) : null}
         </>
       }
-      description="Accede al paquete final del proyecto o vuelve a ejecutar el análisis cuando necesites actualizar los resultados."
-      title="Acciones rápidas"
+      description={t
+        ? "Accede al paquete final del proyecto o vuelve a ejecutar el análisis cuando necesites actualizar los resultados."
+        : "Access final project package or run analysis again when you need updated results."}
+      title={t ? "Acciones rápidas" : "Quick actions"}
     >
       <div className="flex flex-wrap gap-3">
+        {activeRun ? (
+          <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+            {activeRun.status === "queued"
+              ? t ? "En cola" : "Queued"
+              : activeRun.status === "running"
+                ? t ? "Procesando" : "Processing"
+                : activeRun.status}
+          </span>
+        ) : null}
         <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-          {executionCount} ejecuciones disponibles
+          {t
+            ? `${executionCount} ejecuciones disponibles`
+            : `${executionCount} executions available`}
         </span>
         <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-          {htmlCount} informes disponibles
+          {t ? `${htmlCount} informes disponibles` : `${htmlCount} reports available`}
         </span>
         <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-          {activeDeliverablesCount} archivos destacados
+          {t
+            ? `${activeDeliverablesCount} archivos destacados`
+            : `${activeDeliverablesCount} featured files`}
         </span>
         <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-          {supportFileCount} archivos del proyecto
+          {t ? `${supportFileCount} archivos del proyecto` : `${supportFileCount} project files`}
         </span>
       </div>
     </SectionCard>
@@ -195,6 +274,7 @@ export function ProjectSidebar({
   project,
   statusBadgeClassName,
   statusLabel,
+  teams,
 }: {
   activeExecutionGroup: ProjectExecutionGroup | null;
   executionGroups: ProjectExecutionGroup[];
@@ -203,29 +283,71 @@ export function ProjectSidebar({
   project: ProjectDetails;
   statusBadgeClassName: string;
   statusLabel: string;
+  teams: ProjectSharedTeam[];
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
+  const directMembers = members.filter((member) => member.has_direct_access !== false);
+  const ownerMembers = directMembers.filter((member) => member.is_owner);
+  const nonOwnerDirectMembers = directMembers.filter((member) => !member.is_owner);
+  const teamOnlyMembers = members.filter(
+    (member) => (member.access_via_teams?.length ?? 0) > 0 && member.has_direct_access === false,
+  );
+
+  function renderMemberGroup(
+    title: string,
+    description: string,
+    groupMembers: ProjectMemberRecord[],
+  ) {
+    if (groupMembers.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+            {title}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">{description}</p>
+        </div>
+        <div className="space-y-3">
+          {groupMembers.map((member) => (
+            <TeamMemberCard key={member.id || member.username} member={member} />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <aside className="flex h-full flex-col gap-6">
-      <SectionCard title="Metadatos">
+      <SectionCard title={t ? "Metadatos" : "Metadata"}>
         <div className="space-y-1">
           <DetailMetaRow
-            label="Estado"
+            label={t ? "Estado" : "Status"}
             value={
               <span className={cn("inline-flex rounded-full px-3 py-1 text-xs", statusBadgeClassName)}>
                 {statusLabel}
               </span>
             }
           />
-          <DetailMetaRow label="Creado" value={formatDate(project.created_at)} />
-          <DetailMetaRow label="Actualizado" value={formatDate(project.updated_at)} />
-          <DetailMetaRow label="Plantilla" value={project.template_file ?? "No disponible"} />
-          <DetailMetaRow label="Equipo" value={`${members.length} miembro(s)`} />
+          <DetailMetaRow label={t ? "Creado" : "Created"} value={formatDate(project.created_at, locale)} />
+          <DetailMetaRow label={t ? "Actualizado" : "Updated"} value={formatDate(project.updated_at, locale)} />
+          <DetailMetaRow label={t ? "Entidad" : "Entity"} value={project.entity_name ?? (t ? "Sin entidad" : "No entity")} />
+          <DetailMetaRow label={t ? "Plantilla" : "Template"} value={project.template_file ?? (t ? "No disponible" : "Not available")} />
+          <DetailMetaRow label={t ? "Colaboradores" : "Collaborators"} value={t ? `${members.length} miembro(s)` : `${members.length} member(s)`} />
+          <DetailMetaRow label={t ? "Acceso directo" : "Direct access"} value={t ? `${directMembers.length} usuario(s)` : `${directMembers.length} user(s)`} />
+          <DetailMetaRow label={t ? "Vía equipos" : "Via teams"} value={t ? `${teamOnlyMembers.length} usuario(s)` : `${teamOnlyMembers.length} user(s)`} />
+          <DetailMetaRow label={t ? "Equipos vinculados" : "Linked teams"} value={t ? `${teams.length} equipo(s)` : `${teams.length} team(s)`} />
         </div>
       </SectionCard>
 
       <SectionCard
-        description="Selecciona una ejecución para actualizar el informe principal, las gráficas y los archivos disponibles."
-        title="Ejecuciones destacadas"
+        description={t
+          ? "Selecciona una ejecución para actualizar el informe principal, las gráficas y los archivos disponibles."
+          : "Select an execution to update main report, charts, and available files."}
+        title={t ? "Ejecuciones destacadas" : "Featured executions"}
       >
         {executionGroups.length > 0 ? (
           <div className="space-y-4">
@@ -240,23 +362,64 @@ export function ProjectSidebar({
           </div>
         ) : (
           <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-5 py-8 text-sm leading-6 text-slate-500">
-            Este proyecto todavía no tiene ejecuciones disponibles.
+            {t
+              ? "Este proyecto todavía no tiene ejecuciones disponibles."
+              : "This project does not have executions available yet."}
           </div>
         )}
       </SectionCard>
 
       <SectionCard
-        description="Personas con acceso actual al proyecto. Pulsa sobre un nombre para ver su ficha."
-        title="Equipo del proyecto"
+        description={t
+          ? "Equipos completos que heredan acceso al proyecto y el rol con el que entran."
+          : "Full teams inheriting access to project and the role they use."}
+        title={t ? "Equipos vinculados" : "Linked teams"}
       >
-        {members.length > 0 ? (
+        {teams.length > 0 ? (
           <div className="space-y-3">
-            {members.map((member) => (
-              <TeamMemberCard key={member.id || member.username} member={member} />
+            {teams.map((team) => (
+              <LinkedProjectTeamCard key={team.id} team={team} />
             ))}
           </div>
         ) : (
-          <p className="text-sm text-slate-500">No se encontraron miembros para este proyecto.</p>
+          <p className="text-sm text-slate-500">
+            {t ? "Este proyecto no tiene equipos vinculados." : "This project has no linked teams."}
+          </p>
+        )}
+      </SectionCard>
+
+      <SectionCard
+        description={t
+          ? "Personas con acceso actual al proyecto. Pulsa sobre un nombre para ver su ficha."
+          : "People with current project access. Click a name to view profile."}
+        title={t ? "Equipo del proyecto" : "Project team"}
+      >
+        {members.length > 0 ? (
+          <div className="space-y-5">
+            {renderMemberGroup(
+              t ? "Propietario" : "Owner",
+              t ? "Responsable principal del proyecto." : "Primary project owner.",
+              ownerMembers,
+            )}
+            {renderMemberGroup(
+              t ? "Acceso directo" : "Direct access",
+              t
+                ? "Usuarios añadidos manualmente al proyecto. Pueden además pertenecer a equipos vinculados."
+                : "Users added manually to project. They may also belong to linked teams.",
+              nonOwnerDirectMembers,
+            )}
+            {renderMemberGroup(
+              t ? "Vía equipos" : "Via teams",
+              t
+                ? "Usuarios que acceden solo por pertenecer a equipos vinculados al proyecto."
+                : "Users who access only because they belong to linked teams.",
+              teamOnlyMembers,
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">
+            {t ? "No se encontraron miembros para este proyecto." : "No members found for this project."}
+          </p>
         )}
       </SectionCard>
     </aside>
@@ -280,6 +443,8 @@ export function ProjectPrimaryReport({
   previewLoading: boolean;
   projectReportHref: string | null;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const previewFiles = activeExecutionGroup ? getExecutionPreviewableFiles(activeExecutionGroup) : [];
 
   return (
@@ -289,7 +454,7 @@ export function ProjectPrimaryReport({
           activeExecutionGroup?.htmlFile && projectReportHref ? (
             <ButtonLink href={projectReportHref} rel="noreferrer" target="_blank" variant="secondary">
               <EyeIcon className="h-4 w-4" />
-              Abrir informe completo
+              {t ? "Abrir informe completo" : "Open full report"}
             </ButtonLink>
           ) : null
         }
@@ -297,10 +462,14 @@ export function ProjectPrimaryReport({
         contentClassName="flex flex-1 flex-col"
         description={
           activeExecutionGroup
-            ? `Vista principal de ${activeExecutionGroup.label}.`
-            : "Cuando haya un informe disponible, aparecerá aquí."
+            ? t
+              ? `Vista principal de ${activeExecutionGroup.label}.`
+              : `Main view for ${activeExecutionGroup.label}.`
+            : t
+              ? "Cuando haya un informe disponible, aparecerá aquí."
+              : "When a report is available, it will appear here."
         }
-        title="Informe principal"
+        title={t ? "Informe principal" : "Main report"}
       >
         {activeExecutionGroup ? (
           <div className="flex h-full flex-1 flex-col gap-5">
@@ -310,7 +479,7 @@ export function ProjectPrimaryReport({
                   className={cn("rounded-full border px-3 py-1 text-xs font-semibold", getDeliverableTone(file))}
                   key={file.path}
                 >
-                  {getArtifactLabel(file.extension)}
+                  {getArtifactLabel(file.extension, locale)}
                 </span>
               ))}
             </div>
@@ -318,10 +487,12 @@ export function ProjectPrimaryReport({
             {previewFiles.length > 1 ? (
               <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                  Archivo mostrado en la vista principal
+                  {t ? "Archivo mostrado en la vista principal" : "File shown in main view"}
                 </p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Elige qué documento quieres consultar dentro de esta ejecución.
+                  {t
+                    ? "Elige qué documento quieres consultar dentro de esta ejecución."
+                    : "Choose which document you want to review inside this execution."}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   {previewFiles.map((file) => {
@@ -349,7 +520,9 @@ export function ProjectPrimaryReport({
 
             <PreviewPanel
               className="flex-1"
-              emptyMessage='Selecciona una ejecución en "Ejecuciones destacadas" para abrir aquí su informe o documento principal.'
+              emptyMessage={t
+                ? 'Selecciona una ejecución en "Ejecuciones destacadas" para abrir aquí su informe o documento principal.'
+                : 'Select an execution in "Featured executions" to open its main report or document here.'}
               loading={previewLoading}
               preview={preview}
               stretch
@@ -358,10 +531,12 @@ export function ProjectPrimaryReport({
         ) : (
           <div className="flex h-full flex-1 flex-col items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center">
             <p className="text-base font-semibold text-slate-900">
-              Aún no hay informes disponibles para este proyecto.
+              {t ? "Aún no hay informes disponibles para este proyecto." : "No reports available for this project yet."}
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Cuando se genere un informe, aparecerá aquí automáticamente.
+              {t
+                ? "Cuando se genere un informe, aparecerá aquí automáticamente."
+                : "When a report is generated, it will appear here automatically."}
             </p>
           </div>
         )}
@@ -395,14 +570,18 @@ export function ProjectResultsSections({
   supportFiles: ProjectFileEntry[];
   templateFile: ProjectFileEntry | null;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   return (
     <div className="flex flex-col gap-6">
       <div className="grid items-stretch gap-6 xl:grid-cols-2">
         <SectionCard
           className="flex h-full flex-col"
           contentClassName="flex-1"
-          description="Explora las principales figuras del informe seleccionado."
-          title="Galería de gráficos"
+          description={t
+            ? "Explora las principales figuras del informe seleccionado."
+            : "Explore main figures from selected report."}
+          title={t ? "Galería de gráficos" : "Chart gallery"}
         >
           <ReportCarousel images={activeReport?.images ?? []} />
         </SectionCard>
@@ -410,16 +589,20 @@ export function ProjectResultsSections({
         <SectionCard
           className="flex h-full flex-col"
           contentClassName="flex-1"
-          description="Revisa el resumen de la ejecución seleccionada y sus apartados más importantes."
-          title="Interpretación del análisis"
+          description={t
+            ? "Revisa el resumen de la ejecución seleccionada y sus apartados más importantes."
+            : "Review summary of selected execution and its most important sections."}
+          title={t ? "Interpretación del análisis" : "Analysis interpretation"}
         >
           <ReportInsightsPanel report={activeReport} />
         </SectionCard>
       </div>
 
       <SectionCard
-        description="Accede directamente a los archivos principales de la ejecución seleccionada."
-        title="Archivos listos para consultar"
+        description={t
+          ? "Accede directamente a los archivos principales de la ejecución seleccionada."
+          : "Access main files from selected execution directly."}
+        title={t ? "Archivos listos para consultar" : "Files ready to review"}
       >
         {featuredDeliverable ? (
           <div
@@ -454,19 +637,25 @@ export function ProjectResultsSections({
           </div>
         ) : (
           <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm leading-6 text-slate-500">
-            La ejecución seleccionada todavía no incluye archivos destacados.
+            {t
+              ? "La ejecución seleccionada todavía no incluye archivos destacados."
+              : "Selected execution does not include featured files yet."}
           </div>
         )}
       </SectionCard>
 
       <SectionCard
-        description="Consulta la plantilla y los archivos de apoyo del proyecto sin salir de esta página."
-        title="Archivos del proyecto"
+        description={t
+          ? "Consulta la plantilla y los archivos de apoyo del proyecto sin salir de esta página."
+          : "Review project template and support files without leaving this page."}
+        title={t ? "Archivos del proyecto" : "Project files"}
       >
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
           <div className="space-y-5">
             <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Plantilla principal</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {t ? "Plantilla principal" : "Main template"}
+              </p>
               {templateFile ? (
                 <div className="mt-3">
                   <SupportFileRow
@@ -479,13 +668,17 @@ export function ProjectResultsSections({
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-slate-500">
-                  Todavía no hay una plantilla asociada a este proyecto.
+                  {t
+                    ? "Todavía no hay una plantilla asociada a este proyecto."
+                    : "There is no template linked to this project yet."}
                 </p>
               )}
             </div>
 
             <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-              <p className="text-sm font-semibold text-slate-900">Archivos de apoyo</p>
+              <p className="text-sm font-semibold text-slate-900">
+                {t ? "Archivos de apoyo" : "Support files"}
+              </p>
               {supportFiles.length > 0 ? (
                 <div className="mt-3 space-y-3">
                   {supportFiles.map((file) => (
@@ -501,14 +694,18 @@ export function ProjectResultsSections({
                 </div>
               ) : (
                 <p className="mt-2 text-sm text-slate-500">
-                  No hay archivos de apoyo fuera de las carpetas de resultados.
+                  {t
+                    ? "No hay archivos de apoyo fuera de las carpetas de resultados."
+                    : "There are no support files outside result folders."}
                 </p>
               )}
             </div>
           </div>
 
           <PreviewPanel
-            emptyMessage="Selecciona un archivo compatible para verlo aquí sin salir de la página."
+            emptyMessage={t
+              ? "Selecciona un archivo compatible para verlo aquí sin salir de la página."
+              : "Select a compatible file to preview it here without leaving page."}
             loading={filePreviewLoading}
             preview={filePreview}
             size="compact"

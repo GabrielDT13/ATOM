@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   buildProjectFilePreviewPath,
   buildProjectFileUrl,
@@ -9,6 +10,7 @@ import {
 import { DownloadIcon, EyeIcon, ProjectStackIcon } from "@/components/projects/project-management-icons";
 import { ButtonLink } from "@/components/ui/button-link";
 import { buttonStyles } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { apiFetch } from "@/lib/api";
 import { buildProjectDetailHref, getProjectByRef } from "@/lib/projects";
 import { parseProjectReportHtml } from "@/components/projects/project-report-utils";
@@ -34,6 +36,8 @@ export function ProjectReportView({
   projectRef,
   reportPath,
 }: ProjectReportViewProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [projectIdentity, setProjectIdentity] = useState<{ name: string; owner: string } | null>(null);
   const [reportHtml, setReportHtml] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +45,7 @@ export function ProjectReportView({
 
   useEffect(() => {
     if (!reportPath) {
-      setError("No se ha indicado ningún informe para abrir.");
+      setError(t ? "No se ha indicado ningún informe para abrir." : "No report was specified to open.");
       setLoading(false);
       return;
     }
@@ -88,7 +92,7 @@ export function ProjectReportView({
           setError(
             loadError instanceof Error
               ? loadError.message
-              : "No se pudo abrir el informe seleccionado.",
+              : t ? "No se pudo abrir el informe seleccionado." : "Could not open selected report.",
           );
         }
       } finally {
@@ -103,15 +107,15 @@ export function ProjectReportView({
     return () => {
       cancelled = true;
     };
-  }, [owner, projectName, projectRef, reportPath]);
+  }, [owner, projectName, projectRef, reportPath, t]);
 
   const reportTitle = useMemo(() => {
     if (!reportHtml) {
-      return "Informe del análisis";
+      return t ? "Informe del análisis" : "Analysis report";
     }
 
-    return parseProjectReportHtml(reportHtml).title ?? "Informe del análisis";
-  }, [reportHtml]);
+    return parseProjectReportHtml(reportHtml).title ?? (t ? "Informe del análisis" : "Analysis report");
+  }, [reportHtml, t]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,13 +124,15 @@ export function ProjectReportView({
           <div className="max-w-3xl">
             <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
               <ProjectStackIcon />
-              Informe del proyecto
+              {t ? "Informe del proyecto" : "Project report"}
             </div>
             <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {reportTitle}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-300 sm:text-base">
-              Visualiza el informe completo en una pantalla amplia y consulta todos sus detalles.
+              {t
+                ? "Visualiza el informe completo en una pantalla amplia y consulta todos sus detalles."
+                : "Open full report on a wide screen and review all details."}
             </p>
             {reportPath ? (
               <p className="mt-4 text-sm text-slate-300">{reportPath}</p>
@@ -144,7 +150,7 @@ export function ProjectReportView({
               tone="on-dark"
               variant="secondary"
             >
-              Volver al proyecto
+              {t ? "Volver al proyecto" : "Back to project"}
             </ButtonLink>
             {reportPath && projectIdentity ? (
               <a
@@ -154,7 +160,7 @@ export function ProjectReportView({
                 target="_blank"
               >
                 <DownloadIcon className="h-4 w-4" />
-                Descargar HTML
+                {t ? "Descargar HTML" : "Download HTML"}
               </a>
             ) : null}
           </div>
@@ -163,8 +169,12 @@ export function ProjectReportView({
 
       <section className="rounded-[28px] border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
         {loading ? (
-          <div className="flex min-h-[75vh] items-center justify-center rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm leading-6 text-slate-500">
-            Cargando informe...
+          <div className="space-y-4 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+            <div className="flex items-center justify-between gap-3">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-9 w-28 rounded-full" />
+            </div>
+            <Skeleton className="h-[75vh] rounded-[20px] bg-white" />
           </div>
         ) : null}
 
@@ -172,7 +182,7 @@ export function ProjectReportView({
           <div className="flex min-h-[75vh] flex-col items-center justify-center rounded-[24px] border border-rose-200 bg-rose-50 px-6 text-center">
             <EyeIcon className="h-8 w-8 text-rose-500" />
             <p className="mt-4 text-base font-semibold text-rose-800">
-              No se pudo abrir el informe
+              {t ? "No se pudo abrir el informe" : "Could not open report"}
             </p>
             <p className="mt-2 max-w-xl text-sm leading-6 text-rose-700">{error}</p>
           </div>

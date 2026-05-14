@@ -1,5 +1,7 @@
 import type { PreviewState } from "@/components/projects/detail/project-detail-types";
 
+type Locale = "en" | "es";
+
 type WorksheetPreview = {
   name: string;
   rows: string[][];
@@ -19,13 +21,13 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-function normalizeCellValue(value: unknown) {
+function normalizeCellValue(value: unknown, locale: Locale) {
   if (value === null || value === undefined) {
     return "";
   }
 
   if (value instanceof Date) {
-    return value.toLocaleString("es-ES");
+    return value.toLocaleString(locale === "es" ? "es-ES" : "en-US");
   }
 
   return String(value);
@@ -35,19 +37,24 @@ export function buildOfficeFallbackPreview(
   filePath: string,
   downloadUrl: string,
   message?: string,
+  locale: Locale = "es",
 ): PreviewState {
+  const t = locale === "es";
   return {
     actionHref: downloadUrl,
-    actionLabel: "Abrir archivo",
+    actionLabel: t ? "Abrir archivo" : "Open file",
     description:
       message ??
-      "No se pudo generar una vista previa fiable para este archivo. Puedes abrirlo en una pestaña aparte o descargarlo.",
+      (t
+        ? "No se pudo generar una vista previa fiable para este archivo. Puedes abrirlo en una pestaña aparte o descargarlo."
+        : "Could not generate a reliable preview for this file. You can open it in a separate tab or download it."),
     label: filePath,
     mode: "notice",
   };
 }
 
-export function buildWorkbookPreviewMarkup(fileName: string, worksheets: WorksheetPreview[]) {
+export function buildWorkbookPreviewMarkup(fileName: string, worksheets: WorksheetPreview[], locale: Locale = "es") {
+  const t = locale === "es";
   const sections = worksheets
     .map((sheet) => {
       const hasRows = sheet.rows.length > 0;
@@ -59,13 +66,13 @@ export function buildWorkbookPreviewMarkup(fileName: string, worksheets: Workshe
         <section class="sheet-card">
           <div class="sheet-header">
             <div>
-              <p class="sheet-eyebrow">Hoja</p>
+              <p class="sheet-eyebrow">${t ? "Hoja" : "Sheet"}</p>
               <h2>${escapeHtml(sheet.name)}</h2>
             </div>
             <div class="sheet-meta">
-              <span>${sheet.rows.length} fila(s)</span>
-              ${sheet.truncatedRows ? "<span>Vista resumida</span>" : ""}
-              ${sheet.truncatedColumns ? "<span>Columnas recortadas</span>" : ""}
+              <span>${sheet.rows.length} ${t ? "fila(s)" : "row(s)"}</span>
+              ${sheet.truncatedRows ? `<span>${t ? "Vista resumida" : "Condensed view"}</span>` : ""}
+              ${sheet.truncatedColumns ? `<span>${t ? "Columnas recortadas" : "Trimmed columns"}</span>` : ""}
             </div>
           </div>
           ${
@@ -90,7 +97,7 @@ export function buildWorkbookPreviewMarkup(fileName: string, worksheets: Workshe
                   </table>
                 </div>
               `
-              : '<p class="empty-copy">Esta hoja no contiene datos visibles para previsualizar.</p>'
+              : `<p class="empty-copy">${t ? "Esta hoja no contiene datos visibles para previsualizar." : "This sheet does not contain visible data to preview."}</p>`
           }
         </section>
       `;
@@ -99,7 +106,7 @@ export function buildWorkbookPreviewMarkup(fileName: string, worksheets: Workshe
 
   return `
     <!DOCTYPE html>
-    <html lang="es">
+    <html lang="${locale}">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -227,7 +234,7 @@ export function buildWorkbookPreviewMarkup(fileName: string, worksheets: Workshe
       <body>
         <main class="page">
           <section class="hero">
-            <p>Vista previa de Excel</p>
+            <p>${t ? "Vista previa de Excel" : "Excel preview"}</p>
             <h1>${escapeHtml(fileName)}</h1>
           </section>
           <div class="grid">
@@ -239,10 +246,11 @@ export function buildWorkbookPreviewMarkup(fileName: string, worksheets: Workshe
   `;
 }
 
-export function buildDocxPreviewMarkup(fileName: string, contentHtml: string) {
+export function buildDocxPreviewMarkup(fileName: string, contentHtml: string, locale: Locale = "es") {
+  const t = locale === "es";
   return `
     <!DOCTYPE html>
-    <html lang="es">
+    <html lang="${locale}">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -327,7 +335,7 @@ export function buildDocxPreviewMarkup(fileName: string, contentHtml: string) {
       <body>
         <main class="page">
           <section class="hero">
-            <p>Vista previa de documento</p>
+            <p>${t ? "Vista previa de documento" : "Document preview"}</p>
             <h1>${escapeHtml(fileName)}</h1>
           </section>
           <article class="content">
@@ -347,6 +355,7 @@ export async function parseOfficePreview(
   },
   blob: Blob,
   downloadUrl: string,
+  locale: Locale = "es",
 ): Promise<PreviewState> {
   const normalizedExtension = file.extension.toLowerCase();
 
@@ -357,7 +366,7 @@ export async function parseOfficePreview(
       const result = await convertToHtml({ arrayBuffer });
 
       return {
-        content: buildDocxPreviewMarkup(file.name, result.value),
+        content: buildDocxPreviewMarkup(file.name, result.value, locale),
         label: file.path,
         mode: "html",
       };
@@ -376,7 +385,7 @@ export async function parseOfficePreview(
         }) as unknown[][]).slice(0, MAX_PREVIEW_ROWS + 1);
         const truncatedRows = rows.length > MAX_PREVIEW_ROWS;
         const normalizedRows = rows.slice(0, MAX_PREVIEW_ROWS).map((row) => {
-          return row.slice(0, MAX_PREVIEW_COLUMNS).map((value) => normalizeCellValue(value));
+          return row.slice(0, MAX_PREVIEW_COLUMNS).map((value) => normalizeCellValue(value, locale));
         });
         const truncatedColumns = rows.some((row) => row.length > MAX_PREVIEW_COLUMNS);
 
@@ -389,7 +398,7 @@ export async function parseOfficePreview(
       });
 
       return {
-        content: buildWorkbookPreviewMarkup(file.name, worksheets),
+        content: buildWorkbookPreviewMarkup(file.name, worksheets, locale),
         label: file.path,
         mode: "html",
       };
@@ -400,10 +409,13 @@ export async function parseOfficePreview(
       file.path,
       downloadUrl,
       message
-        ? `No se pudo generar la vista previa de este archivo: ${message}. Puedes abrirlo en una pestaña aparte o descargarlo.`
+        ? locale === "es"
+          ? `No se pudo generar la vista previa de este archivo: ${message}. Puedes abrirlo en una pestaña aparte o descargarlo.`
+          : `Could not generate preview for this file: ${message}. You can open it in a separate tab or download it.`
         : undefined,
+      locale,
     );
   }
 
-  return buildOfficeFallbackPreview(file.path, downloadUrl);
+  return buildOfficeFallbackPreview(file.path, downloadUrl, undefined, locale);
 }

@@ -1,31 +1,53 @@
 import { apiFetch, apiUpload } from "@/lib/api";
 import type {
   ProjectDetails,
-  ProjectSummary,
   ProjectMemberRole,
   ProjectMemberMutationResponse,
   ProjectMembersResponse,
   ProjectMapResponse,
   ProjectMutationResponse,
   ProjectShareCandidatesResponse,
+  ProjectSummary,
+  ProjectTeamCandidatesResponse,
+  ProjectTeamMutationResponse,
+  ProjectTeamsResponse,
+  ProjectVisibility,
 } from "@/types/api";
 
 type ProjectUploadOptions = {
   additionalFiles?: File[];
+  entityName?: string;
   name?: string;
   onProgress?: (progress: number) => void;
+  teamId?: string;
   templateFile?: File | null;
+  visibility?: ProjectVisibility;
 };
 
 function buildProjectFormData({
   additionalFiles = [],
+  entityName,
   name,
+  teamId,
   templateFile,
+  visibility,
 }: ProjectUploadOptions): FormData {
   const formData = new FormData();
 
   if (name?.trim()) {
     formData.append("project_name", name.trim());
+  }
+
+  if (entityName !== undefined) {
+    formData.append("entity_name", entityName.trim());
+  }
+
+  if (teamId?.trim()) {
+    formData.append("team_id", teamId.trim());
+  }
+
+  if (visibility) {
+    formData.append("visibility", visibility);
   }
 
   if (templateFile) {
@@ -61,12 +83,20 @@ export function buildProjectReportHref(projectRef: string, reportPath: string) {
   return `/dashboard/project-report/${encodeURIComponent(projectRef)}?path=${encodeURIComponent(reportPath)}`;
 }
 
-export function buildProjectExecutionHref(projectRef: string) {
-  return `/dashboard/project-execution/${encodeURIComponent(projectRef)}`;
+export function buildProjectExecutionHref(projectRef: string, options?: { autoStart?: boolean }) {
+  const basePath = `/dashboard/project-execution/${encodeURIComponent(projectRef)}`;
+  if (!options?.autoStart) {
+    return basePath;
+  }
+  return `${basePath}?start=1`;
 }
 
 export function listProjects() {
   return apiFetch<ProjectMapResponse>("/api/projects");
+}
+
+export function listPublicProjects() {
+  return apiFetch<ProjectMapResponse>("/api/projects/public");
 }
 
 export function getProject(owner: string, projectName: string) {
@@ -81,14 +111,20 @@ export function getProjectByRef(projectRef: string) {
 
 export function createProject({
   additionalFiles = [],
+  entityName,
   name,
   onProgress,
+  teamId,
   templateFile,
+  visibility,
 }: ProjectUploadOptions) {
   const formData = buildProjectFormData({
     additionalFiles,
+    entityName,
     name,
+    teamId,
     templateFile,
+    visibility,
   });
 
   return apiUpload<ProjectMutationResponse>("/api/projects", formData, {
@@ -102,15 +138,25 @@ export function updateProject(
   projectName: string,
   {
     additionalFiles = [],
+    entityName,
     name,
     onProgress,
     templateFile,
+    visibility,
   }: ProjectUploadOptions,
 ) {
   const formData = new FormData();
 
   if (name?.trim()) {
     formData.append("new_name", name.trim());
+  }
+
+  if (entityName !== undefined) {
+    formData.append("entity_name", entityName.trim());
+  }
+
+  if (visibility) {
+    formData.append("visibility", visibility);
   }
 
   if (templateFile) {
@@ -189,5 +235,46 @@ export function transferProjectOwnership(owner: string, projectName: string, use
   return apiFetch<ProjectMutationResponse>(
     `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/transfer/${encodeURIComponent(username)}`,
     { method: "POST" },
+  );
+}
+
+export function listProjectTeams(owner: string, projectName: string) {
+  return apiFetch<ProjectTeamsResponse>(
+    `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/teams`,
+  );
+}
+
+export function searchProjectTeamCandidates(owner: string, projectName: string, query: string, limit = 8) {
+  const searchParams = new URLSearchParams({
+    limit: String(limit),
+    q: query,
+  });
+  return apiFetch<ProjectTeamCandidatesResponse>(
+    `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/team-candidates?${searchParams.toString()}`,
+  );
+}
+
+export function shareProjectWithTeam(
+  owner: string,
+  projectName: string,
+  teamId: string,
+  memberRole: Extract<ProjectMemberRole, "editor" | "viewer"> = "viewer",
+) {
+  return apiFetch<ProjectTeamMutationResponse>(
+    `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/teams/${encodeURIComponent(teamId)}`,
+    {
+      body: JSON.stringify({ member_role: memberRole }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+      method: "PUT",
+    },
+  );
+}
+
+export function removeProjectTeamAccess(owner: string, projectName: string, teamId: string) {
+  return apiFetch<ProjectTeamMutationResponse>(
+    `/api/projects/${encodeURIComponent(owner)}/${encodeURIComponent(projectName)}/teams/${encodeURIComponent(teamId)}`,
+    { method: "DELETE" },
   );
 }

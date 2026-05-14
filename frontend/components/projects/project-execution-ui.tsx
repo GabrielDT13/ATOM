@@ -1,5 +1,6 @@
 "use client";
 
+import type { AppLocale } from "@/lib/locale";
 import type {
   AnalysisExecutionLogEntry,
   AnalysisExecutionStep,
@@ -80,20 +81,29 @@ function ExecutionStepItem({ step }: { step: AnalysisExecutionStep }) {
   );
 }
 
-export function ExecutionLogConsole({ logs }: { logs: AnalysisExecutionLogEntry[] }) {
+export function ExecutionLogConsole({
+  locale = "es",
+  logs,
+}: {
+  locale?: AppLocale;
+  logs: AnalysisExecutionLogEntry[];
+}) {
+  const t = locale === "es";
   if (!logs.length) {
     return (
       <div className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
         <div className="dialog-hero-surface flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4 text-slate-200">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-              Detalle técnico
+              {t ? "Detalle técnico" : "Technical details"}
             </p>
-            <h3 className="mt-1 text-base font-semibold">Salida del proceso</h3>
+            <h3 className="mt-1 text-base font-semibold">{t ? "Salida del proceso" : "Process output"}</h3>
           </div>
         </div>
         <div className="flex min-h-[18rem] items-center justify-center bg-slate-50 px-6 text-center text-sm leading-6 text-slate-500">
-          El detalle técnico aparecerá aquí en cuanto empiece la ejecución.
+          {t
+            ? "El detalle técnico aparecerá aquí en cuanto empiece la ejecución."
+            : "Technical details will appear here as soon as execution starts."}
         </div>
       </div>
     );
@@ -104,17 +114,21 @@ export function ExecutionLogConsole({ logs }: { logs: AnalysisExecutionLogEntry[
       <div className="dialog-hero-surface flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4 text-slate-200">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-            Detalle técnico
+            {t ? "Detalle técnico" : "Technical details"}
           </p>
-          <h3 className="mt-1 text-base font-semibold">Salida del R Markdown</h3>
+          <h3 className="mt-1 text-base font-semibold">{t ? "Salida del proceso" : "Process output"}</h3>
         </div>
-        <p className="text-xs text-slate-300">{logs.length} líneas recientes</p>
+        <p className="text-xs text-slate-300">
+          {t
+            ? `${logs.length} líneas recientes`
+            : `${logs.length} recent line${logs.length === 1 ? "" : "s"}`}
+        </p>
       </div>
       <div className="max-h-[24rem] overflow-auto bg-slate-950 px-5 py-5 font-mono text-xs leading-6 text-slate-200">
         {logs.map((entry) => (
           <div className="flex gap-3" key={entry.id}>
             <span className="shrink-0 text-slate-500">
-              [{entry.timestamp ? formatTimeOfDay(entry.timestamp) : "--:--"}]
+              [{entry.timestamp ? formatTimeOfDay(entry.timestamp, locale) : "--:--"}]
             </span>
             <span
               className={cn(

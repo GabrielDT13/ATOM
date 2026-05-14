@@ -1,9 +1,0 @@
-project_id = "atom-local"
-
-[api]
-schemas = ["public"]
-extra_search_path = ["public", "extensions"]
-
-[db.seed]
-enabled = true
-sql_paths = ["./seeds/00_roles.sql", "./seeds/05_departments.sql", "./seeds/10_users.sql", "./seeds/20_projects.sql", "./seeds/25_dashboard_activity.sql"]

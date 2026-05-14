@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { buildProjectDetailHref, buildProjectExecutionHref } from "@/lib/projects";
 import type { SidebarProjectItem } from "@/types/api";
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -23,13 +24,26 @@ type ProjectExplorerProps = {
 };
 
 function getStatusLabel(item: SidebarProjectItem) {
+  return getStatusLabelForLocale(item, "es");
+}
+
+function getStatusLabelForLocale(item: SidebarProjectItem, locale: "en" | "es") {
+  const t = locale === "es";
+  if (item.active_run?.status === "queued") {
+    return t ? "En cola" : "Queued";
+  }
+
+  if (item.active_run?.status === "running") {
+    return t ? "Procesando" : "Processing";
+  }
+
   switch (item.status) {
     case "results":
-      return "Con resultados";
+      return t ? "Con resultados" : "With results";
     case "configured":
-      return "Pendiente";
+      return t ? "Pendiente" : "Pending";
     default:
-      return "Sin archivos";
+      return t ? "Sin archivos" : "No files";
   }
 }
 
@@ -41,6 +55,7 @@ export function ProjectExplorer({
   onToggleCollapse,
   title,
 }: ProjectExplorerProps) {
+  const { locale } = useLocale();
   const isDesktopCollapsed = isCollapsed && !isMobileOpen;
 
   return (
@@ -54,6 +69,7 @@ export function ProjectExplorer({
       />
 
       <aside
+        data-tour="project-explorer"
         className={`fixed inset-y-0 right-0 z-40 w-[22rem] transition-[transform,width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] xl:sticky xl:top-8 xl:z-10 xl:h-[calc(100vh-8rem)] xl:self-start ${
           isMobileOpen ? "translate-x-0" : "translate-x-full xl:translate-x-0"
         } ${isCollapsed ? "xl:w-24" : "xl:w-[24rem]"}`}
@@ -77,7 +93,7 @@ export function ProjectExplorer({
               <>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Acceso rápido
+                    {locale === "es" ? "Acceso rápido" : "Quick access"}
                   </p>
                   <h2 className="text-lg font-bold text-slate-900">{title}</h2>
                 </div>
@@ -87,7 +103,7 @@ export function ProjectExplorer({
                     {items.length}
                   </span>
                   <button
-                    aria-label="Cerrar panel de proyectos"
+                    aria-label={locale === "es" ? "Cerrar panel de proyectos" : "Close projects panel"}
                     className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 xl:hidden"
                     onClick={onCloseMobile}
                     type="button"
@@ -119,15 +135,27 @@ export function ProjectExplorer({
                       </div>
 
                       {item.can_run ? (
-                        item.html_count > 0 ? (
-                          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                        item.active_run?.status === "queued" || item.active_run?.status === "running" ? (
+                          <Link
+                            aria-label={locale === "es" ? `Abrir ejecución de ${item.name}` : `Open execution for ${item.name}`}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600 transition hover:bg-violet-100"
+                            href={buildProjectExecutionHref(item.route_ref)}
+                          >
+                            <span className="h-3 w-3 rounded-full bg-current animate-pulse" />
+                          </Link>
+                        ) : item.html_count > 0 ? (
+                          <Link
+                            aria-label={locale === "es" ? `Abrir proyecto ${item.name}` : `Open project ${item.name}`}
+                            className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 transition hover:bg-emerald-100"
+                            href={buildProjectDetailHref(item.route_ref)}
+                          >
                             <CheckIcon className="h-5 w-5" />
-                          </span>
+                          </Link>
                         ) : (
                           <Link
-                            aria-label={`Ejecutar proyecto ${item.name}`}
+                            aria-label={locale === "es" ? `Ejecutar proyecto ${item.name}` : `Run project ${item.name}`}
                             className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary hover:text-white"
-                            href={buildProjectExecutionHref(item.route_ref)}
+                            href={buildProjectExecutionHref(item.route_ref, { autoStart: true })}
                           >
                             <PlayIcon className="h-4 w-4" />
                           </Link>
@@ -136,12 +164,12 @@ export function ProjectExplorer({
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1">{getStatusLabel(item)}</span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1">{getStatusLabelForLocale(item, locale)}</span>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                        {item.file_count} archivo{item.file_count === 1 ? "" : "s"}
+                        {item.file_count} {locale === "es" ? `archivo${item.file_count === 1 ? "" : "s"}` : `file${item.file_count === 1 ? "" : "s"}`}
                       </span>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                        {item.html_count} informe{item.html_count === 1 ? "" : "s"}
+                        {item.html_count} {locale === "es" ? `informe${item.html_count === 1 ? "" : "s"}` : `report${item.html_count === 1 ? "" : "s"}`}
                       </span>
                     </div>
                   </article>
@@ -149,7 +177,7 @@ export function ProjectExplorer({
               </div>
             ) : (
               <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-sm text-slate-500">
-                No hay proyectos disponibles.
+                {locale === "es" ? "No hay proyectos disponibles." : "No projects available."}
               </div>
             )
           ) : (
@@ -171,14 +199,16 @@ export function ProjectExplorer({
                   </div>
                 </div>
                 <p className="max-w-[8rem] text-center text-xs leading-5">
-                  Abre el panel para acceder rápido a tus proyectos.
+                  {locale === "es" ? "Abre el panel para acceder rápido a tus proyectos." : "Open panel for quick access to your projects."}
                 </p>
               </div>
             </div>
           )}
 
           <button
-            aria-label={isCollapsed ? "Expandir panel de proyectos" : "Contraer panel de proyectos"}
+            aria-label={locale === "es"
+              ? isCollapsed ? "Expandir panel de proyectos" : "Contraer panel de proyectos"
+              : isCollapsed ? "Expand project panel" : "Collapse project panel"}
             className="absolute -left-4 top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 xl:flex"
             onClick={onToggleCollapse}
             type="button"

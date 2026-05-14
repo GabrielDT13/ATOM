@@ -23,6 +23,7 @@ function createProjectDetails(fileEntries: ProjectDetails["file_entries"]): Proj
     status: "results",
     template_file: "template.xlsx",
     updated_at: "2026-03-16T10:00:00Z",
+    visibility: "private",
   };
 }
 
@@ -83,7 +84,6 @@ describe("buildProjectDetailModel", () => {
     expect(model.executionGroups[0]?.files.map((entry) => entry.path)).toEqual([
       "design_app_a/design_app_a.docx",
       "design_app_a/design_app_a.html",
-      "design_app_a/design_app_a.Rmd",
       "design_app_a/design_app_a.zip",
     ]);
   });
@@ -121,4 +121,3 @@ describe("buildProjectDetailModel", () => {
     expect(model.supportFiles.map((entry) => entry.path)).toEqual(["matrix.csv"]);
   });
 });
-

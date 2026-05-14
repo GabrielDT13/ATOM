@@ -38,6 +38,77 @@ export function FilterIcon({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+export function GridViewIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="4.25"
+        y="4.25"
+      />
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="14.25"
+        y="4.25"
+      />
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="4.25"
+        y="14.25"
+      />
+      <rect
+        height="5.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        width="5.5"
+        x="14.25"
+        y="14.25"
+      />
+    </svg>
+  );
+}
+
+export function ListViewIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M8.5 7H19.25M8.5 12H19.25M8.5 17H19.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+      <circle cx="5.25" cy="7" fill="currentColor" r="1.25" />
+      <circle cx="5.25" cy="12" fill="currentColor" r="1.25" />
+      <circle cx="5.25" cy="17" fill="currentColor" r="1.25" />
+    </svg>
+  );
+}
+
 export function PlusIcon({ className = "h-4 w-4" }: IconProps) {
   return (
     <svg
@@ -189,6 +260,81 @@ export function PencilIcon({ className = "h-4 w-4" }: IconProps) {
         d="M13.5 7L17 10.5"
         stroke="currentColor"
         strokeLinecap="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+export function ShareIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <circle cx="17.5" cy="6.5" r="2.75" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="6.5" cy="12" r="2.75" stroke="currentColor" strokeWidth="1.7" />
+      <circle cx="17.5" cy="17.5" r="2.75" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M8.95 10.95L15.1 7.55M8.95 13.05L15.1 16.45"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+export function LinkIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M10.35 13.65L13.65 10.35M9 15C7.34 16.66 4.66 16.66 3 15C1.34 13.34 1.34 10.66 3 9L6 6C7.66 4.34 10.34 4.34 12 6C13.66 7.66 13.66 10.34 12 12"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M15 9C16.66 7.34 19.34 7.34 21 9C22.66 10.66 22.66 13.34 21 15L18 18C16.34 19.66 13.66 19.66 12 18C10.34 16.34 10.34 13.66 12 12"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+    </svg>
+  );
+}
+
+export function WhatsAppIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M12 20C16.418 20 20 16.642 20 12.5C20 8.358 16.418 5 12 5C7.582 5 4 8.358 4 12.5C4 14.083 4.523 15.55 5.413 16.756L4.5 20L7.92 19.093C9.095 19.675 10.501 20 12 20Z"
+        stroke="currentColor"
+        strokeLinejoin="round"
+        strokeWidth="1.7"
+      />
+      <path
+        d="M9.2 9.55C9.2 9.15 9.52 8.82 9.93 8.82H10.45C10.7 8.82 10.93 8.95 11.06 9.17L11.72 10.3C11.84 10.52 11.84 10.79 11.71 11L11.27 11.74C11.64 12.44 12.22 13.02 12.93 13.39L13.66 12.95C13.88 12.82 14.15 12.82 14.37 12.94L15.5 13.6C15.72 13.73 15.85 13.96 15.85 14.21V14.73C15.85 15.14 15.53 15.46 15.12 15.46H14.75C11.71 15.46 9.2 12.99 9.2 9.95V9.55Z"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
         strokeWidth="1.7"
       />
     </svg>

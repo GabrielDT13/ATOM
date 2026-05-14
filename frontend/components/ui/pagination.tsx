@@ -1,3 +1,5 @@
+"use client";
+
 import type { ButtonHTMLAttributes, HTMLAttributes, ReactNode } from "react";
 
 import {
@@ -5,6 +7,7 @@ import {
   ArrowRightIcon,
   MoreHorizontalIcon,
 } from "@/components/dashboard/dashboard-icons";
+import { useLocale } from "@/components/providers/locale-provider";
 import { cn } from "@/lib/utils";
 
 export function Pagination({
@@ -12,9 +15,10 @@ export function Pagination({
   className,
   ...props
 }: HTMLAttributes<HTMLElement>) {
+  const { locale } = useLocale();
   return (
     <nav
-      aria-label="Paginación"
+      aria-label={locale === "es" ? "Paginación" : "Pagination"}
       className={cn("mx-auto flex w-full justify-end", className)}
       {...props}
     >
@@ -77,28 +81,31 @@ export function PaginationButton({
 }
 
 export function PaginationPrevious(props: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { locale } = useLocale();
   return (
-    <PaginationButton aria-label="Página anterior" className="w-9 px-0" {...props}>
+    <PaginationButton aria-label={locale === "es" ? "Página anterior" : "Previous page"} className="w-9 px-0" {...props}>
       <ArrowLeftIcon className="h-4 w-4" />
-      <span className="sr-only">Página anterior</span>
+      <span className="sr-only">{locale === "es" ? "Página anterior" : "Previous page"}</span>
     </PaginationButton>
   );
 }
 
 export function PaginationNext(props: ButtonHTMLAttributes<HTMLButtonElement>) {
+  const { locale } = useLocale();
   return (
-    <PaginationButton aria-label="Página siguiente" className="w-9 px-0" {...props}>
+    <PaginationButton aria-label={locale === "es" ? "Página siguiente" : "Next page"} className="w-9 px-0" {...props}>
       <ArrowRightIcon className="h-4 w-4" />
-      <span className="sr-only">Página siguiente</span>
+      <span className="sr-only">{locale === "es" ? "Página siguiente" : "Next page"}</span>
     </PaginationButton>
   );
 }
 
 export function PaginationEllipsis() {
+  const { locale } = useLocale();
   return (
     <span className="inline-flex h-9 w-9 items-center justify-center text-slate-400">
       <MoreHorizontalIcon className="h-4 w-4" />
-      <span className="sr-only">Más páginas</span>
+      <span className="sr-only">{locale === "es" ? "Más páginas" : "More pages"}</span>
     </span>
   );
 }

@@ -76,7 +76,7 @@ export function FormField({
   label,
 }: {
   children: ReactNode;
-  label: string;
+  label: ReactNode;
 }) {
   return (
     <label className="flex flex-col gap-2">

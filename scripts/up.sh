@@ -14,11 +14,6 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-if ! command -v supabase >/dev/null 2>&1; then
-  echo "No se encontro Supabase CLI en PATH." >&2
-  exit 1
-fi
-
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
@@ -27,16 +22,21 @@ set +a
 PORT="${ATOM_PORT:-3000}"
 API_PORT="${ATOM_API_PORT:-8000}"
 FRONTEND_MODE="${ATOM_FRONTEND_MODE:-docker}"
+BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}"
+BUILD_ON_UP="${ATOM_BUILD_ON_UP:-false}"
 
-supabase start
+COMPOSE_UP_ARGS=(-d --remove-orphans)
+if [[ "$BUILD_ON_UP" == "true" ]]; then
+  COMPOSE_UP_ARGS=(--build "${COMPOSE_UP_ARGS[@]}")
+fi
 
 case "$FRONTEND_MODE" in
   docker)
-    docker compose --env-file "$ENV_FILE" up --build -d --remove-orphans
+    docker compose --env-file "$ENV_FILE" up "${COMPOSE_UP_ARGS[@]}"
     echo "Frontend levantado en http://localhost:${PORT}"
     ;;
   local)
-    docker compose --env-file "$ENV_FILE" up --build -d --remove-orphans atom-backend
+    docker compose --env-file "$ENV_FILE" up "${COMPOSE_UP_ARGS[@]}" atom-backend
     echo "Frontend en modo local. Ejecuta ./scripts/frontend-local.sh en otra terminal."
     ;;
   *)
@@ -46,7 +46,7 @@ case "$FRONTEND_MODE" in
 esac
 
 echo "Backend API en http://localhost:${API_PORT}"
-echo "Supabase CLI (Gateway esperado): http://localhost:${SUPABASE_PORT}"
-echo "Supabase CLI (Postgres esperado): postgresql://${SUPABASE_DB_USER}:${SUPABASE_DB_PASSWORD}@localhost:${SUPABASE_DB_PORT}/${SUPABASE_DB_NAME}"
-echo "Supabase Studio: http://localhost:54323"
+echo "PostgreSQL directo: postgresql://${POSTGRES_USER:-atom}:${POSTGRES_PASSWORD:-atom}@localhost:${POSTGRES_PORT_HOST:-5432}/${POSTGRES_DB:-atom}"
+echo "Imagen backend Docker: ${BACKEND_BUILD_TARGET}"
+echo "Reconstruccion en up: ${BUILD_ON_UP}"
 echo "Logs: ./scripts/logs.sh"

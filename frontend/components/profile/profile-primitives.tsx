@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 export type PreferenceToggleProps = {
   checked: boolean;
   description: string;
+  disabled?: boolean;
   onCheckedChange: (checked: boolean) => void;
   title: string;
 };
@@ -75,18 +76,22 @@ export function DetailRow({
 export function PreferenceToggle({
   checked,
   description,
+  disabled = false,
   onCheckedChange,
   title,
 }: PreferenceToggleProps) {
   return (
     <div
-      className="flex w-full items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 px-5 py-4 text-left transition hover:border-primary/30 hover:bg-white"
+      className={cn(
+        "flex w-full items-center justify-between gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 px-5 py-4 text-left transition",
+        disabled ? "opacity-70" : "hover:border-primary/30 hover:bg-white",
+      )}
     >
       <div className="min-w-0">
         <p className="text-sm font-semibold text-slate-900">{title}</p>
         <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+      <Switch checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} />
     </div>
   );
 }

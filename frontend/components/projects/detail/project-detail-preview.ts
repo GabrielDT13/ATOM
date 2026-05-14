@@ -35,17 +35,21 @@ export function getPreferredPrimaryPreviewFile(group: ProjectExecutionGroup | nu
 }
 
 export async function buildProjectPreviewState({
+  cacheKey,
   file,
+  locale = "es",
   owner,
   projectName,
 }: {
+  cacheKey?: string | null;
   file: ProjectFileEntry;
+  locale?: "en" | "es";
   owner: string;
   projectName: string;
 }): Promise<PreviewState> {
   if (isHtmlProjectFile(file)) {
     const fileContent = await apiFetch<FileContentResponse>(
-      buildProjectFilePreviewPath(owner, projectName, file.path),
+      buildProjectFilePreviewPath(owner, projectName, file.path, cacheKey),
     );
 
     return {
@@ -56,7 +60,7 @@ export async function buildProjectPreviewState({
   }
 
   if (canAttemptEmbeddedPreview(file)) {
-    const downloadUrl = buildProjectFileUrl(owner, projectName, file.path);
+    const downloadUrl = buildProjectFileUrl(owner, projectName, file.path, cacheKey);
     const response = await fetch(downloadUrl, {
       cache: "no-store",
       credentials: "include",
@@ -67,12 +71,14 @@ export async function buildProjectPreviewState({
     }
 
     const blob = await response.blob();
-    return parseOfficePreview(file, blob, downloadUrl);
+    return parseOfficePreview(file, blob, downloadUrl, locale);
   }
 
   if (isPreviewableTextFile(file)) {
+    const previewPath = buildProjectFilePreviewPath(owner, projectName, file.path, cacheKey);
+    const separator = previewPath.includes("?") ? "&" : "?";
     const fileContent = await apiFetch<FileContentResponse>(
-      `${buildProjectFilePreviewPath(owner, projectName, file.path)}?max_lines=120`,
+      `${previewPath}${separator}max_lines=120`,
     );
 
     return {
@@ -83,9 +89,12 @@ export async function buildProjectPreviewState({
   }
 
   return {
-    actionHref: buildProjectFileUrl(owner, projectName, file.path),
-    actionLabel: "Abrir archivo",
-    description: "Este archivo no tiene una vista rápida embebida disponible.",
+    actionHref: buildProjectFileUrl(owner, projectName, file.path, cacheKey),
+    actionLabel: locale === "es" ? "Abrir archivo" : "Open file",
+    description:
+      locale === "es"
+        ? "Este archivo no tiene una vista rápida embebida disponible."
+        : "This file does not have an embedded quick preview available.",
     label: file.path,
     mode: "notice",
   };

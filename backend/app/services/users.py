@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import secrets
 import shutil
+import string
 from pathlib import Path
 from typing import Any
+from uuid import UUID
 
-from backend.app.core.config import get_settings
-from backend.app.services.auth import build_session_user_from_profile
-from backend.app.services.supabase import (
-    SupabaseError,
-    build_query_string,
-    call_rpc_with_service_role,
-    request_with_service_role,
+from backend.app.services.auth import build_session_user_from_profile, generate_password_action_token
+from backend.app.services.database import execute, execute_returning, fetch_all, fetch_one
+from backend.app.services.emailing import build_absolute_frontend_url, send_account_created_email
+from backend.app.services.errors import ServiceError
+from backend.app.services.project_storage import get_user_storage_dir
+
+_TEMP_PASSWORD_ALPHABET = "".join(
+    character
+    for character in (string.ascii_letters + string.digits)
+    if character not in {"0", "O", "I", "l", "1"}
 )
 
 
@@ -35,7 +41,32 @@ def _normalize_optional_text(value: Any) -> str | None:
 
 
 def _build_user_response(profile: dict[str, Any]) -> dict[str, str | None]:
-    return build_session_user_from_profile(profile)
+    payload = build_session_user_from_profile(profile)
+    payload["entity_name"] = _normalize_optional_text(profile.get("entity_name"))
+    return payload
+
+
+def _generate_temporary_password(length: int = 16) -> str:
+    return "".join(secrets.choice(_TEMP_PASSWORD_ALPHABET) for _ in range(length))
+
+
+def _initialize_new_user_preferences(user_id: str) -> None:
+    execute(
+        """
+        INSERT INTO internal.profile_preferences (
+          user_id,
+          must_change_password,
+          welcome_tour_seen
+        )
+        VALUES (%s, true, false)
+        ON CONFLICT (user_id) DO UPDATE
+        SET
+          must_change_password = true,
+          welcome_tour_seen = false,
+          updated_at = now()
+        """,
+        (user_id,),
+    )
 
 
 def _fetch_profiles(
@@ -44,21 +75,39 @@ def _fetch_profiles(
     limit: int | None = None,
     order: str | None = "username.asc",
 ) -> list[dict[str, Any]]:
-    query_params: dict[str, str | int | None] = {
-        "select": "id,email,username,full_name,avatar_url,department,is_active,roles",
-        "order": order,
-        "limit": limit,
-    }
+    query = """
+    SELECT
+      id,
+      email,
+      username,
+      full_name,
+      avatar_url,
+      entity_name,
+      department,
+      is_active,
+      roles
+    FROM public.vw_profiles
+    """
+    clauses: list[str] = []
+    params: list[Any] = []
     if filters:
-        query_params.update(filters)
-
-    payload = request_with_service_role(
-        "GET",
-        f"/rest/v1/vw_profiles?{build_query_string(query_params)}",
-    )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de perfiles inválida")
-    return [profile for profile in payload if isinstance(profile, dict)]
+        if "username" in filters and filters["username"].startswith("eq."):
+            clauses.append("username = %s")
+            params.append(filters["username"][3:])
+        if "email" in filters and filters["email"].startswith("eq."):
+            clauses.append("email = %s")
+            params.append(filters["email"][3:])
+        if "id" in filters and filters["id"].startswith("eq."):
+            clauses.append("id = %s")
+            params.append(filters["id"][3:])
+    if clauses:
+        query += " WHERE " + " AND ".join(clauses)
+    if order:
+        query += " ORDER BY username ASC"
+    if limit is not None:
+        query += " LIMIT %s"
+        params.append(limit)
+    return fetch_all(query, tuple(params))
 
 
 def _get_profile_by_username(username: str) -> dict[str, Any] | None:
@@ -82,20 +131,16 @@ def _get_profile_by_email(email: str) -> dict[str, Any] | None:
 
 
 def _list_owned_projects(user_id: str, *, limit: int = 3) -> list[dict[str, Any]]:
-    query = build_query_string(
-        {
-            "select": "id,name",
-            "owner_id": f"eq.{user_id}",
-            "limit": limit,
-            "order": "name.asc",
-        }
+    payload = fetch_all(
+        """
+        SELECT id, name
+        FROM public.vw_projects
+        WHERE owner_id = %s
+        ORDER BY name ASC
+        LIMIT %s
+        """,
+        (user_id, limit),
     )
-    payload = request_with_service_role(
-        "GET",
-        f"/rest/v1/vw_projects?{query}",
-    )
-    if not isinstance(payload, list):
-        raise SupabaseError("Supabase devolvió una lista de proyectos inválida")
     return [project for project in payload if isinstance(project, dict)]
 
 
@@ -146,25 +191,40 @@ def _create_auth_user(
     password: str,
     email: str,
     department: str | None,
+    entity_name: str | None = None,
 ) -> str:
-    payload = request_with_service_role(
-        "POST",
-        "/auth/v1/admin/users",
-        json_body={
-            "email": email,
-            "password": password,
-            "email_confirm": True,
-            "user_metadata": _build_auth_user_metadata(
-                username=username,
-                full_name=username,
-                avatar_url=None,
-                department=department,
-            ),
-        },
+    rows = execute_returning(
+        """
+        INSERT INTO auth.users (
+          email,
+          encrypted_password,
+          raw_app_meta_data,
+          raw_user_meta_data
+        )
+        VALUES (
+          %s::text,
+          crypt(%s::text, gen_salt('bf')),
+          '{"provider":"email","providers":["email"]}'::jsonb,
+          jsonb_build_object(
+            'username', %s::text,
+            'full_name', %s::text,
+            'department', COALESCE(%s::text, ''),
+            'entity_name', COALESCE(%s::text, '')
+          )
+        )
+        RETURNING id
+        """,
+        (email, password, username, username, department, entity_name),
     )
-    if not isinstance(payload, dict) or not isinstance(payload.get("id"), str):
-        raise SupabaseError("Supabase no devolvió el usuario creado")
-    return payload["id"]
+    if not rows:
+        raise ServiceError("No se pudo crear el usuario")
+
+    user_id = rows[0].get("id")
+    if isinstance(user_id, UUID):
+        return str(user_id)
+    if isinstance(user_id, str):
+        return user_id
+    raise ServiceError("No se pudo crear el usuario")
 
 
 def _update_auth_user(
@@ -176,24 +236,42 @@ def _update_auth_user(
     full_name: str | None,
     avatar_url: str | None,
     department: str | None,
+    entity_name: str | None = None,
 ) -> None:
-    payload: dict[str, Any] = {
-        "email": email,
-        "user_metadata": _build_auth_user_metadata(
-            username=username,
-            full_name=full_name,
-            avatar_url=avatar_url,
-            department=department,
+    rows = execute_returning(
+        """
+        UPDATE auth.users
+        SET
+          email = %s::text,
+          encrypted_password = CASE
+            WHEN %s::text IS NULL OR %s::text = '' THEN encrypted_password
+            ELSE crypt(%s::text, gen_salt('bf'))
+          END,
+          raw_user_meta_data = jsonb_build_object(
+            'username', %s::text,
+            'full_name', COALESCE(%s::text, ''),
+            'avatar_url', COALESCE(%s::text, ''),
+            'department', COALESCE(%s::text, ''),
+            'entity_name', COALESCE(%s::text, '')
+          )
+        WHERE id = %s
+        RETURNING id
+        """,
+        (
+            email,
+            password,
+            password,
+            password,
+            username,
+            full_name,
+            avatar_url,
+            department,
+            entity_name,
+            user_id,
         ),
-    }
-    if password:
-        payload["password"] = password
-
-    request_with_service_role(
-        "PUT",
-        f"/auth/v1/admin/users/{user_id}",
-        json_body=payload,
     )
+    if not rows:
+        raise ServiceError("Usuario no encontrado")
 
 
 def _apply_user_role(
@@ -202,42 +280,68 @@ def _apply_user_role(
     target_user_id: str,
     role: str,
 ) -> dict[str, Any]:
-    payload = call_rpc_with_service_role(
-        "admin_set_user_role",
-        json_body={
-            "p_actor_user_id": actor_user_id,
-            "p_target_user_id": target_user_id,
-            "p_role": role,
-        },
+    actor_profile = fetch_one(
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM internal.user_roles
+          WHERE user_id = %s
+            AND role_id = 'admin'
+        ) AS is_admin
+        """,
+        (actor_user_id,),
     )
-    if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
-        raise SupabaseError("Supabase no devolvió el perfil actualizado")
-    return payload[0]
+    if not actor_profile or actor_profile.get("is_admin") is not True:
+        raise ServiceError("No autorizado")
+    if role not in {"admin", "user"}:
+        raise ServiceError("Rol no válido")
+    execute(
+        """
+        DELETE FROM internal.user_roles
+        WHERE user_id = %s
+          AND role_id IN ('admin', 'user')
+        """,
+        (target_user_id,),
+    )
+    execute(
+        """
+        INSERT INTO internal.user_roles (user_id, role_id)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id, role_id) DO NOTHING
+        """,
+        (target_user_id, role),
+    )
+    profile = fetch_one(
+        """
+        SELECT *
+        FROM public.vw_profiles
+        WHERE id = %s
+        LIMIT 1
+        """,
+        (target_user_id,),
+    )
+    if not profile:
+        raise ServiceError("No se pudo recuperar el perfil actualizado")
+    return profile
 
 
 def _delete_auth_user(user_id: str) -> None:
-    request_with_service_role("DELETE", f"/auth/v1/admin/users/{user_id}")
-
-
-def _build_auth_user_metadata(
-    *,
-    username: str,
-    full_name: str | None,
-    avatar_url: str | None,
-    department: str | None,
-) -> dict[str, str]:
-    metadata: dict[str, str] = {"username": username, "department": department or ""}
-    if full_name:
-        metadata["full_name"] = full_name
-    if avatar_url:
-        metadata["avatar_url"] = avatar_url
-    return metadata
+    deleted = execute_returning(
+        """
+        DELETE FROM auth.users
+        WHERE id = %s
+        RETURNING id
+        """,
+        (user_id,),
+    )
+    if not deleted:
+        raise ServiceError("Usuario no encontrado")
 
 
 def _safe_delete_auth_user(user_id: str) -> None:
     try:
         _delete_auth_user(user_id)
-    except SupabaseError:
+    except ServiceError:
         pass
 
 
@@ -292,7 +396,7 @@ def _delete_user_projects_dir(username: str) -> None:
     if not user_dir.exists():
         return
 
-    base_path = get_settings().projects_dir.resolve()
+    base_path = user_dir.parent.resolve()
     resolved_user_dir = user_dir.resolve()
     if base_path != resolved_user_dir and base_path not in resolved_user_dir.parents:
         raise ValueError("Ruta inválida: no se eliminó la carpeta del usuario por seguridad.")
@@ -302,49 +406,76 @@ def _delete_user_projects_dir(username: str) -> None:
 
 def create_user(
     username: str,
-    password: str,
     email: str,
     role: str,
     department: str | None,
     actor_user_id: str,
-) -> tuple[bool, str]:
+    entity_name: str | None = None,
+) -> tuple[bool, str, str | None]:
     try:
         normalized_username = _normalize_username(username)
     except ValueError as exc:
-        return False, str(exc)
+        return False, str(exc), None
 
     normalized_email = _normalize_email(email)
     uniqueness_error = _ensure_create_user_is_unique(normalized_username, normalized_email)
     if uniqueness_error:
-        return False, uniqueness_error
+        return False, uniqueness_error, None
 
     created_user_id: str | None = None
     user_dir: Path | None = None
+    temporary_password = _generate_temporary_password()
     try:
-        created_user_id = _create_auth_user(
-            normalized_username,
-            password,
-            normalized_email,
-            department,
-        )
+        if entity_name is None:
+            created_user_id = _create_auth_user(
+                normalized_username,
+                temporary_password,
+                normalized_email,
+                department,
+            )
+        else:
+            created_user_id = _create_auth_user(
+                normalized_username,
+                temporary_password,
+                normalized_email,
+                department,
+                entity_name,
+            )
         _apply_user_role(
             actor_user_id=actor_user_id,
             target_user_id=created_user_id,
             role=role,
         )
+        _initialize_new_user_preferences(created_user_id)
         user_dir = _create_user_projects_dir(normalized_username)
-    except SupabaseError as exc:
+    except ServiceError as exc:
         if user_dir and user_dir.exists():
             shutil.rmtree(user_dir, ignore_errors=True)
         if created_user_id:
             _safe_delete_auth_user(created_user_id)
-        return False, str(exc)
+        return False, str(exc), None
     except OSError:
         if created_user_id:
             _safe_delete_auth_user(created_user_id)
-        return False, "No se pudo preparar la carpeta local del usuario"
+        return False, "No se pudo preparar la carpeta local del usuario", None
 
-    return True, "Usuario registrado correctamente"
+    send_account_created_email(
+        to_email=normalized_email,
+        username=normalized_username,
+        temporary_password=temporary_password,
+        login_url=build_absolute_frontend_url("/login"),
+        setup_url=build_absolute_frontend_url(
+            "/reset-password?token="
+            + generate_password_action_token(
+                user_id=created_user_id,
+                email=normalized_email,
+                username=normalized_username,
+                kind="account-setup",
+            )
+        ),
+    )
+
+    return True, "Usuario registrado correctamente", temporary_password
 
 
 def update_user(
@@ -355,6 +486,7 @@ def update_user(
     role: str,
     department: str | None,
     actor_user_id: str,
+    entity_name: str | None = None,
 ) -> tuple[bool, str, str]:
     try:
         normalized_current_username = _normalize_username(current_username)
@@ -377,8 +509,7 @@ def update_user(
         return False, uniqueness_error, normalized_current_username
 
     try:
-        _update_auth_user(
-            str(current_profile["id"]),
+        update_payload = dict(
             username=normalized_new_username,
             email=normalized_email,
             password=password,
@@ -386,13 +517,24 @@ def update_user(
             avatar_url=_normalize_optional_text(current_profile.get("avatar_url")),
             department=department,
         )
+        if entity_name is None:
+            _update_auth_user(
+                str(current_profile["id"]),
+                **update_payload,
+            )
+        else:
+            _update_auth_user(
+                str(current_profile["id"]),
+                **update_payload,
+                entity_name=entity_name,
+            )
         _apply_user_role(
             actor_user_id=actor_user_id,
             target_user_id=str(current_profile["id"]),
             role=role,
         )
         _rename_user_projects_dir(normalized_current_username, normalized_new_username)
-    except SupabaseError as exc:
+    except ServiceError as exc:
         return False, str(exc), normalized_current_username
     except OSError:
         return False, "No se pudo actualizar la carpeta local del usuario", normalized_current_username
@@ -416,7 +558,7 @@ def delete_user(username: str) -> tuple[bool, str]:
 
     try:
         _delete_auth_user(str(current_profile["id"]))
-    except SupabaseError as exc:
+    except ServiceError as exc:
         if "projects_owner_id_fkey" in str(exc):
             return (
                 False,
@@ -435,4 +577,4 @@ def delete_user(username: str) -> tuple[bool, str]:
 
 def get_user_dir(username: str) -> Path:
     normalized_username = _normalize_username(username)
-    return get_settings().projects_dir / normalized_username
+    return get_user_storage_dir(normalized_username)

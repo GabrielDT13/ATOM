@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { formatDuration, formatTimeOfDay } from "@/components/projects/project-execution-utils";
 import { SectionCard } from "@/components/projects/detail/project-detail-panels";
 import {
@@ -22,37 +23,75 @@ import { useAppToast } from "@/hooks/use-app-toast";
 import { useProjectAnalysisStream } from "@/hooks/use-project-analysis-stream";
 import {
   buildProjectDetailHref,
+  buildProjectExecutionHref,
   getProject,
   getProjectByRef,
   resolveProjectRouteRef,
 } from "@/lib/projects";
 import { cn } from "@/lib/utils";
 import type { ProjectDetails } from "@/types/api";
+import { buildProjectExecutionTarget } from "@/components/projects/project-execution-target";
 
 type ProjectExecutionPageProps =
   | {
+      autoStart?: boolean;
       owner: string;
       projectName: string;
       projectRef?: never;
     }
   | {
+      autoStart?: boolean;
       owner?: never;
       projectName?: never;
       projectRef: string;
     };
 
 export function ProjectExecutionPage({
+  autoStart = false,
   owner,
   projectName,
   projectRef,
 }: ProjectExecutionPageProps) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const router = useRouter();
   const appToast = useAppToast();
   const completionHandledRef = useRef(false);
   const [project, setProject] = useState<ProjectDetails | null>(null);
+  const [boundRunId, setBoundRunId] = useState<string | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
-  const execution = useProjectAnalysisStream(project?.name ?? null);
+  const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
+  const executionPageHref =
+    resolvedProjectRef
+      ? buildProjectExecutionHref(resolvedProjectRef)
+      : project
+        ? `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`
+        : null;
+  const analysisTarget = useMemo(
+    () =>
+      buildProjectExecutionTarget({
+        autoStart,
+        boundRunId,
+        project,
+        resolvedProjectRef,
+      }),
+    [autoStart, boundRunId, project, resolvedProjectRef],
+  );
+  const execution = useProjectAnalysisStream(analysisTarget, locale);
+
+  useEffect(() => {
+    setBoundRunId(null);
+  }, [owner, projectName, projectRef]);
+
+  useEffect(() => {
+    const nextRunId = execution.run?.id?.trim() || project?.active_run?.id?.trim() || null;
+    if (!nextRunId) {
+      return;
+    }
+
+    setBoundRunId((current) => (current === nextRunId ? current : nextRunId));
+  }, [execution.run?.id, project?.active_run?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +119,7 @@ export function ProjectExecutionPage({
         setProjectError(
           loadError instanceof Error
             ? loadError.message
-            : "No se pudo preparar la ejecución del proyecto.",
+            : t ? "No se pudo preparar la ejecución del proyecto." : "Could not prepare the project execution.",
         );
       } finally {
         if (!cancelled) {
@@ -94,15 +133,56 @@ export function ProjectExecutionPage({
     return () => {
       cancelled = true;
     };
-  }, [owner, projectName, projectRef]);
+  }, [owner, projectName, projectRef, t]);
 
-  const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
+  useEffect(() => {
+    if (!autoStart || !executionPageHref) {
+      return;
+    }
+
+    if (!boundRunId) {
+      return;
+    }
+
+    router.replace(executionPageHref, { scroll: false });
+  }, [autoStart, boundRunId, executionPageHref, router]);
+
   const projectDetailHref =
     resolvedProjectRef
       ? buildProjectDetailHref(resolvedProjectRef)
       : project
         ? `/dashboard/projects/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`
         : "/dashboard/projects";
+
+  useEffect(() => {
+    if (execution.status !== "completed" && execution.status !== "failed") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshProjectSnapshot() {
+      try {
+        const nextProject =
+          typeof projectRef === "string"
+            ? await getProjectByRef(projectRef)
+            : await getProject(owner, projectName);
+
+        if (!cancelled) {
+          setProject(nextProject);
+          router.refresh();
+        }
+      } catch {
+        // El detalle puede permanecer con el último snapshot disponible.
+      }
+    }
+
+    void refreshProjectSnapshot();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [execution.status, owner, projectName, projectRef, router]);
 
   useEffect(() => {
     if (execution.status !== "completed") {
@@ -116,28 +196,29 @@ export function ProjectExecutionPage({
 
     completionHandledRef.current = true;
     appToast.success(
-      "Informe generado correctamente",
-      "Volverás al proyecto en unos segundos.",
+      t ? "Informe generado correctamente" : "Report generated successfully",
+      t ? "Volverás al proyecto en unos segundos." : "You will return to the project in a few seconds.",
       5000,
     );
 
     const timeoutId = window.setTimeout(() => {
+      router.refresh();
       router.replace(projectDetailHref);
     }, 5000);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [appToast, execution.status, projectDetailHref, router]);
+  }, [appToast, execution.status, projectDetailHref, router, t]);
 
   if (loadingProject) {
     return (
       <section className="rounded-[28px] border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Preparando ejecución
+          {t ? "Preparando ejecución" : "Preparing execution"}
         </p>
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
-          Cargando contexto del proyecto...
+          {t ? "Cargando contexto del proyecto..." : "Loading project context..."}
         </h1>
       </section>
     );
@@ -146,14 +227,57 @@ export function ProjectExecutionPage({
   if (projectError || !project) {
     return (
       <section className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-800 shadow-sm">
-        <h1 className="text-lg font-semibold">No se pudo iniciar la ejecución</h1>
+        <h1 className="text-lg font-semibold">
+          {t ? "No se pudo iniciar la ejecución" : "Could not start execution"}
+        </h1>
         <p className="mt-2 text-sm leading-6">
-          {projectError ?? "El proyecto solicitado no está disponible."}
+          {projectError ?? (t ? "El proyecto solicitado no está disponible." : "The requested project is not available.")}
         </p>
         <div className="mt-5">
           <ButtonLink href="/dashboard/projects" variant="secondary">
-            Volver a proyectos
+            {t ? "Volver a proyectos" : "Back to projects"}
           </ButtonLink>
+        </div>
+      </section>
+    );
+  }
+
+  if (execution.error) {
+    return (
+      <section className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-800 shadow-sm">
+        <h1 className="text-lg font-semibold">
+          {t ? "No se pudo iniciar la ejecución" : "Could not start execution"}
+        </h1>
+        <p className="mt-2 text-sm leading-6">{execution.error}</p>
+        <div className="mt-5">
+          <ButtonLink href={projectDetailHref} variant="secondary">
+            {t ? "Volver al proyecto" : "Back to project"}
+          </ButtonLink>
+        </div>
+      </section>
+    );
+  }
+
+  if (!execution.run && !autoStart) {
+    return (
+      <section className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <h1 className="text-lg font-semibold text-slate-950">
+          {t ? "No hay una ejecución activa" : "There is no active execution"}
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {t
+            ? "Este proyecto no tiene ahora mismo una ejecución en curso. Puedes volver al proyecto o lanzar una nueva ejecución manualmente."
+            : "This project does not currently have an execution in progress. You can go back to the project or start a new execution manually."}
+        </p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <ButtonLink href={projectDetailHref} variant="secondary">
+            {t ? "Volver al proyecto" : "Back to project"}
+          </ButtonLink>
+          {resolvedProjectRef ? (
+            <ButtonLink href={buildProjectExecutionHref(resolvedProjectRef, { autoStart: true })}>
+              {t ? "Iniciar ejecución" : "Start execution"}
+            </ButtonLink>
+          ) : null}
         </div>
       </section>
     );
@@ -168,7 +292,7 @@ export function ProjectExecutionPage({
     summaryDescription,
     summaryTitle,
     userFacingStatus,
-  } = buildProjectExecutionDisplayModel(execution);
+  } = buildProjectExecutionDisplayModel(execution, locale);
 
   return (
     <div className="flex flex-col gap-6">
@@ -177,7 +301,7 @@ export function ProjectExecutionPage({
           <div className="max-w-3xl">
             <div className="page-hero-badge gap-2 rounded-full px-3 py-1">
               <ReportSparkIcon />
-              Procesando informe
+              {t ? "Procesando informe" : "Processing report"}
             </div>
             <h1 className="mt-5 text-3xl font-semibold tracking-tight text-white sm:text-4xl">
               {summaryTitle}
@@ -198,7 +322,7 @@ export function ProjectExecutionPage({
           <div className="flex flex-wrap gap-3">
             <ButtonLink href={projectDetailHref} size="lg" tone="on-dark" variant="secondary">
               <ProjectStackIcon className="h-4 w-4" />
-              Volver al proyecto
+              {t ? "Volver al proyecto" : "Back to project"}
             </ButtonLink>
           </div>
         </div>
@@ -214,7 +338,7 @@ export function ProjectExecutionPage({
             <div className="relative flex min-h-[20rem] flex-col justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                  Estado actual
+                  {t ? "Estado actual" : "Current status"}
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white">
                   {userFacingStatus}
@@ -261,36 +385,46 @@ export function ProjectExecutionPage({
           <div className="p-6 sm:p-8">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <MetricCard
-                eyebrow="Tiempo transcurrido"
+                eyebrow={t ? "Tiempo transcurrido" : "Elapsed time"}
                 value={formatDuration(execution.elapsedMs)}
               />
               <MetricCard
-                eyebrow={execution.status === "completed" ? "Duración total" : "Duración estimada"}
+                eyebrow={
+                  execution.status === "completed"
+                    ? t ? "Duración total" : "Total duration"
+                    : t ? "Duración estimada" : "Estimated duration"
+                }
                 value={durationEstimateLabel}
               />
               <MetricCard
-                eyebrow="Última actualización"
-                value={execution.lastEventAt ? formatTimeOfDay(execution.lastEventAt) : "Pendiente"}
+                eyebrow={t ? "Última actualización" : "Last update"}
+                value={execution.lastEventAt ? formatTimeOfDay(execution.lastEventAt, locale) : t ? "Pendiente" : "Pending"}
               />
             </div>
 
             <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Resumen de ejecución
+                {t ? "Resumen de ejecución" : "Execution summary"}
               </p>
               <div className="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-3">
                 <div>
-                  <p className="font-semibold text-slate-900">Ejecuciones completadas</p>
+                  <p className="font-semibold text-slate-900">
+                    {t ? "Ejecuciones completadas" : "Completed runs"}
+                  </p>
                   <p className="mt-1">{execution.successfulDesigns}</p>
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-900">Ejecuciones procesadas</p>
+                  <p className="font-semibold text-slate-900">
+                    {t ? "Ejecuciones procesadas" : "Processed runs"}
+                  </p>
                   <p className="mt-1">{execution.processedDesigns}</p>
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-900">Inicio de la ejecución</p>
+                  <p className="font-semibold text-slate-900">
+                    {t ? "Inicio de la ejecución" : "Execution start"}
+                  </p>
                   <p className="mt-1">
-                    {execution.startedAt ? formatTimeOfDay(execution.startedAt) : "Pendiente"}
+                    {execution.startedAt ? formatTimeOfDay(execution.startedAt, locale) : t ? "Pendiente" : "Pending"}
                   </p>
                 </div>
               </div>
@@ -298,14 +432,17 @@ export function ProjectExecutionPage({
 
             {execution.status === "failed" ? (
               <div className="mt-6 rounded-[24px] border border-rose-200 bg-rose-50 p-5 text-sm leading-6 text-rose-800">
-                La ejecución no terminó correctamente. El proyecto no redirigirá automáticamente.
-                Puedes volver al detalle para revisar archivos, ajustar datos o lanzar otra ejecución.
+                {t
+                  ? "La ejecución no terminó correctamente. El proyecto no redirigirá automáticamente. Puedes volver al detalle para revisar archivos, ajustar datos o lanzar otra ejecución."
+                  : "Execution did not finish correctly. The project will not redirect automatically. You can return to the detail view to review files, adjust data, or launch another execution."}
               </div>
             ) : null}
 
             {execution.status === "completed" ? (
               <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
-                Los entregables ya están listos. Redirigiendo al detalle del proyecto en 5 segundos...
+                {t
+                  ? "Los entregables ya están listos. Redirigiendo al detalle del proyecto en 5 segundos..."
+                  : "Deliverables are ready. Redirecting to the project detail in 5 seconds..."}
               </div>
             ) : null}
           </div>
@@ -314,8 +451,12 @@ export function ProjectExecutionPage({
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <SectionCard
-          description="Resumen del avance del informe desde la preparación inicial hasta la publicación final."
-          title="Estado del proceso"
+          description={
+            t
+              ? "Resumen del avance del informe desde la preparación inicial hasta la publicación final."
+              : "Summary of report progress from initial preparation to final publication."
+          }
+          title={t ? "Estado del proceso" : "Process status"}
         >
           <ExecutionStepList steps={execution.steps} />
         </SectionCard>
@@ -327,13 +468,17 @@ export function ProjectExecutionPage({
               href={projectDetailHref}
             >
               <EyeIcon className="h-4 w-4" />
-              Abrir proyecto
+              {t ? "Abrir proyecto" : "Open project"}
             </a>
           }
-          description="Detalle técnico de la ejecución por si necesitas revisar mensajes del proceso."
-          title="Detalle técnico"
+          description={
+            t
+              ? "Detalle técnico de la ejecución por si necesitas revisar mensajes del proceso."
+              : "Technical execution details in case you need to review process messages."
+          }
+          title={t ? "Detalle técnico" : "Technical details"}
         >
-          <ExecutionLogConsole logs={execution.logs} />
+          <ExecutionLogConsole locale={locale} logs={execution.logs} />
         </SectionCard>
       </div>
 

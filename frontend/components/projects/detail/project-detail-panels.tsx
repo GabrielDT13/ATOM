@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 
-import { DataFilesIcon, DownloadIcon, EyeIcon, FileCodeIcon, TemplateIcon } from "@/components/projects/project-management-icons";
+import { useLocale } from "@/components/providers/locale-provider";
+import { DataFilesIcon, DownloadIcon, EyeIcon, TemplateIcon } from "@/components/projects/project-management-icons";
 import { type ProjectExecutionGroup } from "@/components/projects/project-detail-utils";
 import {
   buildProjectFileUrl,
@@ -17,9 +18,10 @@ import {
 } from "@/components/projects/detail/project-detail-helpers";
 import type { PreviewState } from "@/components/projects/detail/project-detail-types";
 import { buttonStyles } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { buildProjectReportHref } from "@/lib/projects";
 import { cn } from "@/lib/utils";
-import type { ProjectFileEntry, ProjectMemberRecord } from "@/types/api";
+import type { ProjectFileEntry, ProjectMemberRecord, ProjectSharedTeam } from "@/types/api";
 import { UserAvatar, UserProfilePopover } from "@/components/users/user-profile-popover";
 
 function getProjectRoleBadgeClassName(memberRole: ProjectMemberRecord["member_role"], isOwner: boolean) {
@@ -93,6 +95,8 @@ export function PreviewPanel({
   size?: "compact" | "default";
   stretch?: boolean;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const panelHeight =
     size === "compact"
       ? "h-[22rem]"
@@ -117,18 +121,22 @@ export function PreviewPanel({
       <div className="dialog-hero-surface flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4 text-slate-200">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-300">
-            Vista previa
+            {t ? "Vista previa" : "Preview"}
           </p>
           <h3 className="mt-1 text-base font-semibold">
-            {preview ? preview.label : "Selecciona un archivo"}
+            {preview ? preview.label : t ? "Selecciona un archivo" : "Select a file"}
           </h3>
         </div>
       </div>
 
       <div className={cn(panelHeight, "bg-slate-50", stretch && "flex-1")}>
         {loading ? (
-          <div className={cn("flex items-center justify-center px-6 text-center text-sm leading-6 text-slate-500", panelHeight)}>
-            Cargando vista previa...
+          <div className={cn("px-6 py-6", panelHeight)}>
+            <div className="flex h-full flex-col gap-4">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-4 w-28" />
+              <Skeleton className="flex-1 rounded-[24px]" />
+            </div>
           </div>
         ) : null}
 
@@ -177,6 +185,11 @@ export function PreviewPanel({
 }
 
 export function TeamMemberCard({ member }: { member: ProjectMemberRecord }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
+  const accessViaTeams = member.access_via_teams ?? [];
+  const hasDirectAccess = member.has_direct_access !== false;
+
   return (
     <article className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -202,6 +215,54 @@ export function TeamMemberCard({ member }: { member: ProjectMemberRecord }) {
         </span>
       </div>
       {member.department ? <p className="mt-3 text-sm text-slate-600">{member.department}</p> : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        {member.is_owner ? (
+          <span className="rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+            {t ? "Propietario" : "Owner"}
+          </span>
+        ) : null}
+        {!member.is_owner && hasDirectAccess ? (
+          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+            {t ? "Acceso directo" : "Direct access"}
+          </span>
+        ) : null}
+        {accessViaTeams.map((teamName) => (
+          <span
+            className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-sky-700"
+            key={`${member.id}-${teamName}`}
+          >
+            {t ? "Equipo" : "Team"}: {teamName}
+          </span>
+        ))}
+      </div>
+    </article>
+  );
+}
+
+export function LinkedProjectTeamCard({ team }: { team: ProjectSharedTeam }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
+  return (
+    <article className="rounded-3xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-slate-950">{team.name}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">
+            @{team.owner_username}
+            {team.entity_name ? ` · ${team.entity_name}` : ""}
+          </p>
+        </div>
+        <span className="rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-sky-700">
+          {team.member_role}
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+          {t
+            ? `${team.member_count} miembro${team.member_count === 1 ? "" : "s"}`
+            : `${team.member_count} member${team.member_count === 1 ? "" : "s"}`}
+        </span>
+      </div>
     </article>
   );
 }
@@ -215,6 +276,8 @@ export function ExecutionSelectorCard({
   group: ProjectExecutionGroup;
   onSelect: () => void;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const deliverables = getExecutionDeliverables(group);
 
   return (
@@ -239,7 +302,9 @@ export function ExecutionSelectorCard({
             active ? "bg-white text-primary" : "bg-white text-slate-600",
           )}
         >
-          {group.files.length} archivos
+          {t
+            ? `${group.files.length} archivos`
+            : `${group.files.length} files`}
         </span>
       </div>
 
@@ -270,6 +335,8 @@ export function DeliverableCard({
   projectName: string;
   variant?: "compact" | "featured";
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const extension = file.extension.toLowerCase();
   const isFeatured = variant === "featured";
   const isHtmlDeliverable = extension === ".html" || extension === ".htm";
@@ -277,9 +344,7 @@ export function DeliverableCard({
     ? buildProjectReportHref(projectRef, file.path)
     : buildProjectFileUrl(owner, projectName, file.path);
   const icon =
-    extension === ".rmd" ? (
-      <FileCodeIcon className="h-5 w-5" />
-    ) : extension === ".xlsx" || extension === ".xls" ? (
+    extension === ".xlsx" || extension === ".xls" ? (
       <TemplateIcon className="h-5 w-5" />
     ) : (
       <DataFilesIcon className="h-5 w-5" />
@@ -321,7 +386,7 @@ export function DeliverableCard({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90 shadow-sm backdrop-blur-sm">
                   {icon}
-                  Entregable principal
+                  {t ? "Entregable principal" : "Primary deliverable"}
                 </div>
                 <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/90 backdrop-blur-sm">
                   {file.extension.replace(".", "")}
@@ -329,11 +394,11 @@ export function DeliverableCard({
               </div>
 
               <p className="mt-6 text-2xl font-semibold tracking-tight text-white">
-                {getArtifactLabel(file.extension)}
+                {getArtifactLabel(file.extension, locale)}
               </p>
               <p className="mt-2 max-w-2xl text-sm text-sky-100/90">{file.name}</p>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-100/90">
-                {getArtifactDescription(file.extension)}
+                {getArtifactDescription(file.extension, locale)}
               </p>
 
               <div className="mt-6 flex flex-wrap gap-3">
@@ -341,19 +406,19 @@ export function DeliverableCard({
                   {formatBytes(file.size_bytes)}
                 </span>
                 <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-white/90 shadow-sm backdrop-blur-sm">
-                  Ruta: {file.path}
+                  {t ? "Ruta" : "Path"}: {file.path}
                 </span>
               </div>
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-primary shadow-[0_14px_30px_-20px_rgba(15,23,42,0.55)] transition group-hover:bg-sky-50">
                   {actionIcon}
-                  {getArtifactActionLabel(file.extension)}
+                  {getArtifactActionLabel(file.extension, locale)}
                 </div>
                 <span className="text-sm text-slate-200/90">
                   {isHtmlDeliverable
-                    ? "Accede a la versión completa del informe."
-                    : "Archivo disponible para descargar."}
+                    ? t ? "Accede a la versión completa del informe." : "Access full report version."
+                    : t ? "Archivo disponible para descargar." : "File available for download."}
                 </span>
               </div>
             </div>
@@ -362,10 +427,12 @@ export function DeliverableCard({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-100/80">
-                    Resumen del archivo
+                    {t ? "Resumen del archivo" : "File summary"}
                   </p>
                   <p className="mt-2 text-lg font-semibold text-white">
-                    {isHtmlDeliverable ? "Informe interactivo" : "Archivo preparado"}
+                    {isHtmlDeliverable
+                      ? t ? "Informe interactivo" : "Interactive report"
+                      : t ? "Archivo preparado" : "Prepared file"}
                   </p>
                 </div>
                 <div
@@ -381,18 +448,22 @@ export function DeliverableCard({
               <div className="mt-6 space-y-3">
                 <div className="rounded-2xl border border-white/[0.14] bg-slate-950/20 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-100/75">
-                    Qué puedes hacer
+                    {t ? "Qué puedes hacer" : "What you can do"}
                   </p>
                   <p className="mt-2 text-sm leading-6 text-slate-100/90">
                     {isHtmlDeliverable
-                      ? "Abrir el informe completo y revisar sus figuras, tablas y secciones con más detalle."
-                      : "Descargar el archivo final de esta ejecución para compartirlo o seguir trabajando con él."}
+                      ? t
+                        ? "Abrir el informe completo y revisar sus figuras, tablas y secciones con más detalle."
+                        : "Open full report and review figures, tables, and sections in more detail."
+                      : t
+                        ? "Descargar el archivo final de esta ejecución para compartirlo o seguir trabajando con él."
+                        : "Download final file from this execution to share it or keep working with it."}
                   </p>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl border border-white/[0.14] bg-white/[0.08] px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-100/75">
-                      Formato
+                      {t ? "Formato" : "Format"}
                     </p>
                     <p className="mt-2 text-sm font-semibold text-white">
                       {file.extension.replace(".", "").toUpperCase()}
@@ -400,7 +471,7 @@ export function DeliverableCard({
                   </div>
                   <div className="rounded-2xl border border-white/[0.14] bg-white/[0.08] px-4 py-3">
                     <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-100/75">
-                      Tamaño
+                      {t ? "Tamaño" : "Size"}
                     </p>
                     <p className="mt-2 text-sm font-semibold text-white">
                       {formatBytes(file.size_bytes)}
@@ -429,14 +500,14 @@ export function DeliverableCard({
             </span>
           </div>
           <p className="mt-4 text-sm font-semibold text-slate-950">
-            {getArtifactLabel(file.extension)}
+            {getArtifactLabel(file.extension, locale)}
           </p>
           <p className="mt-1 text-sm text-slate-500">{file.name}</p>
           <p className="mt-3 text-sm leading-6 text-slate-600">
-            {getArtifactDescription(file.extension)}
+            {getArtifactDescription(file.extension, locale)}
           </p>
           <div className="mt-5 inline-flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-slate-400 group-hover:text-slate-600">
-            {getArtifactActionLabel(file.extension)}
+            {getArtifactActionLabel(file.extension, locale)}
           </div>
         </>
       )}
@@ -457,6 +528,8 @@ export function SupportFileRow({
   owner: string;
   projectName: string;
 }) {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const canPreview = isPreviewableTextFile(file) || canAttemptEmbeddedPreview(file);
 
   return (
@@ -481,7 +554,7 @@ export function SupportFileRow({
             type="button"
           >
             <EyeIcon className="h-4 w-4" />
-            Vista rápida
+            {t ? "Vista rápida" : "Quick preview"}
           </button>
         ) : null}
         <a
@@ -491,7 +564,7 @@ export function SupportFileRow({
           target="_blank"
         >
           <DownloadIcon className="h-4 w-4" />
-          Abrir archivo
+          {t ? "Abrir archivo" : "Open file"}
         </a>
       </div>
     </article>

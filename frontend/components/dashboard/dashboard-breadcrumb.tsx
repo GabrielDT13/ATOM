@@ -2,19 +2,46 @@
 
 import Link from "next/link";
 
-const DASHBOARD_LABELS: Record<string, string> = {
+import { useLocale } from "@/components/providers/locale-provider";
+
+const DASHBOARD_LABELS_ES: Record<string, string> = {
   create_project: "Crear proyecto",
   dashboard: "Dashboard",
   edit_project: "Editar proyecto",
   edit_projects: "Editar proyectos",
   edit_user: "Editar usuario",
   edit_users: "Editar usuarios",
+  entities: "Entidades",
+  public: "Públicos",
+  "public-projects": "Proyectos públicos",
   profile: "Perfil",
   "project-execution": "Ejecución",
   "project-report": "Informe",
   projects: "Proyectos",
+  reports: "Informes",
   register: "Registrar usuario",
+  teams: "Equipos",
   users: "Usuarios",
+};
+
+const DASHBOARD_LABELS_EN: Record<string, string> = {
+  create_project: "Create project",
+  dashboard: "Dashboard",
+  edit_project: "Edit project",
+  edit_projects: "Edit projects",
+  edit_user: "Edit user",
+  edit_users: "Edit users",
+  entities: "Entities",
+  public: "Public",
+  "public-projects": "Public projects",
+  profile: "Profile",
+  "project-execution": "Execution",
+  "project-report": "Report",
+  projects: "Projects",
+  reports: "Reports",
+  register: "Register user",
+  teams: "Teams",
+  users: "Users",
 };
 
 export type DashboardBreadcrumbItem = {
@@ -42,9 +69,10 @@ function ChevronRightIcon() {
   );
 }
 
-function formatSegment(segment: string) {
+function formatSegment(segment: string, locale: "en" | "es") {
   const decoded = decodeURIComponent(segment);
-  const mapped = DASHBOARD_LABELS[decoded];
+  const labels = locale === "en" ? DASHBOARD_LABELS_EN : DASHBOARD_LABELS_ES;
+  const mapped = labels[decoded];
 
   if (mapped) {
     return mapped;
@@ -55,7 +83,10 @@ function formatSegment(segment: string) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-export function buildDashboardBreadcrumbs(pathname: string): DashboardBreadcrumbItem[] {
+export function buildDashboardBreadcrumbs(
+  pathname: string,
+  locale: "en" | "es" = "es",
+): DashboardBreadcrumbItem[] {
   const segments = pathname.split("/").filter(Boolean);
   const items: DashboardBreadcrumbItem[] = [];
   let currentPath = "";
@@ -64,7 +95,7 @@ export function buildDashboardBreadcrumbs(pathname: string): DashboardBreadcrumb
     currentPath += `/${segment}`;
     items.push({
       href: index === segments.length - 1 ? undefined : currentPath,
-      label: formatSegment(segment),
+      label: formatSegment(segment, locale),
     });
   });
 
@@ -76,12 +107,14 @@ type DashboardBreadcrumbProps = {
 };
 
 export function DashboardBreadcrumb({ items }: DashboardBreadcrumbProps) {
+  const { locale } = useLocale();
+
   if (items.length === 0) {
     return null;
   }
 
   return (
-    <nav aria-label="Breadcrumb" className="bg-transparent">
+    <nav aria-label={locale === "es" ? "Breadcrumb" : "Breadcrumb"} className="bg-transparent">
       <div className="px-4 pb-0 pt-4 sm:px-8 sm:pt-6">
         <ol className="flex flex-wrap items-center gap-2 text-sm text-slate-500">
           {items.map((item, index) => (

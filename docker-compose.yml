@@ -1,9 +1,31 @@
 services:
+  atom-db:
+    image: postgres:16-alpine
+    container_name: atom-db
+    ports:
+      - "${POSTGRES_PORT_HOST:-5432}:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-atom}
+      - POSTGRES_USER=${POSTGRES_USER:-atom}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-atom}
+    volumes:
+      - atom_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-atom} -d ${POSTGRES_DB:-atom}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
   atom-backend:
     build:
       context: .
       dockerfile: docker/Dockerfile
+      target: ${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}
     container_name: atom-api
+    depends_on:
+      atom-db:
+        condition: service_healthy
     ports:
       - "${ATOM_API_PORT:-8000}:8000"
     volumes:
@@ -12,13 +34,34 @@ services:
       - BACKEND_HOST=${BACKEND_HOST:-0.0.0.0}
       - BACKEND_PORT=${BACKEND_PORT:-8000}
       - BACKEND_RELOAD=${BACKEND_RELOAD:-true}
+      - ATOM_BACKEND_BUILD_TARGET=${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}
       - SESSION_SECRET=${SESSION_SECRET:-change-this-in-production}
+      - DATABASE_URL=${DATABASE_URL:-}
+      - POSTGRES_HOST=${POSTGRES_HOST:-atom-db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-atom}
+      - POSTGRES_USER=${POSTGRES_USER:-atom}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-atom}
       - JWT_SECRET=${JWT_SECRET}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-authenticated}
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
-      - SUPABASE_URL=${SUPABASE_URL_INTERNAL}
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - SUPABASE_JWT_AUD=${SUPABASE_JWT_AUD:-authenticated}
+      - MAIL_DELIVERY_MODE=${MAIL_DELIVERY_MODE:-console}
+      - MAIL_FROM_EMAIL=${MAIL_FROM_EMAIL:-no-reply@atom.local}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-ATOM}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
+      - EMAIL_TOKEN_SECRET=${EMAIL_TOKEN_SECRET:-}
+      - PASSWORD_RESET_TOKEN_TTL_SECONDS=${PASSWORD_RESET_TOKEN_TTL_SECONDS:-3600}
+      - ACCOUNT_SETUP_TOKEN_TTL_SECONDS=${ACCOUNT_SETUP_TOKEN_TTL_SECONDS:-604800}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     restart: unless-stopped
   atom-frontend:
     build:
@@ -26,7 +69,8 @@ services:
       dockerfile: docker/frontend.Dockerfile
     container_name: atom-web
     depends_on:
-      - atom-backend
+      atom-backend:
+        condition: service_healthy
     ports:
       - "${ATOM_PORT:-3000}:3000"
     volumes:
@@ -38,8 +82,47 @@ services:
       - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://atom-backend:8000}
       - NEXT_PUBLIC_BACKEND_PUBLIC_ORIGIN=${NEXT_PUBLIC_BACKEND_PUBLIC_ORIGIN:-}
       - NEXT_PUBLIC_BACKEND_PUBLIC_PORT=${NEXT_PUBLIC_BACKEND_PUBLIC_PORT:-8000}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000 >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    restart: unless-stopped
+  atom-worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      target: ${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}
+    container_name: atom-worker
+    depends_on:
+      atom-db:
+        condition: service_healthy
+    command: ["python", "-m", "backend.app.workers.analysis_worker"]
+    volumes:
+      - ./:/app
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-}
+      - POSTGRES_HOST=${POSTGRES_HOST:-atom-db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-atom}
+      - POSTGRES_USER=${POSTGRES_USER:-atom}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-atom}
+      - ANALYSIS_WORKER_POLL_SECONDS=${ANALYSIS_WORKER_POLL_SECONDS:-2}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_AUDIENCE=${JWT_AUDIENCE:-authenticated}
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:3000}
+      - MAIL_DELIVERY_MODE=${MAIL_DELIVERY_MODE:-console}
+      - MAIL_FROM_EMAIL=${MAIL_FROM_EMAIL:-no-reply@atom.local}
+      - MAIL_FROM_NAME=${MAIL_FROM_NAME:-ATOM}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
     restart: unless-stopped
 
 volumes:
+  atom_postgres_data:
   frontend_node_modules:
   frontend_next_cache:

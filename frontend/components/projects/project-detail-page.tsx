@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import {
+  buildProjectFileUrl,
   buildProjectFilePreviewPath,
   getExecutionDeliverables,
   getExecutionPreviewableFiles,
@@ -29,7 +31,9 @@ import {
   buildProjectDetailModel,
 } from "@/components/projects/project-detail-utils";
 import {
+  isReportAssetPassthroughPath,
   parseProjectReportHtml,
+  resolveRelativeReportAssetPath,
   type ParsedProjectReport,
 } from "@/components/projects/project-report-utils";
 import { getProjectStatusMeta } from "@/components/projects/project-management-utils";
@@ -41,6 +45,7 @@ import {
   getProject,
   getProjectByRef,
   listProjectMembers,
+  listProjectTeams,
   listProjectMembersByRef,
   resolveProjectRouteRef,
 } from "@/lib/projects";
@@ -48,6 +53,7 @@ import type {
   FileContentResponse,
   ProjectDetails,
   ProjectMemberRecord,
+  ProjectSharedTeam,
   SessionResponse,
 } from "@/types/api";
 
@@ -69,9 +75,12 @@ export function ProjectDetailPage({
   projectRef,
 }: ProjectDetailPageProps) {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
+  const [teams, setTeams] = useState<ProjectSharedTeam[]>([]);
   const [reportPreview, setReportPreview] = useState<PreviewState | null>(null);
   const [filePreview, setFilePreview] = useState<PreviewState | null>(null);
   const [activeReport, setActiveReport] = useState<ParsedProjectReport | null>(null);
@@ -82,10 +91,12 @@ export function ProjectDetailPage({
   const [reportPreviewLoading, setReportPreviewLoading] = useState(false);
   const [filePreviewLoading, setFilePreviewLoading] = useState(false);
   const appToast = useAppToast();
+  const projectSnapshotKeyRef = useRef<string | null>(null);
 
   async function loadProjectState(isCancelled: () => boolean = () => false) {
     setLoading(true);
     setError(null);
+    setTeams([]);
 
     try {
       const projectRequest =
@@ -107,9 +118,34 @@ export function ProjectDetailPage({
         return;
       }
 
+      const nextSnapshotKey = [
+        projectResponse.updated_at ?? "",
+        String(projectResponse.file_count ?? 0),
+        projectResponse.status,
+        projectResponse.active_run?.id ?? "",
+        projectResponse.active_run?.status ?? "",
+      ].join("::");
+      const previousSnapshotKey = projectSnapshotKeyRef.current;
+      if (previousSnapshotKey && previousSnapshotKey !== nextSnapshotKey) {
+        setReportPreview(null);
+        setFilePreview(null);
+        setActiveReport(null);
+      }
+      projectSnapshotKeyRef.current = nextSnapshotKey;
+
       setSession(sessionResponse);
       setProject(projectResponse);
       setMembers(membersResponse.members);
+      try {
+        const teamsResponse = await listProjectTeams(projectResponse.owner, projectResponse.name);
+        if (!isCancelled()) {
+          setTeams(teamsResponse.teams);
+        }
+      } catch {
+        if (!isCancelled()) {
+          setTeams([]);
+        }
+      }
     } catch (loadError) {
       if (isCancelled()) {
         return;
@@ -118,7 +154,7 @@ export function ProjectDetailPage({
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "No se pudo cargar el detalle del proyecto.",
+          : t ? "No se pudo cargar el detalle del proyecto." : "Could not load project detail.",
       );
     } finally {
       if (!isCancelled()) {
@@ -143,6 +179,7 @@ export function ProjectDetailPage({
     kind: "file" | "report",
     currentProjectName = project?.name,
     currentProjectOwner = project?.owner,
+    currentProjectUpdatedAt = project?.updated_at,
   ) {
     if (!currentProjectName || !currentProjectOwner) {
       return;
@@ -152,14 +189,20 @@ export function ProjectDetailPage({
     const setPreviewState = kind === "report" ? setReportPreview : setFilePreview;
     const errorTitle =
       kind === "report"
-        ? "No se pudo cargar la vista previa principal"
-        : "No se pudo cargar la vista previa";
+        ? t
+          ? "No se pudo cargar la vista previa principal"
+          : "Could not load main preview"
+        : t
+          ? "No se pudo cargar la vista previa"
+          : "Could not load preview";
 
     setLoadingState(true);
 
     try {
       const nextPreview = await buildProjectPreviewState({
+        cacheKey: currentProjectUpdatedAt ?? null,
         file,
+        locale,
         owner: currentProjectOwner,
         projectName: currentProjectName,
       });
@@ -183,7 +226,7 @@ export function ProjectDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [owner, projectName, projectRef]);
+  }, [owner, projectName, projectRef, t]);
 
   useEffect(() => {
     if (!detailModel?.executionGroups.length) {
@@ -239,9 +282,25 @@ export function ProjectDetailPage({
     void (async () => {
       try {
         const fileContent = await apiFetch<FileContentResponse>(
-          buildProjectFilePreviewPath(project.owner, project.name, htmlFile.path),
+          buildProjectFilePreviewPath(project.owner, project.name, htmlFile.path, project.updated_at ?? null),
         );
-        setActiveReport(parseProjectReportHtml(fileContent.content));
+        setActiveReport(
+          parseProjectReportHtml(fileContent.content, {
+            resolveImageSrc: (src) => {
+              const resolvedSrc = resolveRelativeReportAssetPath(htmlFile.path, src);
+              if (isReportAssetPassthroughPath(resolvedSrc)) {
+                return resolvedSrc;
+              }
+
+              return buildProjectFileUrl(
+                project.owner,
+                project.name,
+                resolvedSrc,
+                project.updated_at ?? null,
+              );
+            },
+          }),
+        );
       } catch {
         setActiveReport(null);
       }
@@ -269,25 +328,75 @@ export function ProjectDetailPage({
     void loadPreview(firstPreviewableSupportFile, "file", project.name, project.owner);
   }, [detailModel, filePreview, project]);
 
-  function handleRegenerate() {
-    if (!project) {
+  const executionHref = project
+    ? resolvedProjectRef
+      ? buildProjectExecutionHref(resolvedProjectRef, {
+          autoStart: !(project.active_run?.status === "queued" || project.active_run?.status === "running"),
+        })
+      : `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}${
+          project.active_run?.status === "queued" || project.active_run?.status === "running" ? "" : "?start=1"
+        }`
+    : null;
+
+  useEffect(() => {
+    if (!executionHref) {
       return;
     }
-    const executionHref = resolvedProjectRef
-      ? buildProjectExecutionHref(resolvedProjectRef)
-      : `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
-    router.push(executionHref);
-  }
+
+    if (project?.active_run?.status === "queued" || project?.active_run?.status === "running") {
+      router.replace(executionHref);
+    }
+  }, [executionHref, project?.active_run?.status, router]);
+
+  useEffect(() => {
+    if (project?.active_run?.status !== "queued" && project?.active_run?.status !== "running") {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshProjectState() {
+      await loadProjectState(() => cancelled);
+    }
+
+    function handleVisibilityRefresh() {
+      if (document.visibilityState === "visible") {
+        void refreshProjectState();
+      }
+    }
+
+    function handleWindowFocus() {
+      void refreshProjectState();
+    }
+
+    const intervalId = window.setInterval(() => {
+      void refreshProjectState();
+    }, 5000);
+
+    document.addEventListener("visibilitychange", handleVisibilityRefresh);
+    window.addEventListener("focus", handleWindowFocus);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityRefresh);
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+  }, [project?.active_run?.status, owner, projectName, projectRef]);
 
   if (loading) {
     return <ProjectDetailLoadingState />;
   }
 
-  if (error || !project || !detailModel) {
-    return <ProjectDetailErrorState message={error ?? "El proyecto solicitado no existe."} />;
+  if (project && executionHref && (project.active_run?.status === "queued" || project.active_run?.status === "running")) {
+    return <ProjectDetailLoadingState />;
   }
 
-  const statusMeta = getProjectStatusMeta(project.status);
+  if (error || !project || !detailModel) {
+    return <ProjectDetailErrorState message={error ?? (t ? "El proyecto solicitado no existe." : "Requested project does not exist.")} />;
+  }
+
+  const statusMeta = getProjectStatusMeta(project.status, project.active_run, locale);
   const projectReportHref =
     resolvedProjectRef && activeExecutionGroup?.htmlFile
       ? buildProjectReportHref(resolvedProjectRef, activeExecutionGroup.htmlFile.path)
@@ -316,15 +425,22 @@ export function ProjectDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <ProjectDetailHero accessRole={accessRole} canEdit={canEdit} project={project} />
+      <ProjectDetailHero
+        accessRole={accessRole}
+        canEdit={canEdit}
+        project={project}
+        projectRef={resolvedProjectRef}
+        teamCount={teams.length}
+      />
 
       <ProjectQuickActions
+        activeRun={project.active_run ?? null}
         activeDeliverablesCount={activeDeliverables.length}
         canRegenerate={canRegenerate}
         downloadZipFile={downloadZipFile}
+        executionHref={executionHref}
         executionCount={detailModel.executionGroups.length}
         htmlCount={htmlCount}
-        onRegenerate={handleRegenerate}
         project={project}
         supportFileCount={detailModel.supportFiles.length + (detailModel.templateFile ? 1 : 0)}
       />
@@ -338,6 +454,7 @@ export function ProjectDetailPage({
           project={project}
           statusBadgeClassName={statusMeta.badgeClassName}
           statusLabel={statusMeta.label}
+          teams={teams}
         />
 
         <ProjectPrimaryReport
