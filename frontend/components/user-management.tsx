@@ -259,7 +259,7 @@ export function UserManagement() {
     }
   }
 
-  const filteredUsers = filterUsers(users, search, roleFilter, departmentFilter);
+  const filteredUsers = filterUsers(users, search, roleFilter, departmentFilter, locale);
   const pendingDeleteProjects =
     pendingDeleteUser ? projectsByOwner[pendingDeleteUser.username] ?? [] : [];
   const deleteBlockedByProjects = pendingDeleteProjects.length > 0;

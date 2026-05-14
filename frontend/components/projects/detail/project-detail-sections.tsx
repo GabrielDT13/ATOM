@@ -92,7 +92,7 @@ export function ProjectDetailHero({
 }) {
   const { locale } = useLocale();
   const t = locale === "es";
-  const visibilityMeta = getProjectVisibilityMeta(project.visibility);
+  const visibilityMeta = getProjectVisibilityMeta(project.visibility, locale);
 
   return (
     <section className="page-hero-surface overflow-hidden rounded-[32px] border border-white/10 p-6 sm:p-8">

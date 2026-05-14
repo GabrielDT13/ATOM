@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import { apiFetch, fetchSession } from "@/lib/api";
 import type { MutationResponse, SessionResponse } from "@/types/api";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,8 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { FormCard, FormField, FormInput, FormMessage, FormPage } from "@/components/ui/form-page";
 
 export function UserRegistration() {
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
@@ -51,7 +54,9 @@ export function UserRegistration() {
           : false;
       setMessage(
         response.temporary_password
-          ? `${response.message}. Contraseña temporal: ${response.temporary_password}${copied ? ". Copiada al portapapeles" : ""}`
+          ? t
+            ? `${response.message}. Contraseña temporal: ${response.temporary_password}${copied ? ". Copiada al portapapeles" : ""}`
+            : `${response.message}. Temporary password: ${response.temporary_password}${copied ? ". Copied to clipboard" : ""}`
           : response.message,
       );
       if (response.success) {
@@ -62,7 +67,7 @@ export function UserRegistration() {
       setMessage(
         submitError instanceof Error
           ? submitError.message
-          : "No se pudo registrar el usuario",
+          : t ? "No se pudo registrar el usuario" : "Could not register user",
       );
     } finally {
       setSubmitting(false);
@@ -70,19 +75,19 @@ export function UserRegistration() {
   }
 
   if (!session?.user) {
-    return <div>Cargando permisos...</div>;
+    return <div>{t ? "Cargando permisos..." : "Loading permissions..."}</div>;
   }
 
   if (session.user.role !== "admin") {
     return (
       <FormPage
-        description="Alta manual de nuevos accesos para la plataforma."
-        eyebrow="Usuarios"
-        title="Registrar usuario"
+        description={t ? "Alta manual de nuevos accesos para la plataforma." : "Manual onboarding for new platform access."}
+        eyebrow={t ? "Usuarios" : "Users"}
+        title={t ? "Registrar usuario" : "Register user"}
       >
-        <FormCard title="Acceso restringido">
+        <FormCard title={t ? "Acceso restringido" : "Restricted access"}>
           <FormMessage tone="danger">
-            Solo el usuario administrador puede registrar nuevos usuarios.
+            {t ? "Solo el usuario administrador puede registrar nuevos usuarios." : "Only administrator can register new users."}
           </FormMessage>
         </FormCard>
       </FormPage>
@@ -93,36 +98,36 @@ export function UserRegistration() {
     <FormPage
       actions={
         <ButtonLink href="/dashboard/users" size="lg" tone="on-dark" variant="secondary">
-          Volver a usuarios
+          {t ? "Volver a usuarios" : "Back to users"}
         </ButtonLink>
       }
-      description="Alta manual de nuevos accesos para la plataforma con contraseña temporal aleatoria."
-      eyebrow="Usuarios"
-      title="Registrar usuario"
+      description={t ? "Alta manual de nuevos accesos para la plataforma con contraseña temporal aleatoria." : "Manual onboarding for new platform access with random temporary password."}
+      eyebrow={t ? "Usuarios" : "Users"}
+      title={t ? "Registrar usuario" : "Register user"}
     >
       <form onSubmit={handleSubmit}>
         <FormCard
-          description="Completa los datos básicos del usuario. La contraseña temporal se generará automáticamente."
+          description={t ? "Completa los datos básicos del usuario. La contraseña temporal se generará automáticamente." : "Fill basic user data. Temporary password will be generated automatically."}
           footer={
             <>
               <ButtonLink href="/dashboard/users" variant="secondary">
-                Cancelar
+                {t ? "Cancelar" : "Cancel"}
               </ButtonLink>
               <Button
                 disabled={submitting}
                 type="submit"
               >
-                {submitting ? "Guardando..." : "Registrar"}
+                {submitting ? (t ? "Guardando..." : "Saving...") : t ? "Registrar" : "Register"}
               </Button>
             </>
           }
-          title="Datos del usuario"
+          title={t ? "Datos del usuario" : "User data"}
         >
           <div className="grid gap-5 sm:grid-cols-2">
-            <FormField label="Nombre de usuario">
+            <FormField label={t ? "Nombre de usuario" : "Username"}>
               <FormInput
                 onChange={(event) => setUsername(event.target.value)}
-                placeholder="usuario_laboratorio"
+                placeholder={t ? "usuario_laboratorio" : "lab_user"}
                 required
                 value={username}
               />
@@ -130,7 +135,7 @@ export function UserRegistration() {
             <FormField label="Email">
               <FormInput
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="usuario@empresa.com"
+                placeholder={t ? "usuario@empresa.com" : "user@company.com"}
                 required
                 type="email"
                 value={email}

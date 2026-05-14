@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
+import { useLocale } from "@/components/providers/locale-provider";
 import {
   buildProjectFileUrl,
   buildProjectFilePreviewPath,
@@ -72,6 +74,9 @@ export function ProjectDetailPage({
   projectName,
   projectRef,
 }: ProjectDetailPageProps) {
+  const router = useRouter();
+  const { locale } = useLocale();
+  const t = locale === "es";
   const [session, setSession] = useState<SessionResponse | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [members, setMembers] = useState<ProjectMemberRecord[]>([]);
@@ -149,7 +154,7 @@ export function ProjectDetailPage({
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "No se pudo cargar el detalle del proyecto.",
+          : t ? "No se pudo cargar el detalle del proyecto." : "Could not load project detail.",
       );
     } finally {
       if (!isCancelled()) {
@@ -184,8 +189,12 @@ export function ProjectDetailPage({
     const setPreviewState = kind === "report" ? setReportPreview : setFilePreview;
     const errorTitle =
       kind === "report"
-        ? "No se pudo cargar la vista previa principal"
-        : "No se pudo cargar la vista previa";
+        ? t
+          ? "No se pudo cargar la vista previa principal"
+          : "Could not load main preview"
+        : t
+          ? "No se pudo cargar la vista previa"
+          : "Could not load preview";
 
     setLoadingState(true);
 
@@ -193,6 +202,7 @@ export function ProjectDetailPage({
       const nextPreview = await buildProjectPreviewState({
         cacheKey: currentProjectUpdatedAt ?? null,
         file,
+        locale,
         owner: currentProjectOwner,
         projectName: currentProjectName,
       });
@@ -216,7 +226,7 @@ export function ProjectDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [owner, projectName, projectRef]);
+  }, [owner, projectName, projectRef, t]);
 
   useEffect(() => {
     if (!detailModel?.executionGroups.length) {
@@ -329,6 +339,16 @@ export function ProjectDetailPage({
     : null;
 
   useEffect(() => {
+    if (!executionHref) {
+      return;
+    }
+
+    if (project?.active_run?.status === "queued" || project?.active_run?.status === "running") {
+      router.replace(executionHref);
+    }
+  }, [executionHref, project?.active_run?.status, router]);
+
+  useEffect(() => {
     if (project?.active_run?.status !== "queued" && project?.active_run?.status !== "running") {
       return;
     }
@@ -368,11 +388,15 @@ export function ProjectDetailPage({
     return <ProjectDetailLoadingState />;
   }
 
-  if (error || !project || !detailModel) {
-    return <ProjectDetailErrorState message={error ?? "El proyecto solicitado no existe."} />;
+  if (project && executionHref && (project.active_run?.status === "queued" || project.active_run?.status === "running")) {
+    return <ProjectDetailLoadingState />;
   }
 
-  const statusMeta = getProjectStatusMeta(project.status, project.active_run);
+  if (error || !project || !detailModel) {
+    return <ProjectDetailErrorState message={error ?? (t ? "El proyecto solicitado no existe." : "Requested project does not exist.")} />;
+  }
+
+  const statusMeta = getProjectStatusMeta(project.status, project.active_run, locale);
   const projectReportHref =
     resolvedProjectRef && activeExecutionGroup?.htmlFile
       ? buildProjectReportHref(resolvedProjectRef, activeExecutionGroup.htmlFile.path)
