@@ -3,8 +3,8 @@ from __future__ import annotations
 from backend.app.dependencies.auth import get_current_user, get_request_access_token
 from backend.app.schemas.profile import (
     ProfileMutationResponse,
-    ProfilePreferencesUpdateRequest,
     ProfilePasswordChangeRequest,
+    ProfilePreferencesUpdateRequest,
     ProfileRequiredPasswordChangeRequest,
     ProfileResponse,
     ProfileUpdateRequest,
