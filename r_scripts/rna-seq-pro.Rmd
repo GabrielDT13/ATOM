@@ -51,6 +51,7 @@ library(zip)
 library(glue)
 library(httr)
 library(jsonlite)
+library(base64enc)
 library(readr)
 library(officer)
 library(FactoMineR)
@@ -101,14 +102,157 @@ kegg_dict <- list(
   # puedes añadir más si trabajas con otros organismos
 )
 
-# establecemos las variables con el api key y la url de chatGPT
+# OpenAI runtime config desde variables de entorno
 openai_api_key <- trimws(Sys.getenv("OPENAI_API_KEY", ""))
 openai_url <- trimws(Sys.getenv("OPENAI_CHAT_COMPLETIONS_URL", "https://api.openai.com/v1/chat/completions"))
+openai_model <- trimws(Sys.getenv("OPENAI_MODEL", "gpt-4o"))
+openai_image_detail <- trimws(Sys.getenv("OPENAI_IMAGE_DETAIL", "high"))
+openai_temperature <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_TEMPERATURE", "0.2")))
+openai_connect_timeout <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_CONNECT_TIMEOUT_SECONDS", "30")))
+openai_request_timeout <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_REQUEST_TIMEOUT_SECONDS", "180")))
+openai_max_images <- suppressWarnings(as.integer(Sys.getenv("OPENAI_MAX_ANALYSIS_IMAGES", "8")))
+openai_max_image_bytes <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_MAX_ANALYSIS_IMAGE_BYTES", "4000000")))
+openai_max_tokens <- suppressWarnings(as.integer(Sys.getenv("OPENAI_MAX_TOKENS", "2200")))
 
-# Función ping opcional para "calentar" la conexión ---
-openai_ping <- function(api_key) {
+if (!is.finite(openai_temperature)) openai_temperature <- 0.2
+if (!is.finite(openai_connect_timeout)) openai_connect_timeout <- 30
+if (!is.finite(openai_request_timeout)) openai_request_timeout <- 180
+if (!is.finite(openai_max_images) || openai_max_images < 0) openai_max_images <- 8L
+if (!is.finite(openai_max_image_bytes) || openai_max_image_bytes <= 0) openai_max_image_bytes <- 4000000
+if (!is.finite(openai_max_tokens) || openai_max_tokens <= 0) openai_max_tokens <- 2200L
+
+has_openai_api_key <- function(api_key) {
+  nzchar(trimws(api_key))
+}
+
+infer_mime_type <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  switch(
+    ext,
+    "jpg" = "image/jpeg",
+    "jpeg" = "image/jpeg",
+    "png" = "image/png",
+    "webp" = "image/webp",
+    "gif" = "image/gif",
+    "application/octet-stream"
+  )
+}
+
+describe_report_image <- function(path) {
+  filename <- basename(path)
+
+  if (filename == "QC_PCA.jpeg") return("PCA scatter plot summarizing sample separation by experimental group.")
+  if (filename == "QC_hm.jpeg") return("Sample-to-sample distance heatmap used for quality control and clustering consistency.")
+  if (filename == "DGE_VP.jpeg") return("Volcano plot highlighting significantly upregulated and downregulated genes.")
+  if (filename == "DGE_map.jpeg") return("MA plot summarizing expression changes across abundance levels.")
+  if (filename == "DGE_Small_hm.jpeg") return("Focused heatmap of top significant genes across samples.")
+  if (filename == "DGE_Big_hm.jpeg") return("Global heatmap of significant differentially expressed genes.")
+  if (filename == "GO_bp_dp.jpeg") return("GO biological process enrichment dot plot or cnet plot, depending on successful render path.")
+  if (filename == "GO_mf_dp.jpeg") return("GO molecular function enrichment dot plot.")
+  if (filename == "GO_cc_dp.jpeg") return("GO cellular component enrichment dot plot.")
+  if (grepl("^GSEA_.*\\.jpe?g$", filename, ignore.case = TRUE)) {
+    return("Representative GSEA enrichment plot for a top-ranked pathway or ontology term.")
+  }
+  if (grepl("\\.pathview\\.png$", filename, ignore.case = TRUE)) {
+    return("KEGG pathway map with differential expression overlaid on pathway nodes.")
+  }
+
+  paste("Analysis figure:", filename)
+}
+
+pick_ranked_images <- function(paths, max_n) {
+  if (length(paths) == 0 || max_n <= 0) {
+    return(character(0))
+  }
+
+  info <- file.info(paths)
+  ranked <- data.frame(
+    path = paths,
+    size = info$size,
+    mtime = info$mtime,
+    stringsAsFactors = FALSE
+  )
+  ranked <- ranked[!is.na(ranked$size), , drop = FALSE]
+  ranked <- ranked[order(-ranked$size, -as.numeric(ranked$mtime)), , drop = FALSE]
+  head(ranked$path, max_n)
+}
+
+select_openai_context_images <- function(dir_path, max_images = openai_max_images, max_bytes = openai_max_image_bytes) {
+  if (!dir.exists(dir_path) || max_images <= 0) {
+    return(character(0))
+  }
+
+  preferred <- file.path(
+    dir_path,
+    c(
+      "QC_PCA.jpeg",
+      "QC_hm.jpeg",
+      "DGE_VP.jpeg",
+      "DGE_map.jpeg",
+      "DGE_Small_hm.jpeg",
+      "DGE_Big_hm.jpeg",
+      "GO_bp_dp.jpeg",
+      "GO_mf_dp.jpeg",
+      "GO_cc_dp.jpeg"
+    )
+  )
+
+  existing_preferred <- preferred[file.exists(preferred)]
+  gsea_candidates <- pick_ranked_images(
+    list.files(dir_path, pattern = "^GSEA_.*\\.jpe?g$", full.names = TRUE),
+    max_n = 2
+  )
+  kegg_candidates <- pick_ranked_images(
+    list.files(dir_path, pattern = "\\.pathview\\.png$", full.names = TRUE),
+    max_n = 2
+  )
+
+  candidates <- unique(c(existing_preferred, gsea_candidates, kegg_candidates))
+  if (length(candidates) == 0) {
+    return(character(0))
+  }
+
+  sizes <- file.info(candidates)$size
+  keep <- !is.na(sizes) & sizes > 0 & sizes <= max_bytes
+  selected <- candidates[keep]
+
+  if (length(selected) > max_images) {
+    selected <- selected[seq_len(max_images)]
+  }
+
+  selected
+}
+
+build_openai_user_content <- function(prompt_text, image_paths = character(0), image_detail = openai_image_detail) {
+  content <- list(list(type = "text", text = prompt_text))
+
+  for (image_path in image_paths) {
+    caption <- describe_report_image(image_path)
+    encoded <- base64encode(image_path)
+    data_url <- paste0("data:", infer_mime_type(image_path), ";base64,", encoded)
+
+    content[[length(content) + 1]] <- list(
+      type = "text",
+      text = paste0("Figure context: ", caption, " File: ", basename(image_path))
+    )
+    content[[length(content) + 1]] <- list(
+      type = "image_url",
+      image_url = list(url = data_url, detail = image_detail)
+    )
+  }
+
+  content
+}
+
+# Función ping opcional para "calentar" la conexión
+openai_ping <- function(api_key, model = openai_model) {
+  if (!has_openai_api_key(api_key)) {
+    message("OPENAI_API_KEY no configurada. Se omite ping de OpenAI.")
+    return(invisible(FALSE))
+  }
+
   body <- list(
-    model = "gpt-4o",
+    model = model,
     messages = list(
       list(
         role = "user",
@@ -117,67 +261,134 @@ openai_ping <- function(api_key) {
     ),
     temperature = 0
   )
-  
+
   resp <- POST(
     url = openai_url,
     add_headers(Authorization = paste("Bearer", api_key)),
     content_type_json(),
     encode = "json",
     body = body,
-    config = config(connecttimeout = 15)
+    timeout(openai_request_timeout),
+    config = config(connecttimeout = openai_connect_timeout)
   )
-  
+
   if (status_code(resp) == 200) {
-    message("✔ Conexión establecida correctamente.")
+    message("OpenAI listo.")
   } else {
-    warning("⚠ No se pudo establecer conexión previa. Código: ", status_code(resp))
+    warning("No se pudo establecer conexión previa con OpenAI. Código: ", status_code(resp))
     print(content(resp, as = "text"))
   }
 }
 
-# Función general para enviar prompt a la API ---
-openai_chat <- function(prompt_text, api_key, model = "gpt-4o", temperature = 0.2, connect_timeout = 30) {
+# Función general para enviar prompt multimodal a la API
+openai_chat <- function(
+  prompt_text,
+  api_key,
+  image_paths = character(0),
+  model = openai_model,
+  temperature = openai_temperature,
+  connect_timeout = openai_connect_timeout,
+  request_timeout = openai_request_timeout,
+  max_tokens = openai_max_tokens
+) {
+  if (!has_openai_api_key(api_key)) {
+    stop("OPENAI_API_KEY no configurada")
+  }
+
+  system_prompt <- paste(
+    "You are a senior bioinformatics scientist and biomedical writer.",
+    "Use only information grounded in provided structured data and figures.",
+    "Integrate quantitative evidence from text with visual evidence from plots.",
+    "If evidence is weak or missing, say so explicitly.",
+    "Do not fabricate methods, sample sizes, citations, pathways, or mechanistic claims.",
+    "When citing literature, include only high-confidence canonical references; otherwise omit the reference instead of guessing.",
+    "Return polished Markdown only, without code fences."
+  )
+
   body <- list(
     model = model,
     messages = list(
       list(
         role = "system",
-        content = list(list(type = "text", text = "You are a helpful assistant specialized in academic writing."))
+        content = list(list(type = "text", text = system_prompt))
       ),
       list(
         role = "user",
-        content = list(list(type = "text", text = prompt_text))
+        content = build_openai_user_content(prompt_text, image_paths = image_paths)
       )
     ),
-    temperature = temperature
+    temperature = temperature,
+    max_tokens = max_tokens
   )
-  
+
   response <- POST(
     url = openai_url,
     add_headers(Authorization = paste("Bearer", api_key)),
     content_type_json(),
     encode = "json",
     body = body,
+    timeout(request_timeout),
     config = config(connecttimeout = connect_timeout)
   )
-  
+
   if (http_error(response)) {
-    stop("Error en la solicitud: ", status_code(response), " - ", content(response, as = "text"))
+    stop("Error en la solicitud a OpenAI: ", status_code(response), " - ", content(response, as = "text"))
   }
-  
+
   response_content <- content(response, as = "parsed", type = "application/json")
   reply <- response_content$choices[[1]]$message$content
-  return(reply)
+  reply
 }
 
 source(file.path(base_dir, "r_scripts", "lib", "rna_seq_shared_helpers.R"))
 
 # Format gene lists as comma separated strings with details
 format_genes_list <- function(df) {
+  if (is.null(df) || nrow(df) == 0) {
+    return("No differentially expressed genes met the reporting threshold.")
+  }
+
   apply(df, 1, function(row) {
     paste0(row["symbol"], " (log2FC = ", round(as.numeric(row["log2FoldChange"]), 2),
            ", padj = ", signif(as.numeric(row["padj"]), 3), ")")
   }) %>% paste(collapse = ", ")
+}
+
+build_fallback_results_report <- function(
+  treatment,
+  molecule,
+  cell,
+  genotype,
+  condition,
+  organism,
+  n_total_genes,
+  n_genes_up,
+  n_genes_down,
+  top_up_text,
+  top_down_text,
+  go_bp_up_text,
+  go_bp_down_text,
+  go_mf_up_text,
+  go_mf_down_text,
+  go_cc_up_text,
+  go_cc_down_text
+) {
+  glue(
+    "### Results\n\n",
+    "Differential gene expression analysis assessing the effects of {treatment} on {molecule} function in {cell}s of {genotype} under {condition} in {organism} identified {n_total_genes} significant genes (padj < 0.05), with {n_genes_up} upregulated and {n_genes_down} downregulated transcripts.\n\n",
+    "### Differential Expression Overview\n",
+    "Top upregulated genes: {top_up_text}\n\n",
+    "Top downregulated genes: {top_down_text}\n\n",
+    "### Functional Enrichment\n",
+    "Upregulated biological processes:\n{go_bp_up_text}\n\n",
+    "Downregulated biological processes:\n{go_bp_down_text}\n\n",
+    "Upregulated molecular functions:\n{go_mf_up_text}\n\n",
+    "Downregulated molecular functions:\n{go_mf_down_text}\n\n",
+    "Upregulated cellular components:\n{go_cc_up_text}\n\n",
+    "Downregulated cellular components:\n{go_cc_down_text}\n\n",
+    "### Limitations\n",
+    "AI-enriched interpretation was not available for this run. This fallback summary is based only on tabular outputs generated inside the pipeline.\n"
+  )
 }
 
 ```
@@ -1541,6 +1752,7 @@ kg <- enrichKEGG(
 )
 
 kg <- as.data.frame(kg)
+old_wd <- getwd()
 
 # Comprobar si hay resultados
 if (nrow(kg) == 0) {
@@ -1557,7 +1769,6 @@ if (nrow(kg) == 0) {
   geneList4 <- geneList3[,1]
   names(geneList4) <- geneList3[,2]
   
-  old_wd <- getwd()
   setwd(out_dir)
   
   # Bucle principal
@@ -1613,7 +1824,7 @@ info <- file.info(files)
 # Seleccionar los que tengan tamaño 0 bytes
 empty_files <- rownames(info[info$size == 0, ])
 
-invisible(dev.off())
+try(invisible(dev.off()), silent = TRUE)
 
 # Eliminar solo los vacíos
 if (length(empty_files) > 0) {
@@ -1700,6 +1911,13 @@ n_genes_up <- nrow(res.DGE.SIG.UP)
 n_genes_down <- nrow(res.DGE.SIG.DOWN)
 n_total_genes <- (n_genes_up + n_genes_down)
 
+go_bp_up <- data.frame()
+go_bp_down <- data.frame()
+go_mf_up <- data.frame()
+go_mf_down <- data.frame()
+go_cc_up <- data.frame()
+go_cc_down <- data.frame()
+
 if (exists("gse_bp_subset")){
   go_bp_up <- get_top_go_terms(gse_bp_subset, "up")
   go_bp_down <- get_top_go_terms(gse_bp_subset, "down")
@@ -1710,7 +1928,7 @@ if (exists("gse_mf_subset")){
   go_mf_down <- get_top_go_terms(gse_mf_subset, "down")
 }
 
-if (exists("gse_bp_subset")){
+if (exists("gse_cc_subset")){
   go_cc_up <- get_top_go_terms(gse_cc_subset, "up")
   go_cc_down <- get_top_go_terms(gse_cc_subset, "down")
 }
@@ -1719,9 +1937,10 @@ if (exists("gse_bp_subset")){
 # --- 2. Compose full prompt text ---
 
 prompt_text <- glue(
-  "You are a scientific assistant. Write a results section summarizing the outcome of a differential gene expression analysis followed by GO enrichment\n",
-  "to assess the effects of {treatment} on {molecule} function in {cell}s of {genotype} under {condition} in {organism}.\n",
-  "There are {n_total_genes} significantly differentially expressed genes (padj < 0.05): {n_genes_up} upregulated and {n_genes_down} downregulated.\n\n",
+  "Prepare an AI-enriched RNA-seq report section in academic English.\n",
+  "Study context: assess effects of {treatment} on {molecule} function in {cell}s of {genotype} under {condition} in {organism}.\n",
+  "Differential expression summary: {n_total_genes} significant genes (padj < 0.05), with {n_genes_up} upregulated and {n_genes_down} downregulated.\n",
+  "Additional metadata: gender = {gender}; designID = {designID}.\n\n",
   
   "### Top 20 Upregulated Genes\n",
   "{format_genes_list(top_up)}\n\n",
@@ -1747,12 +1966,16 @@ prompt_text <- glue(
   "### GO Cellular Component Enriched in Downregulated Genes\n",
   "{safe_format(go_cc_down)}\n\n",
   
-  "Write the response in academic English **using Markdown formatting**: \n",
-  "- Section headers like '### Results' and '### References'\n",
+  "### Writing instructions\n",
+  "- Start with heading '### Results'\n",
+  "- Then include these sections in order: '### Executive Summary', '### Quality Control and Sample Separation', '### Differential Expression Overview', '### Functional Enrichment', '### Integrated Biological Interpretation', '### Suggested Validation or Follow-up', and '### Limitations'\n",
   "- Use *italics* for gene names\n",
-  "- Include concise numerical summaries (log2FC, padj, NES, q-values) in parentheses\n",
-  "- Provide a References section at the end listing relevant peer-reviewed articles to support the results.\n",
-  "Ensure the final text is directly copy-pasteable into a Word document or R Markdown report."
+  "- Include concise numerical summaries (log2FC, padj, NES, q-values) in parentheses whenever evidence is available\n",
+  "- Use figures to comment on sample separation, clustering, DEG distribution, and pathway-level coherence when visual evidence supports it\n",
+  "- Distinguish clearly between strong findings and tentative hypotheses\n",
+  "- If evidence for a requested section is missing, write 'Not enough evidence from provided data.'\n",
+  "- Do not fabricate exact citations. Add a '### References' section only if you are highly confident in canonical references; otherwise omit that section entirely.\n",
+  "Return clean Markdown ready to paste into a Word document or R Markdown report."
 )
 
 # --- 3. Format the prompt ---
@@ -1762,11 +1985,42 @@ prompt_text <- paste(prompt_text, collapse = "\n")
 
 # --- 4. ChatGPT conexion ---
 
-# Calienta la conexion
-openai_ping(openai_api_key)
+selected_ai_images <- select_openai_context_images(out_dir)
+if (length(selected_ai_images) > 0) {
+  message("Se enviarán a OpenAI ", length(selected_ai_images), " figuras: ", paste(basename(selected_ai_images), collapse = ", "))
+} else {
+  message("No se encontraron figuras válidas para enviar a OpenAI. Se usará solo contexto textual.")
+}
 
-# Envía prompt
-respuesta <- openai_chat(prompt_text, openai_api_key)
+respuesta <- tryCatch({
+  openai_ping(openai_api_key)
+  openai_chat(
+    prompt_text,
+    openai_api_key,
+    image_paths = selected_ai_images
+  )
+}, error = function(e) {
+  warning("No se pudo generar informe enriquecido con OpenAI. Se usará resumen local. Detalle: ", conditionMessage(e))
+  build_fallback_results_report(
+    treatment = treatment,
+    molecule = molecule,
+    cell = cell,
+    genotype = genotype,
+    condition = condition,
+    organism = organism,
+    n_total_genes = n_total_genes,
+    n_genes_up = n_genes_up,
+    n_genes_down = n_genes_down,
+    top_up_text = format_genes_list(top_up),
+    top_down_text = format_genes_list(top_down),
+    go_bp_up_text = safe_format(go_bp_up),
+    go_bp_down_text = safe_format(go_bp_down),
+    go_mf_up_text = safe_format(go_mf_up),
+    go_mf_down_text = safe_format(go_mf_down),
+    go_cc_up_text = safe_format(go_cc_up),
+    go_cc_down_text = safe_format(go_cc_down)
+  )
+})
 
 # --- 5. Save the response ---
 

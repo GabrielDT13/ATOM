@@ -119,6 +119,12 @@ export function ProjectManagement() {
     const hasNameChange = nextName !== editingProject.name;
     const hasEntityChange = nextEntityName !== (editingProject.entity_name?.trim() ?? "");
     const hasVisibilityChange = values.visibility !== editingProject.visibility;
+    const hasStudyTypeChange = values.studyType !== (editingProject.study_type ?? "rna-seq");
+    const hasProjectStateChange = values.projectState !== (editingProject.project_state ?? "draft");
+    const currentVariants = editingProject.enabled_analysis_variants?.join("|") ?? "basic|enhanced";
+    const nextVariants = values.enabledAnalysisVariants.join("|");
+    const hasVariantsChange = nextVariants !== currentVariants;
+    const hasPrimaryVariantChange = values.primaryAnalysisVariant !== (editingProject.primary_analysis_variant ?? "basic");
     const canManageVisibility = Boolean(
       isAdmin || editingProject.accessRole === "owner",
     );
@@ -133,6 +139,10 @@ export function ProjectManagement() {
       && !hasEntityChange
       && !nextTemplate
       && !hasAdditionalFiles
+      && !hasStudyTypeChange
+      && !hasProjectStateChange
+      && !hasVariantsChange
+      && !hasPrimaryVariantChange
       && !(canManageVisibility && hasVisibilityChange)
     ) {
       appToast.info(t ? "No hay cambios para guardar" : "No changes to save");
@@ -147,8 +157,12 @@ export function ProjectManagement() {
       const response = await updateProject(editingProject.owner, editingProject.name, {
         additionalFiles: values.additionalFiles,
         entityName: hasEntityChange ? nextEntityName : undefined,
+        enabledAnalysisVariants: hasVariantsChange ? values.enabledAnalysisVariants : undefined,
         name: hasNameChange ? nextName : undefined,
         onProgress: setUploadProgress,
+        primaryAnalysisVariant: hasPrimaryVariantChange ? values.primaryAnalysisVariant : undefined,
+        projectState: hasProjectStateChange ? values.projectState : undefined,
+        studyType: hasStudyTypeChange ? values.studyType : undefined,
         templateFile: nextTemplate,
         visibility: canManageVisibility && hasVisibilityChange ? values.visibility : undefined,
       });

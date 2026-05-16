@@ -208,6 +208,7 @@ export type SidebarProjectItem = {
   id?: string | null;
   name: string;
   owner: string;
+  primary_analysis_variant?: ProjectAnalysisVariant | null;
   route_ref: string;
   slug?: string | null;
   status: ProjectStatus;
@@ -294,6 +295,10 @@ export type MutationResponse = {
 
 export type ProjectStatus = "configured" | "empty" | "results";
 export type ProjectVisibility = "private" | "public";
+export type ProjectAnalysisProfile = "basic" | "enhanced";
+export type ProjectAnalysisVariant = "basic" | "enhanced" | "python";
+export type ProjectLifecycleStatus = "active" | "draft";
+export type ProjectStudyType = "atac-seq" | "chip-seq" | "rna-seq" | "scrna-seq";
 
 export type ProjectFileKind = "additional" | "result" | "template";
 
@@ -309,8 +314,10 @@ export type ProjectSummary = {
   access_role?: ProjectMemberRole | null;
   active_run?: AnalysisRun | null;
   additional_files: string[];
+  analysis_profile?: ProjectAnalysisProfile | null;
   created_at: string;
-  entity_id?: string | null;
+  enabled_analysis_variants?: ProjectAnalysisVariant[];
+    entity_id?: string | null;
   entity_logo_url?: string | null;
   entity_name?: string | null;
   entity_slug?: string | null;
@@ -320,8 +327,11 @@ export type ProjectSummary = {
   id?: string | null;
   name: string;
   owner: string;
+  primary_analysis_variant?: ProjectAnalysisVariant | null;
+  project_state?: ProjectLifecycleStatus | null;
   slug?: string | null;
   status: ProjectStatus;
+  study_type?: ProjectStudyType | null;
   template_file: string | null;
   updated_at: string;
   visibility: ProjectVisibility;

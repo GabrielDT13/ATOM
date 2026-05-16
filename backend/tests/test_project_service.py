@@ -50,6 +50,58 @@ def test_create_project_saves_template_and_additional_files(
     assert (project_dir / "notes.csv").read_bytes() == b"id,value\n1,2\n"
 
 
+def test_create_project_persists_analysis_profile_and_hides_internal_settings(
+    isolated_app_env: dict[str, Path],
+    monkeypatch,
+) -> None:
+    project_dir = get_project_storage_dir("project-1")
+    monkeypatch.setattr(project_service, "log_project_dashboard_event", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        project_service,
+        "_create_project_record",
+        lambda owner, project_name, entity_name=None, visibility="private": {
+            "id": "project-1",
+            "name": project_name,
+            "owner_username": owner,
+            "visibility": visibility,
+        },
+    )
+    monkeypatch.setattr(
+        project_service,
+        "_get_project_record",
+        lambda owner, project_name: (
+            {
+                "id": "project-1",
+                "name": project_name,
+                "owner_username": owner,
+                "visibility": "private",
+            }
+            if project_dir.exists()
+            else None
+        ),
+    )
+
+    success, _message = asyncio.run(
+        project_service.create_project(
+            "user-1",
+            "researcher",
+            "RNA Atlas",
+            _make_upload("study.xlsx", b"excel-content"),
+            [],
+            analysis_profile="enhanced",
+        )
+    )
+
+    monkeypatch.setattr(project_service, "get_project_dir", lambda owner, project_name: project_dir)
+    payload = project_service.get_project_details("researcher", "RNA Atlas")
+
+    assert success is True
+    assert (project_dir / ".atom" / "project-config.json").exists()
+    assert payload["analysis_profile"] == "enhanced"
+    assert ".atom/project-config.json" not in payload["files"]
+    assert ".atom/project-config.json" not in payload["additional_files"]
+
+
 def test_get_project_dir_migrates_legacy_folder_to_canonical_storage(
     isolated_app_env: dict[str, Path],
     monkeypatch,

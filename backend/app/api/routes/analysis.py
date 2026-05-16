@@ -29,6 +29,29 @@ from fastapi.responses import StreamingResponse
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 
+def _build_trigger_source(
+    analysis_variant: str | None,
+    *,
+    batch_id: str | None = None,
+    batch_index: int | None = None,
+    batch_total: int | None = None,
+    notify_on_completion: bool | None = None,
+) -> str:
+    normalized_variant = str(analysis_variant or "").strip().lower()
+    parts = ["manual"]
+    if normalized_variant in {"basic", "enhanced", "python"}:
+        parts.append(normalized_variant)
+    if batch_id:
+        parts.append(f"batch={batch_id.strip()}")
+    if batch_index is not None and batch_index > 0:
+        parts.append(f"index={batch_index}")
+    if batch_total is not None and batch_total > 0:
+        parts.append(f"total={batch_total}")
+    if notify_on_completion is not None:
+        parts.append(f"notify={1 if notify_on_completion else 0}")
+    return ":".join(parts)
+
+
 def _resolve_project_target(payload: AnalysisRunRequest) -> dict[str, object]:
     if payload.project_ref:
         project = resolve_project_reference(payload.project_ref)
@@ -86,6 +109,13 @@ async def create_analysis_run_route(
         run, created = create_or_reuse_analysis_run(
             project_id=project_id,
             requested_by_user_id=str(current_user["id"]),
+            trigger_source=_build_trigger_source(
+                payload.analysis_variant,
+                batch_id=payload.batch_id,
+                batch_index=payload.batch_index,
+                batch_total=payload.batch_total,
+                notify_on_completion=payload.notify_on_completion,
+            ),
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc

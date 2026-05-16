@@ -20,6 +20,7 @@ import {
 import {
   ProjectDetailErrorState,
   ProjectDetailHero,
+  ProjectFirstRunActions,
   ProjectDetailLoadingState,
   ProjectPrimaryReport,
   ProjectQuickActions,
@@ -329,13 +330,31 @@ export function ProjectDetailPage({
   }, [detailModel, filePreview, project]);
 
   const executionHref = project
-    ? resolvedProjectRef
-      ? buildProjectExecutionHref(resolvedProjectRef, {
-          autoStart: !(project.active_run?.status === "queued" || project.active_run?.status === "running"),
-        })
-      : `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}${
-          project.active_run?.status === "queued" || project.active_run?.status === "running" ? "" : "?start=1"
-        }`
+    ? (() => {
+        const executionVariants = (project.enabled_analysis_variants?.length
+          ? project.enabled_analysis_variants
+          : [project.primary_analysis_variant ?? "basic"]);
+        if (resolvedProjectRef) {
+          return buildProjectExecutionHref(resolvedProjectRef, {
+            autoStart: !(project.active_run?.status === "queued" || project.active_run?.status === "running"),
+            variant: executionVariants.length === 1 ? executionVariants[0] : null,
+            variants: executionVariants.length > 1 ? executionVariants : null,
+          });
+        }
+
+        const searchParams = new URLSearchParams();
+        if (!(project.active_run?.status === "queued" || project.active_run?.status === "running")) {
+          searchParams.set("start", "1");
+        }
+        if (executionVariants.length > 1) {
+          searchParams.set("variants", executionVariants.join(","));
+        } else if (executionVariants.length === 1) {
+          searchParams.set("variant", executionVariants[0]);
+        }
+        const queryString = searchParams.toString();
+        const basePath = `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
+        return queryString ? `${basePath}?${queryString}` : basePath;
+      })()
     : null;
 
   useEffect(() => {
@@ -445,6 +464,13 @@ export function ProjectDetailPage({
         supportFileCount={detailModel.supportFiles.length + (detailModel.templateFile ? 1 : 0)}
       />
 
+      <ProjectFirstRunActions
+        canRun={canRegenerate}
+        executionGroupsCount={detailModel.executionGroups.length}
+        project={project}
+        projectRef={resolvedProjectRef}
+      />
+
       <div className="grid items-stretch gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <ProjectSidebar
           activeExecutionGroup={activeExecutionGroup}
@@ -470,6 +496,7 @@ export function ProjectDetailPage({
 
       <ProjectResultsSections
         activeReport={activeReport}
+        executionGroups={detailModel.executionGroups}
         featuredDeliverable={featuredDeliverable}
         filePreview={filePreview}
         filePreviewLoading={filePreviewLoading}

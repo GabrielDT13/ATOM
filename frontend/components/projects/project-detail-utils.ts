@@ -23,7 +23,27 @@ function getDirectoryName(file: ProjectFileEntry) {
   return separatorIndex >= 0 ? file.path.slice(0, separatorIndex) : null;
 }
 
+function humanizeExecutionScript(scriptKey: string) {
+  switch (scriptKey) {
+    case "rna-seq":
+      return "RNA-seq Basic R";
+    case "rna-seq-pro":
+      return "RNA-seq Extended R";
+    case "rna-seq-python":
+      return "RNA-seq Python PoC";
+    default:
+      return scriptKey;
+  }
+}
+
 function buildExecutionLabel(directory: string, htmlFile: ProjectFileEntry | null) {
+  if (directory.includes("__")) {
+    const [designId, scriptKey] = directory.split("__", 2);
+    if (designId && scriptKey) {
+      return `${designId} · ${humanizeExecutionScript(scriptKey)}`;
+    }
+  }
+
   if (htmlFile) {
     return htmlFile.name.replace(/\.html?$/i, "");
   }

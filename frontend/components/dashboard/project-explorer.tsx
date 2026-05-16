@@ -155,7 +155,10 @@ export function ProjectExplorer({
                           <Link
                             aria-label={locale === "es" ? `Ejecutar proyecto ${item.name}` : `Run project ${item.name}`}
                             className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary transition hover:bg-primary hover:text-white"
-                            href={buildProjectExecutionHref(item.route_ref, { autoStart: true })}
+                            href={buildProjectExecutionHref(item.route_ref, {
+                              autoStart: true,
+                              variant: item.primary_analysis_variant ?? "basic",
+                            })}
                           >
                             <PlayIcon className="h-4 w-4" />
                           </Link>

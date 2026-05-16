@@ -1,5 +1,9 @@
 import { apiFetch, apiUpload } from "@/lib/api";
 import type {
+  ProjectAnalysisProfile,
+  ProjectAnalysisVariant,
+  ProjectLifecycleStatus,
+  ProjectStudyType,
   ProjectDetails,
   ProjectMemberRole,
   ProjectMemberMutationResponse,
@@ -16,9 +20,14 @@ import type {
 
 type ProjectUploadOptions = {
   additionalFiles?: File[];
+  analysisProfile?: ProjectAnalysisProfile;
+  enabledAnalysisVariants?: ProjectAnalysisVariant[];
   entityName?: string;
   name?: string;
   onProgress?: (progress: number) => void;
+  primaryAnalysisVariant?: ProjectAnalysisVariant;
+  projectState?: ProjectLifecycleStatus;
+  studyType?: ProjectStudyType;
   teamId?: string;
   templateFile?: File | null;
   visibility?: ProjectVisibility;
@@ -26,8 +35,13 @@ type ProjectUploadOptions = {
 
 function buildProjectFormData({
   additionalFiles = [],
+  analysisProfile,
+  enabledAnalysisVariants = [],
   entityName,
   name,
+  primaryAnalysisVariant,
+  projectState,
+  studyType,
   teamId,
   templateFile,
   visibility,
@@ -40,6 +54,26 @@ function buildProjectFormData({
 
   if (entityName !== undefined) {
     formData.append("entity_name", entityName.trim());
+  }
+
+  if (analysisProfile) {
+    formData.append("analysis_profile", analysisProfile);
+  }
+
+  enabledAnalysisVariants.forEach((variant) => {
+    formData.append("enabled_analysis_variants", variant);
+  });
+
+  if (primaryAnalysisVariant) {
+    formData.append("primary_analysis_variant", primaryAnalysisVariant);
+  }
+
+  if (projectState) {
+    formData.append("project_state", projectState);
+  }
+
+  if (studyType) {
+    formData.append("study_type", studyType);
   }
 
   if (teamId?.trim()) {
@@ -83,12 +117,28 @@ export function buildProjectReportHref(projectRef: string, reportPath: string) {
   return `/dashboard/project-report/${encodeURIComponent(projectRef)}?path=${encodeURIComponent(reportPath)}`;
 }
 
-export function buildProjectExecutionHref(projectRef: string, options?: { autoStart?: boolean }) {
+export function buildProjectExecutionHref(
+  projectRef: string,
+  options?: { autoStart?: boolean; variant?: string | null; variants?: string[] | null },
+) {
   const basePath = `/dashboard/project-execution/${encodeURIComponent(projectRef)}`;
-  if (!options?.autoStart) {
+  const searchParams = new URLSearchParams();
+  if (options?.autoStart) {
+    searchParams.set("start", "1");
+  }
+  const normalizedVariants = (options?.variants ?? [])
+    .map((variant) => variant.trim())
+    .filter(Boolean);
+  if (normalizedVariants.length > 0) {
+    searchParams.set("variants", normalizedVariants.join(","));
+  }
+  if (options?.variant?.trim()) {
+    searchParams.set("variant", options.variant.trim());
+  }
+  if (!Array.from(searchParams.keys()).length) {
     return basePath;
   }
-  return `${basePath}?start=1`;
+  return `${basePath}?${searchParams.toString()}`;
 }
 
 export function listProjects() {
@@ -111,17 +161,27 @@ export function getProjectByRef(projectRef: string) {
 
 export function createProject({
   additionalFiles = [],
+  analysisProfile,
+  enabledAnalysisVariants,
   entityName,
   name,
   onProgress,
+  primaryAnalysisVariant,
+  projectState,
+  studyType,
   teamId,
   templateFile,
   visibility,
 }: ProjectUploadOptions) {
   const formData = buildProjectFormData({
     additionalFiles,
+    analysisProfile,
+    enabledAnalysisVariants,
     entityName,
     name,
+    primaryAnalysisVariant,
+    projectState,
+    studyType,
     teamId,
     templateFile,
     visibility,
@@ -138,9 +198,14 @@ export function updateProject(
   projectName: string,
   {
     additionalFiles = [],
+    analysisProfile,
+    enabledAnalysisVariants = [],
     entityName,
     name,
     onProgress,
+    primaryAnalysisVariant,
+    projectState,
+    studyType,
     templateFile,
     visibility,
   }: ProjectUploadOptions,
@@ -153,6 +218,26 @@ export function updateProject(
 
   if (entityName !== undefined) {
     formData.append("entity_name", entityName.trim());
+  }
+
+  if (analysisProfile) {
+    formData.append("analysis_profile", analysisProfile);
+  }
+
+  enabledAnalysisVariants.forEach((variant) => {
+    formData.append("enabled_analysis_variants", variant);
+  });
+
+  if (primaryAnalysisVariant) {
+    formData.append("primary_analysis_variant", primaryAnalysisVariant);
+  }
+
+  if (projectState) {
+    formData.append("project_state", projectState);
+  }
+
+  if (studyType) {
+    formData.append("study_type", studyType);
   }
 
   if (visibility) {

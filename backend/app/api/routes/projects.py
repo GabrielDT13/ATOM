@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 from typing import Annotated
 
 from backend.app.dependencies.auth import get_current_user, require_admin_or_owner
@@ -46,6 +47,14 @@ from fastapi import APIRouter, File, Form, HTTPException, Query, Request, Upload
 from fastapi.responses import FileResponse
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
+
+
+def _filter_supported_kwargs(fn, kwargs: dict[str, object]) -> dict[str, object]:
+    try:
+        parameters = inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return kwargs
+    return {key: value for key, value in kwargs.items() if key in parameters}
 
 
 def _require_project_owner(request: Request, owner: str) -> dict[str, object]:
@@ -125,6 +134,11 @@ async def get_project(owner: str, project_name: str, request: Request) -> Projec
 async def post_project(
     request: Request,
     project_name: str = Form(...),
+    analysis_profile: str = Form(default="basic"),
+    enabled_analysis_variants: Annotated[list[str] | None, Form()] = None,
+    primary_analysis_variant: str | None = Form(default=None),
+    project_state: str = Form(default="draft"),
+    study_type: str = Form(default="rna-seq"),
     entity_name: str | None = Form(default=None),
     team_id: str | None = Form(default=None),
     visibility: str = Form(default="private"),
@@ -132,16 +146,27 @@ async def post_project(
     additional_files: Annotated[list[UploadFile] | None, File()] = None,
 ) -> ProjectMutationResponse:
     current_user = get_current_user(request)
+    create_kwargs = _filter_supported_kwargs(
+        create_project,
+        {
+            "analysis_profile": analysis_profile,
+            "enabled_analysis_variants": enabled_analysis_variants or [],
+            "primary_analysis_variant": primary_analysis_variant,
+            "project_state": project_state,
+            "study_type": study_type,
+            "entity_name": entity_name,
+            "team_id": team_id,
+            "visibility": visibility,
+            "actor_role": str(current_user["role"]),
+        },
+    )
     success, message = await create_project(
         str(current_user["id"]),
         str(current_user["username"]),
         project_name,
         template_file,
         additional_files or [],
-        entity_name=entity_name,
-        team_id=team_id,
-        visibility=visibility,
-        actor_role=str(current_user["role"]),
+        **create_kwargs,
     )
     project = None
     if success:
@@ -155,6 +180,11 @@ async def put_project(
     project_name: str,
     request: Request,
     new_name: str | None = Form(default=None),
+    analysis_profile: str | None = Form(default=None),
+    enabled_analysis_variants: Annotated[list[str] | None, Form()] = None,
+    primary_analysis_variant: str | None = Form(default=None),
+    project_state: str | None = Form(default=None),
+    study_type: str | None = Form(default=None),
     entity_name: str | None = Form(default=None),
     visibility: str | None = Form(default=None),
     excel_file: UploadFile | None = File(default=None),
@@ -167,6 +197,18 @@ async def put_project(
         and str(current_user.get("username") or "").strip() != owner
     ):
         raise HTTPException(status_code=403, detail="Solo el propietario puede cambiar la visibilidad del proyecto")
+    update_kwargs = _filter_supported_kwargs(
+        update_project,
+        {
+            "analysis_profile": analysis_profile,
+            "enabled_analysis_variants": enabled_analysis_variants,
+            "primary_analysis_variant": primary_analysis_variant,
+            "project_state": project_state,
+            "study_type": study_type,
+            "entity_name": entity_name,
+            "visibility": visibility,
+        },
+    )
     if entity_name is None:
         success, message, effective_name = await update_project(
             str(current_user["id"]),
@@ -176,7 +218,7 @@ async def put_project(
             new_name,
             excel_file,
             additional_files or [],
-            visibility=visibility,
+            **update_kwargs,
         )
     else:
         success, message, effective_name = await update_project(
@@ -187,8 +229,7 @@ async def put_project(
             new_name,
             excel_file,
             additional_files or [],
-            entity_name,
-            visibility,
+            **update_kwargs,
         )
     project = None
     if success:

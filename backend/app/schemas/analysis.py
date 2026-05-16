@@ -72,6 +72,11 @@ class AnalysisRunRequest(BaseModel):
     owner: str | None = None
     project_name: str | None = None
     project_ref: str | None = None
+    analysis_variant: str | None = None
+    batch_id: str | None = None
+    batch_index: int | None = None
+    batch_total: int | None = None
+    notify_on_completion: bool | None = None
 
     @model_validator(mode="after")
     def validate_target(self) -> "AnalysisRunRequest":

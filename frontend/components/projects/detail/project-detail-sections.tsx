@@ -4,6 +4,11 @@ import Link from "next/link";
 
 import { useLocale } from "@/components/providers/locale-provider";
 import {
+  getProjectStateLabel,
+  getStudyLabel,
+  getVariantLabel,
+} from "@/components/projects/project-study-options";
+import {
   buildProjectFileUrl,
   formatDate,
   getArtifactLabel,
@@ -37,6 +42,7 @@ import { buttonStyles } from "@/components/ui/button";
 import { ButtonLink } from "@/components/ui/button-link";
 import { EntityLogo } from "@/components/ui/entity-logo";
 import { Skeleton } from "@/components/ui/skeleton";
+import { buildProjectExecutionHref } from "@/lib/projects";
 import { buildPublicProfileHref } from "@/lib/profile";
 import { cn } from "@/lib/utils";
 import type { ProjectDetails, ProjectFileEntry, ProjectMemberRecord, ProjectSharedTeam } from "@/types/api";
@@ -129,6 +135,15 @@ export function ProjectDetailHero({
             </span>
             <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
               {t ? "Visibilidad" : "Visibility"}: {visibilityMeta.label}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              {t ? "Estudio" : "Study"}: {getStudyLabel(project.study_type ?? "rna-seq", locale)}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              {t ? "Estado" : "State"}: {getProjectStateLabel(project.project_state ?? "draft", locale)}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+              {t ? "Principal" : "Primary"}: {getVariantLabel(project.primary_analysis_variant ?? "basic", locale)}
             </span>
             {teamCount > 0 ? (
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
@@ -266,6 +281,66 @@ export function ProjectQuickActions({
   );
 }
 
+export function ProjectFirstRunActions({
+  canRun,
+  executionGroupsCount,
+  project,
+  projectRef,
+}: {
+  canRun: boolean;
+  executionGroupsCount: number;
+  project: ProjectDetails;
+  projectRef: string | null;
+}) {
+  const { locale } = useLocale();
+  const t = locale === "es";
+  const enabledVariants = project.enabled_analysis_variants?.length
+    ? project.enabled_analysis_variants
+    : [project.primary_analysis_variant ?? "basic"];
+  const shouldShow = canRun && executionGroupsCount === 0 && !project.active_run;
+
+  if (!shouldShow || !projectRef) {
+    return null;
+  }
+
+  return (
+    <SectionCard
+      description={t
+        ? "Este proyecto todavía no tiene informes. Puedes lanzar toda la secuencia seleccionada o ejecutar una variante concreta."
+        : "This project does not have reports yet. You can launch the full selected sequence or run a specific variant."}
+      title={t ? "Primera ejecución" : "First execution"}
+    >
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-3">
+          {enabledVariants.length > 1 ? (
+            <ButtonLink
+              href={buildProjectExecutionHref(projectRef, {
+                autoStart: true,
+                variants: enabledVariants,
+              })}
+            >
+              {t ? "Ejecutar secuencia completa" : "Run full sequence"}
+            </ButtonLink>
+          ) : null}
+          {enabledVariants.map((variant) => (
+            <ButtonLink
+              href={buildProjectExecutionHref(projectRef, { autoStart: true, variant })}
+              key={variant}
+            >
+              {t ? "Ejecutar" : "Run"} {getVariantLabel(variant, locale)}
+            </ButtonLink>
+          ))}
+        </div>
+        <p className="text-sm leading-6 text-slate-500">
+          {t
+            ? "Cada variante guardará sus resultados en carpeta separada para compararlos después."
+            : "Each variant will store its results in a separate folder so you can compare them later."}
+        </p>
+      </div>
+    </SectionCard>
+  );
+}
+
 export function ProjectSidebar({
   activeExecutionGroup,
   executionGroups,
@@ -335,6 +410,15 @@ export function ProjectSidebar({
           <DetailMetaRow label={t ? "Creado" : "Created"} value={formatDate(project.created_at, locale)} />
           <DetailMetaRow label={t ? "Actualizado" : "Updated"} value={formatDate(project.updated_at, locale)} />
           <DetailMetaRow label={t ? "Entidad" : "Entity"} value={project.entity_name ?? (t ? "Sin entidad" : "No entity")} />
+          <DetailMetaRow label={t ? "Estudio" : "Study"} value={getStudyLabel(project.study_type ?? "rna-seq", locale)} />
+          <DetailMetaRow label={t ? "Estado interno" : "Internal state"} value={getProjectStateLabel(project.project_state ?? "draft", locale)} />
+          <DetailMetaRow label={t ? "Variante principal" : "Primary variant"} value={getVariantLabel(project.primary_analysis_variant ?? "basic", locale)} />
+          <DetailMetaRow
+            label={t ? "Variantes activas" : "Enabled variants"}
+            value={(project.enabled_analysis_variants?.length
+              ? project.enabled_analysis_variants.map((variant) => getVariantLabel(variant, locale)).join(", ")
+              : getVariantLabel(project.primary_analysis_variant ?? "basic", locale))}
+          />
           <DetailMetaRow label={t ? "Plantilla" : "Template"} value={project.template_file ?? (t ? "No disponible" : "Not available")} />
           <DetailMetaRow label={t ? "Colaboradores" : "Collaborators"} value={t ? `${members.length} miembro(s)` : `${members.length} member(s)`} />
           <DetailMetaRow label={t ? "Acceso directo" : "Direct access"} value={t ? `${directMembers.length} usuario(s)` : `${directMembers.length} user(s)`} />
@@ -547,6 +631,7 @@ export function ProjectPrimaryReport({
 
 export function ProjectResultsSections({
   activeReport,
+  executionGroups,
   featuredDeliverable,
   filePreview,
   filePreviewLoading,
@@ -559,6 +644,7 @@ export function ProjectResultsSections({
   templateFile,
 }: {
   activeReport: ParsedProjectReport | null;
+  executionGroups: ProjectExecutionGroup[];
   featuredDeliverable: ProjectFileEntry | null;
   filePreview: PreviewState | null;
   filePreviewLoading: boolean;
@@ -597,6 +683,77 @@ export function ProjectResultsSections({
           <ReportInsightsPanel report={activeReport} />
         </SectionCard>
       </div>
+
+      <SectionCard
+        description={t
+          ? "Compara rápidamente qué artefactos y material visual generó cada variante ejecutada."
+          : "Quickly compare which artifacts and visual material each executed variant produced."}
+        title={t ? "Comparación de ejecuciones" : "Execution comparison"}
+      >
+        {executionGroups.length > 0 ? (
+          <div className="grid gap-4 xl:grid-cols-3">
+            {executionGroups.map((group) => {
+              const extensions = new Set(group.files.map((file) => file.extension.toLowerCase()));
+              const imageCount = group.files.filter((file) => [".jpeg", ".jpg", ".png", ".webp"].includes(file.extension.toLowerCase())).length;
+              const previewCount = getExecutionPreviewableFiles(group).length;
+              return (
+                <article className="rounded-[24px] border border-slate-200 bg-slate-50 p-4" key={group.directory}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{group.label}</p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {t ? `${group.files.length} artefacto(s)` : `${group.files.length} artifact(s)`}
+                      </p>
+                    </div>
+                    {group.htmlFile ? (
+                      <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                        HTML
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-2 gap-3">
+                    <div className="rounded-2xl border border-white bg-white px-3 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        {t ? "Figuras" : "Figures"}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-900">{imageCount}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white bg-white px-3 py-3">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        {t ? "Vistas" : "Previews"}
+                      </p>
+                      <p className="mt-2 text-lg font-semibold text-slate-900">{previewCount}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {[".zip", ".xlsx", ".docx", ".json"].map((extension) => (
+                      <span
+                        className={cn(
+                          "rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em]",
+                          extensions.has(extension)
+                            ? "border-sky-200 bg-sky-50 text-sky-700"
+                            : "border-slate-200 bg-white text-slate-400",
+                        )}
+                        key={extension}
+                      >
+                        {extension.slice(1)}
+                      </span>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 px-6 py-10 text-center text-sm leading-6 text-slate-500">
+            {t
+              ? "Todavía no hay ejecuciones para comparar."
+              : "There are no executions to compare yet."}
+          </div>
+        )}
+      </SectionCard>
 
       <SectionCard
         description={t

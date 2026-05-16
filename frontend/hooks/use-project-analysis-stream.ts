@@ -13,8 +13,8 @@ import { createAnalysisRun, getAnalysisRun, getAnalysisRunLogs } from "@/lib/ana
 import type { AnalysisRun, AnalysisRunEvent, AnalysisStreamEvent } from "@/types/api";
 
 type AnalysisTarget =
-  | { owner: string; projectName: string; projectRef?: never; runId?: string | null; autoStart?: boolean }
-  | { owner?: never; projectName?: never; projectRef: string; runId?: string | null; autoStart?: boolean };
+  | { owner: string; projectName: string; projectRef?: never; runId?: string | null; autoStart?: boolean; analysisVariant?: string | null }
+  | { owner?: never; projectName?: never; projectRef: string; runId?: string | null; autoStart?: boolean; analysisVariant?: string | null };
 
 type AnalysisExecutionResult = ReturnType<typeof buildAnalysisExecutionSnapshot> & {
   error: string | null;
@@ -185,10 +185,10 @@ export function useProjectAnalysisStream(
     }
 
     if ("projectRef" in target) {
-      return `ref:${target.projectRef}:${target.runId ?? ""}:${target.autoStart ? "start" : "view"}`;
+      return `ref:${target.projectRef}:${target.runId ?? ""}:${target.autoStart ? "start" : "view"}:${target.analysisVariant ?? ""}`;
     }
 
-    return `project:${target.owner}/${target.projectName}:${target.runId ?? ""}:${target.autoStart ? "start" : "view"}`;
+    return `project:${target.owner}/${target.projectName}:${target.runId ?? ""}:${target.autoStart ? "start" : "view"}:${target.analysisVariant ?? ""}`;
   }, [target]);
 
   useEffect(() => {
@@ -262,10 +262,14 @@ export function useProjectAnalysisStream(
             ? currentTarget.projectRef
             : null;
         if (projectRef) {
-          response = await createAnalysisRun({ project_ref: projectRef });
+          response = await createAnalysisRun({
+            analysis_variant: currentTarget.analysisVariant ?? undefined,
+            project_ref: projectRef,
+          });
         } else {
           const projectTarget = currentTarget as { owner: string; projectName: string };
           response = await createAnalysisRun({
+            analysis_variant: currentTarget.analysisVariant ?? undefined,
             owner: projectTarget.owner,
             project_name: projectTarget.projectName,
           });

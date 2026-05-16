@@ -51,6 +51,7 @@ cran_pkgs <- c(
   "glue",
   "httr",
   "jsonlite",
+  "base64enc",
   "readr",
   "officer",
   "FactoMineR",

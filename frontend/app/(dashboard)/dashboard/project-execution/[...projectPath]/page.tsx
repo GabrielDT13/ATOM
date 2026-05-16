@@ -8,6 +8,8 @@ type ProjectExecutionRouteProps = {
   }>;
   searchParams: Promise<{
     start?: string;
+    variant?: string;
+    variants?: string;
   }>;
 };
 
@@ -18,15 +20,29 @@ export default async function ProjectExecutionRoute({
   const { projectPath } = await params;
   const query = await searchParams;
   const autoStart = query.start === "1";
+  const initialAnalysisVariant = query.variant?.trim() || undefined;
+  const initialAnalysisVariants = (query.variants ?? "")
+    .split(",")
+    .map((variant) => variant.trim())
+    .filter(Boolean);
 
   if (projectPath.length === 1) {
-    return <ProjectExecutionPage autoStart={autoStart} projectRef={decodeURIComponent(projectPath[0])} />;
+    return (
+      <ProjectExecutionPage
+        autoStart={autoStart}
+        initialAnalysisVariant={initialAnalysisVariant}
+        initialAnalysisVariants={initialAnalysisVariants}
+        projectRef={decodeURIComponent(projectPath[0])}
+      />
+    );
   }
 
   if (projectPath.length === 2) {
     return (
       <ProjectExecutionPage
         autoStart={autoStart}
+        initialAnalysisVariant={initialAnalysisVariant}
+        initialAnalysisVariants={initialAnalysisVariants}
         owner={decodeURIComponent(projectPath[0])}
         projectName={decodeURIComponent(projectPath[1])}
       />

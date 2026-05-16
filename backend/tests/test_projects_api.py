@@ -204,6 +204,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         template_file,
         additional_files,
         *,
+        analysis_profile="basic",
         entity_name=None,
         team_id=None,
         visibility="private",
@@ -214,6 +215,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         captured["project_name"] = project_name
         captured["template_file"] = template_file.filename
         captured["additional_files"] = [upload.filename for upload in additional_files]
+        captured["analysis_profile"] = analysis_profile
         captured["entity_name"] = entity_name
         captured["team_id"] = team_id
         captured["visibility"] = visibility
@@ -303,6 +305,7 @@ def test_post_project_route_uses_authenticated_user_and_forwards_uploads(
         "project_name": "RNA Atlas",
         "template_file": "template.xlsx",
         "additional_files": ["notes.csv"],
+        "analysis_profile": "basic",
         "entity_name": None,
         "team_id": None,
         "visibility": "private",
@@ -338,6 +341,7 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         new_name,
         excel_file,
         additional_files,
+        analysis_profile=None,
         entity_name=None,
         visibility=None,
     ):
@@ -348,6 +352,7 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         captured["new_name"] = new_name
         captured["excel_file"] = excel_file.filename if excel_file else None
         captured["additional_files"] = [upload.filename for upload in additional_files]
+        captured["analysis_profile"] = analysis_profile
         captured["entity_name"] = entity_name
         captured["visibility"] = visibility
         return True, "Proyecto actualizado correctamente", new_name or project_name
@@ -439,6 +444,7 @@ def test_put_project_route_forwards_name_and_uploaded_files(
         "new_name": "RNA Atlas 2026",
         "excel_file": "template.xlsx",
         "additional_files": ["fresh.csv"],
+        "analysis_profile": None,
         "entity_name": None,
         "visibility": None,
     }

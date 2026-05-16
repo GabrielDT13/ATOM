@@ -1,5 +1,6 @@
 export type ProjectExecutionTarget =
   | {
+      analysisVariant?: string | null;
       autoStart?: boolean;
       owner: string;
       projectName: string;
@@ -7,6 +8,7 @@ export type ProjectExecutionTarget =
       runId?: string | null;
     }
   | {
+      analysisVariant?: string | null;
       autoStart?: boolean;
       owner?: never;
       projectName?: never;
@@ -18,6 +20,7 @@ type ProjectExecutionTargetProject = {
   active_run?: {
     id?: string | null;
   } | null;
+  primary_analysis_variant?: string | null;
   name: string;
   owner: string;
 };
@@ -28,11 +31,13 @@ function normalizeRunId(value: string | null | undefined) {
 }
 
 export function buildProjectExecutionTarget({
+  analysisVariant,
   autoStart,
   boundRunId,
   project,
   resolvedProjectRef,
 }: {
+  analysisVariant?: string | null;
   autoStart: boolean;
   boundRunId: string | null;
   project: ProjectExecutionTargetProject | null;
@@ -44,9 +49,11 @@ export function buildProjectExecutionTarget({
 
   const runId = normalizeRunId(boundRunId) ?? normalizeRunId(project.active_run?.id);
   const shouldAutoStart = autoStart && !runId;
+  const normalizedVariant = normalizeRunId(analysisVariant) ?? normalizeRunId(project.primary_analysis_variant);
 
   if (resolvedProjectRef) {
     return {
+      analysisVariant: normalizedVariant,
       autoStart: shouldAutoStart,
       projectRef: resolvedProjectRef,
       runId,
@@ -54,6 +61,7 @@ export function buildProjectExecutionTarget({
   }
 
   return {
+    analysisVariant: normalizedVariant,
     autoStart: shouldAutoStart,
     owner: project.owner,
     projectName: project.name,

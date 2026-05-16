@@ -22,8 +22,14 @@ from backend.app.services.project_inventory import (
     _save_upload,
     _template_storage_name,
     allowed_template_file,
+    normalize_enabled_analysis_variants,
     get_project_dir,
+    normalize_project_analysis_profile,
+    normalize_project_lifecycle_status,
     normalize_project_name,
+    normalize_project_study_type,
+    normalize_primary_analysis_variant,
+    write_project_settings,
 )
 from backend.app.services.project_inventory import (
     get_download_path as _get_download_path,
@@ -458,6 +464,11 @@ async def create_project(
     template_file: UploadFile,
     additional_files: list[UploadFile],
     *,
+    analysis_profile: str = "basic",
+    enabled_analysis_variants: list[str] | None = None,
+    primary_analysis_variant: str | None = None,
+    project_state: str = "draft",
+    study_type: str = "rna-seq",
     entity_name: str | None = None,
     team_id: str | None = None,
     visibility: ProjectVisibility = "private",
@@ -480,6 +491,20 @@ async def create_project(
         normalized_visibility = _parse_project_visibility(visibility)
     except ValueError as exc:
         return False, str(exc)
+    normalized_analysis_profile = normalize_project_analysis_profile(analysis_profile)
+    normalized_study_type = normalize_project_study_type(study_type)
+    normalized_enabled_variants = normalize_enabled_analysis_variants(
+        enabled_analysis_variants or [],
+        fallback_profile=normalized_analysis_profile,
+        study_type=normalized_study_type,
+    )
+    normalized_primary_variant = normalize_primary_analysis_variant(
+        primary_analysis_variant,
+        enabled_variants=normalized_enabled_variants,
+        fallback_profile=normalized_analysis_profile,
+        study_type=normalized_study_type,
+    )
+    normalized_project_state = normalize_project_lifecycle_status(project_state)
     try:
         existing_record = _get_project_record(username, normalized_name)
     except Exception:
@@ -501,6 +526,14 @@ async def create_project(
 
         excel_name = _normalize_upload_filename(template_file.filename)
         await _save_upload(project_dir / _template_storage_name(excel_name), template_file)
+        write_project_settings(
+            project_dir,
+            analysis_profile=normalized_analysis_profile,
+            enabled_analysis_variants=normalized_enabled_variants,
+            primary_analysis_variant=normalized_primary_variant,
+            project_state=normalized_project_state,
+            study_type=normalized_study_type,
+        )
 
         for upload in additional_files:
             if upload.filename:
@@ -524,7 +557,9 @@ async def create_project(
             actor_username=username,
             description=(
                 f"Se creó el proyecto {normalized_name} con su plantilla base y "
-                f"{len(additional_files)} archivo(s) adicional(es)."
+                f"{len(additional_files)} archivo(s) adicional(es). "
+                f"Tipo de estudio: {normalized_study_type}. Variante principal: {normalized_primary_variant}. "
+                f"Estado: {normalized_project_state}."
             ),
             owner=username,
             project_name=normalized_name,
@@ -1198,6 +1233,11 @@ async def update_project(
     new_name: str | None,
     excel_file: UploadFile | None,
     additional_files: list[UploadFile],
+    analysis_profile: str | None = None,
+    enabled_analysis_variants: list[str] | None = None,
+    primary_analysis_variant: str | None = None,
+    project_state: str | None = None,
+    study_type: str | None = None,
     entity_name: str | None = None,
     visibility: str | None = None,
 ) -> tuple[bool, str, str]:
@@ -1259,6 +1299,21 @@ async def update_project(
 
     uploaded_template = bool(excel_file and excel_file.filename)
     uploaded_additional_count = len([upload for upload in additional_files if upload.filename])
+    normalized_analysis_profile = (
+        normalize_project_analysis_profile(analysis_profile)
+        if analysis_profile is not None
+        else None
+    )
+    normalized_study_type = (
+        normalize_project_study_type(study_type)
+        if study_type is not None
+        else None
+    )
+    normalized_project_state = (
+        normalize_project_lifecycle_status(project_state)
+        if project_state is not None
+        else None
+    )
     has_uploads = bool(
         uploaded_template or uploaded_additional_count > 0
     )
@@ -1283,6 +1338,22 @@ async def update_project(
                 safe_name = _normalize_upload_filename(upload.filename or "")
                 await _save_upload(project_dir / safe_name, upload)
 
+    if (
+        normalized_analysis_profile is not None
+        or enabled_analysis_variants is not None
+        or primary_analysis_variant is not None
+        or normalized_project_state is not None
+        or normalized_study_type is not None
+    ):
+        write_project_settings(
+            project_dir,
+            analysis_profile=normalized_analysis_profile,
+            enabled_analysis_variants=enabled_analysis_variants,
+            primary_analysis_variant=primary_analysis_variant,
+            project_state=normalized_project_state,
+            study_type=normalized_study_type,
+        )
+
     update_segments: list[str] = []
     if new_name and new_name.strip():
         update_segments.append("nombre actualizado")
@@ -1297,6 +1368,17 @@ async def update_project(
         update_segments.append(
             f"{uploaded_additional_count} archivo(s) adicional(es) actualizado(s)"
         )
+    if normalized_analysis_profile is not None:
+        update_segments.append(f"perfil de análisis {normalized_analysis_profile}")
+    if enabled_analysis_variants is not None:
+        variants_label = ", ".join(enabled_analysis_variants) if enabled_analysis_variants else "basic"
+        update_segments.append(f"variantes {variants_label}")
+    if primary_analysis_variant is not None:
+        update_segments.append(f"variante principal {primary_analysis_variant}")
+    if normalized_project_state is not None:
+        update_segments.append(f"estado {normalized_project_state}")
+    if normalized_study_type is not None:
+        update_segments.append(f"estudio {normalized_study_type}")
 
     _log_project_event(
         "project_updated",
