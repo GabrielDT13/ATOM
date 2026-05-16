@@ -187,21 +187,32 @@ export function ProjectExecutionPage({
         .filter(Boolean),
     [initialVariantsKey],
   );
+  const requestedExecutionVariants = useMemo<ProjectAnalysisVariant[]>(
+    () => normalizedInitialVariants.map((variant) => variant as ProjectAnalysisVariant),
+    [normalizedInitialVariants],
+  );
   const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
   const queuedVariants = batchSteps.map((step) => step.variant);
+  const executionVariants = queuedVariants.length > 0
+    ? queuedVariants
+    : requestedExecutionVariants.length > 0
+      ? requestedExecutionVariants
+      : initialAnalysisVariant
+        ? [initialAnalysisVariant as ProjectAnalysisVariant]
+        : [];
   const executionPageHref =
     resolvedProjectRef
       ? buildProjectExecutionHref(resolvedProjectRef, {
-          variant: queuedVariants.length === 1 ? queuedVariants[0] : null,
-          variants: queuedVariants.length > 1 ? queuedVariants : null,
+          variant: executionVariants.length === 1 ? executionVariants[0] : null,
+          variants: executionVariants.length > 1 ? executionVariants : null,
         })
       : project
         ? (() => {
             const searchParams = new URLSearchParams();
-            if (queuedVariants.length > 1) {
-              searchParams.set("variants", queuedVariants.join(","));
-            } else if (queuedVariants.length === 1) {
-              searchParams.set("variant", queuedVariants[0]);
+            if (executionVariants.length > 1) {
+              searchParams.set("variants", executionVariants.join(","));
+            } else if (executionVariants.length === 1) {
+              searchParams.set("variant", executionVariants[0]);
             }
             const basePath = `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
             const queryString = searchParams.toString();
@@ -242,13 +253,13 @@ export function ProjectExecutionPage({
         ? project.enabled_analysis_variants
         : ["basic", "enhanced"]
     ) as ProjectAnalysisVariant[];
-    const requestedVariants = (normalizedInitialVariants.length > 0
-      ? normalizedInitialVariants
+    const requestedVariants = (requestedExecutionVariants.length > 0
+      ? requestedExecutionVariants
       : initialAnalysisVariant
         ? [initialAnalysisVariant]
         : []
     )
-      .map((variant) => variant.trim() as ProjectAnalysisVariant)
+      .map((variant) => String(variant).trim() as ProjectAnalysisVariant)
       .filter((variant, index, items) => allowedVariants.includes(variant) && items.indexOf(variant) === index);
     const effectiveVariants = requestedVariants.length > 0
       ? requestedVariants
@@ -268,7 +279,7 @@ export function ProjectExecutionPage({
     if (!selectedAnalysisVariant || !allowedVariants.includes(selectedAnalysisVariant)) {
       setSelectedAnalysisVariant(effectiveVariants[0] ?? allowedVariants[0]);
     }
-  }, [initialAnalysisVariant, normalizedInitialVariants, project, selectedAnalysisVariant]);
+  }, [initialAnalysisVariant, project, requestedExecutionVariants, selectedAnalysisVariant]);
 
   useEffect(() => {
     const nextRunId = execution.run?.id?.trim() || (!batchStarted ? project?.active_run?.id?.trim() : "") || null;
