@@ -165,6 +165,7 @@ export function ProjectExecutionPage({
   const appToast = useAppToast();
   const batchIdRef = useRef<string | null>(null);
   const handledRunCompletionRef = useRef<string | null>(null);
+  const plannedBatchVariantsRef = useRef<ProjectAnalysisVariant[]>([]);
   const redirectHandledRef = useRef(false);
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [selectedAnalysisVariant, setSelectedAnalysisVariant] = useState<ProjectAnalysisVariant | null>(
@@ -235,6 +236,7 @@ export function ProjectExecutionPage({
   useEffect(() => {
     batchIdRef.current = null;
     handledRunCompletionRef.current = null;
+    plannedBatchVariantsRef.current = [];
     redirectHandledRef.current = false;
     setBatchError(null);
     setBatchStarted(false);
@@ -264,6 +266,8 @@ export function ProjectExecutionPage({
     const effectiveVariants = requestedVariants.length > 0
       ? requestedVariants
       : [(project.primary_analysis_variant ?? allowedVariants[0]) as ProjectAnalysisVariant];
+
+    plannedBatchVariantsRef.current = effectiveVariants;
 
     setBatchSteps((current) => {
       if (current.length > 0) {
@@ -383,15 +387,16 @@ export function ProjectExecutionPage({
   );
 
   async function startBatchRun(stepIndex: number) {
-    const targetStep = batchSteps[stepIndex];
-    if (!targetStep) {
+    const plannedVariants = plannedBatchVariantsRef.current;
+    const targetVariant = plannedVariants[stepIndex];
+    if (!targetVariant) {
       return;
     }
 
     setBatchError(null);
     setBatchStarted(true);
     setCurrentBatchIndex(stepIndex);
-    setSelectedAnalysisVariant(targetStep.variant);
+    setSelectedAnalysisVariant(targetVariant);
     setBatchSteps((current) =>
       current.map((step, index) =>
         index === stepIndex
@@ -403,7 +408,7 @@ export function ProjectExecutionPage({
       ),
     );
 
-    const totalSteps = batchSteps.length || 1;
+    const totalSteps = plannedVariants.length || 1;
     if (!batchIdRef.current) {
       batchIdRef.current = globalThis.crypto?.randomUUID?.() ?? `batch-${Date.now()}`;
     }
@@ -412,7 +417,7 @@ export function ProjectExecutionPage({
       const payload =
         typeof projectRef === "string"
           ? {
-              analysis_variant: targetStep.variant,
+              analysis_variant: targetVariant,
               batch_id: totalSteps > 1 ? batchIdRef.current : undefined,
               batch_index: totalSteps > 1 ? stepIndex + 1 : undefined,
               batch_total: totalSteps > 1 ? totalSteps : undefined,
@@ -420,7 +425,7 @@ export function ProjectExecutionPage({
               project_ref: projectRef,
             }
           : {
-              analysis_variant: targetStep.variant,
+              analysis_variant: targetVariant,
               batch_id: totalSteps > 1 ? batchIdRef.current : undefined,
               batch_index: totalSteps > 1 ? stepIndex + 1 : undefined,
               batch_total: totalSteps > 1 ? totalSteps : undefined,
@@ -488,7 +493,8 @@ export function ProjectExecutionPage({
     setBatchSteps(nextSteps);
 
     const nextStepIndex = currentBatchIndex + 1;
-    if (batchStarted && nextStepIndex < nextSteps.length) {
+    const plannedVariants = plannedBatchVariantsRef.current;
+    if (batchStarted && nextStepIndex < plannedVariants.length) {
       setBoundRunId(null);
       void startBatchRun(nextStepIndex);
       return;
