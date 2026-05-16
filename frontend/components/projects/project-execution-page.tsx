@@ -104,6 +104,22 @@ function getBatchStepStatusLabel(status: BatchExecutionStepStatus, locale: "en" 
   }
 }
 
+function parseBatchIndexFromTriggerSource(triggerSource: string | null | undefined) {
+  const parts = String(triggerSource || "")
+    .split(":")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const batchIndexPart = parts.find((part) => part.startsWith("index="));
+  if (!batchIndexPart) {
+    return null;
+  }
+  const parsed = Number.parseInt(batchIndexPart.slice("index=".length), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed - 1;
+}
+
 function buildVariantComparisonNarrative(
   summaries: FinalVariantSummary[],
   locale: "en" | "es",
@@ -167,6 +183,8 @@ export function ProjectExecutionPage({
   const handledRunCompletionRef = useRef<string | null>(null);
   const plannedBatchVariantsRef = useRef<ProjectAnalysisVariant[]>([]);
   const redirectHandledRef = useRef(false);
+  const redirectIntervalRef = useRef<number | null>(null);
+  const redirectTimeoutRef = useRef<number | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
   const [selectedAnalysisVariant, setSelectedAnalysisVariant] = useState<ProjectAnalysisVariant | null>(
     (initialAnalysisVariant as ProjectAnalysisVariant | undefined) ?? null,
@@ -232,12 +250,24 @@ export function ProjectExecutionPage({
     [boundRunId, project, resolvedProjectRef, selectedAnalysisVariant],
   );
   const execution = useProjectAnalysisStream(analysisTarget, locale);
+  const currentRunBatchIndex = parseBatchIndexFromTriggerSource(
+    execution.run?.trigger_source ?? project?.active_run?.trigger_source,
+  );
+  const activeBatchIndex = currentRunBatchIndex ?? currentBatchIndex;
 
   useEffect(() => {
     batchIdRef.current = null;
     handledRunCompletionRef.current = null;
     plannedBatchVariantsRef.current = [];
     redirectHandledRef.current = false;
+    if (redirectIntervalRef.current !== null) {
+      window.clearInterval(redirectIntervalRef.current);
+      redirectIntervalRef.current = null;
+    }
+    if (redirectTimeoutRef.current !== null) {
+      window.clearTimeout(redirectTimeoutRef.current);
+      redirectTimeoutRef.current = null;
+    }
     setBatchError(null);
     setBatchStarted(false);
     setBatchSteps([]);
@@ -293,6 +323,14 @@ export function ProjectExecutionPage({
 
     setBoundRunId((current) => (current === nextRunId ? current : nextRunId));
   }, [batchStarted, execution.run?.id, project?.active_run?.id]);
+
+  useEffect(() => {
+    if (currentRunBatchIndex === null) {
+      return;
+    }
+    setCurrentBatchIndex((current) => (current === currentRunBatchIndex ? current : currentRunBatchIndex));
+    setBatchStarted(true);
+  }, [currentRunBatchIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -482,7 +520,7 @@ export function ProjectExecutionPage({
 
     handledRunCompletionRef.current = completedRunId;
     const nextSteps = batchSteps.map((step, index) =>
-      index === currentBatchIndex
+      index === activeBatchIndex
         ? {
             ...step,
             runId: completedRunId,
@@ -492,9 +530,9 @@ export function ProjectExecutionPage({
     );
     setBatchSteps(nextSteps);
 
-    const nextStepIndex = currentBatchIndex + 1;
+    const nextStepIndex = activeBatchIndex + 1;
     const plannedVariants = plannedBatchVariantsRef.current;
-    if (batchStarted && nextStepIndex < plannedVariants.length) {
+    if (nextStepIndex < plannedVariants.length) {
       setBoundRunId(null);
       void startBatchRun(nextStepIndex);
       return;
@@ -534,7 +572,14 @@ export function ProjectExecutionPage({
       }
     })();
 
-    const intervalId = window.setInterval(() => {
+    if (redirectIntervalRef.current !== null) {
+      window.clearInterval(redirectIntervalRef.current);
+    }
+    if (redirectTimeoutRef.current !== null) {
+      window.clearTimeout(redirectTimeoutRef.current);
+    }
+
+    redirectIntervalRef.current = window.setInterval(() => {
       setRedirectCountdown((current) => {
         if (current === null) {
           return null;
@@ -543,17 +588,27 @@ export function ProjectExecutionPage({
       });
     }, 1000);
 
-    const timeoutId = window.setTimeout(() => {
-      window.clearInterval(intervalId);
+    redirectTimeoutRef.current = window.setTimeout(() => {
+      if (redirectIntervalRef.current !== null) {
+        window.clearInterval(redirectIntervalRef.current);
+        redirectIntervalRef.current = null;
+      }
+      redirectTimeoutRef.current = null;
       router.refresh();
       router.replace(projectDetailHref);
     }, 8000);
+  }, [activeBatchIndex, appToast, batchSteps, execution.run?.id, execution.status, owner, projectDetailHref, projectName, projectRef, router, t]);
 
+  useEffect(() => {
     return () => {
-      window.clearInterval(intervalId);
-      window.clearTimeout(timeoutId);
+      if (redirectIntervalRef.current !== null) {
+        window.clearInterval(redirectIntervalRef.current);
+      }
+      if (redirectTimeoutRef.current !== null) {
+        window.clearTimeout(redirectTimeoutRef.current);
+      }
     };
-  }, [appToast, batchStarted, batchSteps, currentBatchIndex, execution.run?.id, execution.status, owner, projectDetailHref, projectName, projectRef, router, t]);
+  }, []);
 
   if (loadingProject) {
     return (
