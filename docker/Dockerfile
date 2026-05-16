@@ -71,6 +71,8 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
     && rm -rf /var/lib/apt/lists/*
 
 COPY docker/install_r_packages.R /tmp/install_r_packages.R
+COPY scripts/requirements-rna-seq-python-poc.txt /tmp/requirements-rna-seq-python-poc.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-rna-seq-python-poc.txt
 RUN Rscript /tmp/install_r_packages.R
 
 COPY backend /app/backend

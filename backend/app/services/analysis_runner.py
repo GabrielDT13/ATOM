@@ -98,17 +98,30 @@ def execute_analysis_run(run_id: str) -> None:
                 continue
 
             if event_type == "run_completed":
+                final_status = "failed" if failed_designs > 0 else "completed"
+                final_error_message = None
+                if failed_designs > 0:
+                    final_error_message = (
+                        "La ejecución finalizó con incidencias en uno o más diseños."
+                        if successful_designs > 0
+                        else "La ejecución no pudo completarse correctamente."
+                    )
                 update_analysis_run_progress(
                     run_id,
+                    error_message=final_error_message,
                     failed_designs=failed_designs,
                     processed_designs=processed_designs,
                     successful_designs=successful_designs,
                     total_designs=total_designs,
                 )
-                mark_analysis_run_finished(run_id, status="completed")
+                mark_analysis_run_finished(
+                    run_id,
+                    error_message=final_error_message,
+                    status=final_status,
+                )
                 completed_run = get_analysis_run(run_id)
                 if completed_run and _should_notify_for_run(completed_run):
-                    notify_analysis_run_finished(completed_run, status="completed")
+                    notify_analysis_run_finished(completed_run, status=final_status)
                 return
 
             if event_type == "run_failed":
