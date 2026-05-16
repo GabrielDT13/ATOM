@@ -178,6 +178,15 @@ export function ProjectExecutionPage({
   const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const initialVariantsKey = initialAnalysisVariants.join("|");
+  const normalizedInitialVariants = useMemo(
+    () =>
+      initialVariantsKey
+        .split("|")
+        .map((variant) => variant.trim())
+        .filter(Boolean),
+    [initialVariantsKey],
+  );
   const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
   const queuedVariants = batchSteps.map((step) => step.variant);
   const executionPageHref =
@@ -221,7 +230,7 @@ export function ProjectExecutionPage({
     setBatchSteps([]);
     setCurrentBatchIndex(0);
     setBoundRunId(null);
-  }, [initialAnalysisVariant, initialAnalysisVariants, owner, projectName, projectRef]);
+  }, [initialAnalysisVariant, initialVariantsKey, owner, projectName, projectRef]);
 
   useEffect(() => {
     if (!project) {
@@ -233,8 +242,8 @@ export function ProjectExecutionPage({
         ? project.enabled_analysis_variants
         : ["basic", "enhanced"]
     ) as ProjectAnalysisVariant[];
-    const requestedVariants = (initialAnalysisVariants.length > 0
-      ? initialAnalysisVariants
+    const requestedVariants = (normalizedInitialVariants.length > 0
+      ? normalizedInitialVariants
       : initialAnalysisVariant
         ? [initialAnalysisVariant]
         : []
@@ -259,7 +268,7 @@ export function ProjectExecutionPage({
     if (!selectedAnalysisVariant || !allowedVariants.includes(selectedAnalysisVariant)) {
       setSelectedAnalysisVariant(effectiveVariants[0] ?? allowedVariants[0]);
     }
-  }, [initialAnalysisVariant, initialAnalysisVariants, project, selectedAnalysisVariant]);
+  }, [initialAnalysisVariant, normalizedInitialVariants, project, selectedAnalysisVariant]);
 
   useEffect(() => {
     const nextRunId = execution.run?.id?.trim() || (!batchStarted ? project?.active_run?.id?.trim() : "") || null;
@@ -372,6 +381,16 @@ export function ProjectExecutionPage({
     setBatchStarted(true);
     setCurrentBatchIndex(stepIndex);
     setSelectedAnalysisVariant(targetStep.variant);
+    setBatchSteps((current) =>
+      current.map((step, index) =>
+        index === stepIndex
+          ? {
+              ...step,
+              status: step.status === "completed" ? step.status : "queued",
+            }
+          : step,
+      ),
+    );
 
     const totalSteps = batchSteps.length || 1;
     if (!batchIdRef.current) {
@@ -843,11 +862,19 @@ export function ProjectExecutionPage({
               </div>
             ) : null}
 
-            {execution.status === "completed" ? (
+            {execution.status === "completed" && batchFinished ? (
               <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
                 {t
                   ? `Entregables listos. Redirigiendo al detalle del proyecto en ${redirectCountdown ?? 8} segundos...`
                   : `Deliverables ready. Redirecting to project detail in ${redirectCountdown ?? 8} seconds...`}
+              </div>
+            ) : null}
+
+            {execution.status === "completed" && !batchFinished && batchSteps.length > 1 ? (
+              <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-5 text-sm leading-6 text-sky-800">
+                {t
+                  ? "Variante completada. Lanzando siguiente ejecución de la secuencia..."
+                  : "Variant completed. Starting next execution in sequence..."}
               </div>
             ) : null}
           </div>
