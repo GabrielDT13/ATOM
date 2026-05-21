@@ -30,7 +30,7 @@ function humanizeExecutionScript(scriptKey: string) {
     case "rna-seq-pro":
       return "RNA-seq Extended R";
     case "rna-seq-python":
-      return "RNA-seq Python PoC";
+      return "RNA-seq Python";
     default:
       return scriptKey;
   }

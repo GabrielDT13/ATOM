@@ -20,6 +20,7 @@ import { ProjectEditDialog, type ProjectEditValues } from "@/components/projects
 import { ProjectManagementBoard } from "@/components/projects/project-management-board";
 import { ProjectManagementFilters } from "@/components/projects/project-management-filters";
 import {
+  ArrowUpIcon,
   PlusIcon,
   ProjectStackIcon,
 } from "@/components/projects/project-management-icons";
@@ -55,6 +56,7 @@ export function ProjectManagement() {
   const [pendingDeleteProject, setPendingDeleteProject] = useState<ProjectRecord | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadState, setUploadState] = useState<"complete" | "idle" | "uploading">("idle");
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const appToast = useAppToast();
 
   const loadProjects = useCallback(async (options?: { silent?: boolean }) => {
@@ -106,6 +108,16 @@ export function ProjectManagement() {
 
     window.localStorage.setItem(PROJECT_VIEW_STORAGE_KEY, viewMode);
   }, [viewMode, viewPreferenceLoaded]);
+
+  useEffect(() => {
+    function handleScroll() {
+      setShowScrollTop(window.scrollY > 360);
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   async function handleEdit(values: ProjectEditValues) {
     if (!editingProject) {
@@ -228,6 +240,10 @@ export function ProjectManagement() {
   const canEditProject = (project: ProjectRecord) => Boolean(isAdmin || project.accessRole === "owner" || project.accessRole === "editor");
   const canDeleteProject = (project: ProjectRecord) => Boolean(isAdmin || project.accessRole === "owner");
   const canShareProject = (project: ProjectRecord) => Boolean(project.accessRole === "owner");
+
+  function scrollToTop() {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -416,6 +432,17 @@ export function ProjectManagement() {
         open={Boolean(pendingDeleteProject)}
         title={t ? "Confirmar eliminación" : "Confirm deletion"}
       />
+
+      <button
+        aria-label={t ? "Volver arriba" : "Back to top"}
+        className={`fixed bottom-6 right-6 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full border border-sky-200/70 bg-white/95 text-sky-700 shadow-[0_18px_40px_rgba(14,116,144,0.22)] backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-sky-50 hover:text-sky-900 ${
+          showScrollTop ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0"
+        }`}
+        onClick={scrollToTop}
+        type="button"
+      >
+        <ArrowUpIcon className="h-5 w-5" />
+      </button>
     </>
   );
 }

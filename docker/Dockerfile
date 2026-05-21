@@ -73,7 +73,8 @@ RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.l
 COPY docker/install_r_packages.R /tmp/install_r_packages.R
 COPY scripts/requirements-rna-seq-python-poc.txt /tmp/requirements-rna-seq-python-poc.txt
 RUN pip install --no-cache-dir -r /tmp/requirements-rna-seq-python-poc.txt
-RUN Rscript /tmp/install_r_packages.R
+RUN Rscript /tmp/install_r_packages.R \
+    && Rscript -e "required <- c('AnnotationDbi','GO.db','org.Mm.eg.db','org.Hs.eg.db','DESeq2','EnhancedVolcano','ComplexHeatmap','clusterProfiler','enrichplot','fgsea','pathview','Rsubread','biomaRt','Rsamtools','edgeR','DOSE','GseaVis'); missing <- required[!vapply(required, requireNamespace, logical(1), quietly = TRUE)]; if (length(missing) > 0) stop(paste('Missing R packages after image build:', paste(missing, collapse=', ')))"
 
 COPY backend /app/backend
 COPY docker/start-backend.sh /app/docker/start-backend.sh

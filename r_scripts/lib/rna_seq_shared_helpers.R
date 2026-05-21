@@ -36,3 +36,16 @@ safe_format <- function(obj) {
     "No enriched terms found"
   }
 }
+
+resolve_org_db <- function(organism_key, org_db_dict) {
+  pkg_name <- org_db_dict[[organism_key]]
+  if (is.null(pkg_name) || !nzchar(pkg_name)) {
+    stop(paste("Organismo no soportado para anotación GO:", organism_key))
+  }
+
+  if (!requireNamespace(pkg_name, quietly = TRUE)) {
+    stop(paste("Paquete de anotación no disponible:", pkg_name))
+  }
+
+  get(pkg_name, envir = asNamespace(pkg_name))
+}

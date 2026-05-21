@@ -229,7 +229,9 @@ export function ProjectQuickActions({
               <RefreshIcon className="h-4 w-4" />
               {activeRun?.status === "queued" || activeRun?.status === "running"
                 ? t ? "Ver ejecución activa" : "View active execution"
-                : t ? "Volver a ejecutar" : "Run again"}
+                : executionCount > 0
+                  ? t ? "Volver a ejecutar" : "Run again"
+                  : t ? "Ejecutar scripts" : "Run scripts"}
             </ButtonLink>
           ) : null}
           {downloadZipFile ? (

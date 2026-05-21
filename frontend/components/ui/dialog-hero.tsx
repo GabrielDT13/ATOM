@@ -22,13 +22,22 @@ export function DialogHero({
   description,
   title,
 }: DialogHeroProps) {
+  const isDescriptionTextOnly =
+    typeof description === "string" || typeof description === "number";
+
   return (
     <div className={cn("dialog-hero-surface border-b border-white/10 px-6 pb-6 pt-7 sm:px-8", className)}>
       <DialogHeader className="pr-10">
         {children}
         <DialogTitle className="text-white">{title}</DialogTitle>
         {description ? (
-          <DialogDescription className="text-slate-300">{description}</DialogDescription>
+          isDescriptionTextOnly ? (
+            <DialogDescription className="text-slate-300">{description}</DialogDescription>
+          ) : (
+            <DialogDescription asChild className="text-sm leading-6 text-slate-300">
+              <div>{description}</div>
+            </DialogDescription>
+          )
         ) : null}
       </DialogHeader>
     </div>

@@ -24,8 +24,8 @@ export const STUDY_OPTIONS: StudyOption[] = [
     imagePath: "/images/RNA-seq_icon.png",
     label: { en: "RNA-seq", es: "RNA-seq" },
     description: {
-      en: "Differential expression workflows with R basic, R extended and Python PoC variants.",
-      es: "Flujos de expresión diferencial con variantes R básica, R extendida y Python PoC.",
+      en: "Differential expression workflows with R basic, R extended and Python variants.",
+      es: "Flujos de expresión diferencial con variantes R básica, R extendida y Python.",
     },
     available: true,
   },
@@ -80,7 +80,7 @@ export const RNA_SEQ_VARIANT_OPTIONS: VariantOption[] = [
   },
   {
     id: "python",
-    label: { en: "Python PoC", es: "Python PoC" },
+    label: { en: "Python", es: "Python" },
     description: {
       en: "RNA-seq workflow in Python with automated figures, tables and generated report.",
       es: "Flujo RNA-seq en Python con figuras, tablas e informe generado automáticamente.",

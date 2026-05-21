@@ -1,13 +1,16 @@
 ---
-title: >
-  ![](../assets/images/logo.png){width=3in} &emsp; Análisis de RNA-seq
-author: "Juan Vladimir de la Rosa Medina"
+title: "`r { atom_logo <- ''; if (!is.null(params$base_dir) && nzchar(params$base_dir)) { candidate <- file.path(params$base_dir, 'frontend', 'public', 'images', 'logo.png'); if (file.exists(candidate)) atom_logo <- normalizePath(candidate, winslash = '/', mustWork = FALSE) }; logo_chunks <- character(0); if (nzchar(atom_logo)) logo_chunks <- c(logo_chunks, paste0('![](', atom_logo, '){width=0.95in}')); if (!is.null(params$report_entity_logo_path) && nzchar(params$report_entity_logo_path) && file.exists(params$report_entity_logo_path)) logo_chunks <- c(logo_chunks, paste0('![](', normalizePath(params$report_entity_logo_path, winslash = '/', mustWork = FALSE), '){width=0.95in}')); paste(c(logo_chunks, 'Análisis de RNA-seq'), collapse = ' &emsp; ') }`"
+subtitle: "`r if (!is.null(params$report_entity_name) && nzchar(params$report_entity_name)) params$report_entity_name else ''`"
+author: "`r if (!is.null(params$report_author) && nzchar(params$report_author)) params$report_author else 'Juan Vladimir de la Rosa Medina'`"
 date: "`r Sys.Date()`"
 params:
   design_dir: NULL
   project_dir: NULL
   base_dir: NULL
   designID: NULL
+  report_author: NULL
+  report_entity_name: NULL
+  report_entity_logo_path: NULL
 output:
   html_document:
     self_contained: true
@@ -24,9 +27,8 @@ start_time <- Sys.time()
 
 library(readxl)       # Librería para leer archivos de excel
 library(DT)           # Librería para crear tablas formateadas
-library(org.Mm.eg.db) # Librería para cargar la base de datos de raton
-library(org.Hs.eg.db) # Librería para cargar la base de datos de humanos
 library(dplyr)        # Librería para la manipulacion de datos
+library(AnnotationDbi)
 library(DESeq2)       # Librería para el análisis de datos de RNA-seq
 library(ggplot2)      # Librería para visualización de datos
 library(gridExtra)    # Librería para combinar gráficos en un lienzo
@@ -86,10 +88,10 @@ excel_file <- file.path(project_dir, "template.xlsx")
 
 # Creamos un Diccionario con los organismos para consultas en la base de datos GO
 org_db_dict <- list(
-  "mouse" = org.Mm.eg.db,
-  "mus musculus" = org.Mm.eg.db,
-  "human" = org.Hs.eg.db,
-  "homo sapiens" = org.Hs.eg.db
+  "mouse" = "org.Mm.eg.db",
+  "mus musculus" = "org.Mm.eg.db",
+  "human" = "org.Hs.eg.db",
+  "homo sapiens" = "org.Hs.eg.db"
   # aquí puedes añadir más, ej. "rat" = org.Rn.eg.db
 )
 
@@ -354,6 +356,62 @@ format_genes_list <- function(df) {
   }) %>% paste(collapse = ", ")
 }
 
+format_enrichment_table <- function(df, limit = 6) {
+  if (is.null(df) || nrow(df) == 0) {
+    return("No enriched terms found")
+  }
+
+  subset_df <- head(df, limit)
+  desc_col <- intersect(c("Description", "Term", "NAME", "ID"), colnames(subset_df))[1]
+  score_col <- intersect(c("NES", "FoldEnrichment", "enrichmentScore"), colnames(subset_df))[1]
+  q_col <- intersect(c("qvalue", "p.adjust", "pvalue", "Adjusted.P.value", "Adjusted P-value"), colnames(subset_df))[1]
+
+  apply(subset_df, 1, function(row) {
+    desc_val <- if (!is.na(desc_col) && nzchar(desc_col)) row[[desc_col]] else row[[colnames(subset_df)[1]]]
+    score_val <- if (!is.na(score_col) && nzchar(score_col)) paste0(", score = ", signif(as.numeric(row[[score_col]]), 3)) else ""
+    q_val <- if (!is.na(q_col) && nzchar(q_col)) paste0(", q = ", signif(as.numeric(row[[q_col]]), 3)) else ""
+    paste0("- ", desc_val, score_val, q_val)
+  }) %>% paste(collapse = "\n")
+}
+
+build_curated_reference_lines <- function(treatment, molecule, cell) {
+  refs <- c(
+    "Love MI, Huber W, Anders S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. Genome Biology. 2014;15(12):550."
+  )
+
+  context_text <- tolower(paste(treatment, molecule, cell, collapse = " "))
+  if (grepl("gw3965|lxr", context_text)) {
+    refs <- c(
+      refs,
+      "Joseph SB, Tontonoz P. LXRs: new therapeutic targets in atherosclerosis? Nature Reviews Drug Discovery. 2003;2(6):529-540.",
+      "Zelcer N, Tontonoz P. Liver X receptors as integrators of metabolic and inflammatory signaling. Journal of Clinical Investigation. 2006;116(3):607-614."
+    )
+  }
+
+  unique(refs)
+}
+
+normalize_extended_response <- function(text, curated_refs = character(0)) {
+  normalized <- gsub("\\r\\n?", "\n", text)
+  normalized <- gsub(
+    "(?is)### References\\s*(Not enough evidence from provided data\\.?|Omitted due to lack of high-confidence canonical references directly relevant to the biology discussed\\.?|No references are included due to the absence of highly confident canonical sources directly relevant to the discussed biology\\.?)?(\\n|$).*",
+    "",
+    normalized,
+    perl = TRUE
+  )
+
+  has_reference_section <- grepl("(?i)### References", normalized, perl = TRUE)
+  if (!has_reference_section && length(curated_refs) > 0) {
+    normalized <- paste0(
+      normalized,
+      "\n\n### References\n",
+      paste0("- ", curated_refs, collapse = "\n")
+    )
+  }
+
+  normalized
+}
+
 build_fallback_results_report <- function(
   treatment,
   molecule,
@@ -441,13 +499,13 @@ metadata <- metadata[, colSums(metadata != "" & !is.na(metadata)) > 0]
 organism <- tolower(as.character(unique(metadata$organism)))
 
 # Seleccionar la base de datos de anotaciones GO
-org_db <- org_db_dict[[organism]]
+org_db <- resolve_org_db(organism, org_db_dict)
 
 # Seleccionar la base de datos de Pathways KEGG
 org_kegg <- kegg_dict[[organism]]
 
 if (is.null(org_kegg)) {
-  stop(paste("Organismo", org_raw, "no encontrado en diccionario KEGG"))
+  stop(paste("Organismo", organism, "no encontrado en diccionario KEGG"))
 }
 
 ```
@@ -1745,19 +1803,27 @@ KEGG es una base de datos que ayuda a interpretar cómo funcionan los sistemas b
 genes <- res.DGE.SIG$entrez
 genes <- na.omit(genes)
 
-kg <- enrichKEGG(
-  gene         = genes,
-  organism     = org_kegg, #ifelse(tolower(unique(metadata$organism)) %in% c("human","homo sapiens"), "hsa", "mmu"), 
-  pvalueCutoff = 0.05
+kg <- tryCatch(
+  {
+    enrichKEGG(
+      gene         = genes,
+      organism     = org_kegg,
+      pvalueCutoff = 0.05
+    )
+  },
+  error = function(e) {
+    message(sprintf("KEGG enrichment unavailable: %s", e$message))
+    NULL
+  }
 )
 
-kg <- as.data.frame(kg)
+kg <- if (is.null(kg)) data.frame() else as.data.frame(kg)
 old_wd <- getwd()
 
 # Comprobar si hay resultados
 if (nrow(kg) == 0) {
   
-  mensaje <- message("No se obtuvieron términos enriquecidos en KEGG con los parámetros actuales")
+  message("No se obtuvieron términos enriquecidos en KEGG con los parámetros actuales")
   
 } else {
   
@@ -1833,9 +1899,7 @@ if (length(empty_files) > 0) {
 
 setwd(old_wd)
 
-if (nrow(kg) == 0) {
-  mensaje
-} else {
+if (nrow(kg) > 0) {
   img_files <- list.files(out_dir, pattern = "\\.pathview\\.png$", full.names = TRUE)
   img_files_filtered <- img_files[file.size(img_files) > 10240]
   
@@ -1917,6 +1981,8 @@ go_mf_up <- data.frame()
 go_mf_down <- data.frame()
 go_cc_up <- data.frame()
 go_cc_down <- data.frame()
+kegg_top <- data.frame()
+gsea_top <- data.frame()
 
 if (exists("gse_bp_subset")){
   go_bp_up <- get_top_go_terms(gse_bp_subset, "up")
@@ -1931,6 +1997,14 @@ if (exists("gse_mf_subset")){
 if (exists("gse_cc_subset")){
   go_cc_up <- get_top_go_terms(gse_cc_subset, "up")
   go_cc_down <- get_top_go_terms(gse_cc_subset, "down")
+}
+
+if (exists("kg") && is.data.frame(kg) && nrow(kg) > 0) {
+  kegg_top <- head(kg, 6)
+}
+
+if (exists("selected_gses") && is.data.frame(selected_gses) && nrow(selected_gses) > 0) {
+  gsea_top <- head(selected_gses, 6)
 }
 
 
@@ -1965,16 +2039,29 @@ prompt_text <- glue(
   
   "### GO Cellular Component Enriched in Downregulated Genes\n",
   "{safe_format(go_cc_down)}\n\n",
+
+  "### Representative GSEA Terms\n",
+  "{format_enrichment_table(gsea_top)}\n\n",
+
+  "### Representative KEGG Pathways\n",
+  "{format_enrichment_table(kegg_top)}\n\n",
   
   "### Writing instructions\n",
   "- Start with heading '### Results'\n",
   "- Then include these sections in order: '### Executive Summary', '### Quality Control and Sample Separation', '### Differential Expression Overview', '### Functional Enrichment', '### Integrated Biological Interpretation', '### Suggested Validation or Follow-up', and '### Limitations'\n",
+  "- Make report at least as informative as a conventional bioinformatics results section, not a short executive note.\n",
+  "- In '### Differential Expression Overview', explicitly summarize at least five top upregulated genes and five top downregulated genes using evidence from the provided ranked lists.\n",
+  "- In '### Functional Enrichment', explicitly separate findings for upregulated and downregulated programs, and cover GO biological process, GO molecular function, GO cellular component, plus GSEA/KEGG only when evidence is available.\n",
+  "- Mention pathway-level patterns and figure-supported observations when plots support them.\n",
   "- Use *italics* for gene names\n",
   "- Include concise numerical summaries (log2FC, padj, NES, q-values) in parentheses whenever evidence is available\n",
   "- Use figures to comment on sample separation, clustering, DEG distribution, and pathway-level coherence when visual evidence supports it\n",
   "- Distinguish clearly between strong findings and tentative hypotheses\n",
-  "- If evidence for a requested section is missing, write 'Not enough evidence from provided data.'\n",
-  "- Do not fabricate exact citations. Add a '### References' section only if you are highly confident in canonical references; otherwise omit that section entirely.\n",
+  "- If evidence for a subsection is missing, say so briefly inside the relevant analytical section or summarize the uncertainty in '### Limitations'; do not let the whole report collapse into placeholders.\n",
+  "- For '### Functional Enrichment', summarize strongest GO/GSEA/KEGG signals separately for upregulated and downregulated programs when evidence exists.\n",
+  "- Prefer rich biological detail over brevity when evidence is available.\n",
+  "- Do not fabricate exact citations. Add a '### References' section only if you are highly confident in canonical background references directly relevant to the biology discussed; otherwise omit that section entirely.\n",
+  "- Never write 'Not enough evidence from provided data.' inside the References section. If references are uncertain, omit the entire References section.\n",
   "Return clean Markdown ready to paste into a Word document or R Markdown report."
 )
 
@@ -2029,19 +2116,99 @@ respuesta_clean <- gsub("\\n", "\n", respuesta)
 
 # Quitar la primera línea si empieza con '### Results'
 respuesta_clean <- gsub("^### Results\\n\\n", "", respuesta_clean)
+curated_references <- build_curated_reference_lines(treatment, molecule, cell)
+respuesta_clean <- normalize_extended_response(respuesta_clean, curated_references)
 
 # Crear archivo Rmd automáticamente
 
-rmd_file <- file.path(out_dir, paste0(designID, ".Rmd"))
-cat("---\ntitle: 'Results'\noutput: word_document\n---\n\n",
-    respuesta_clean,
-    file = rmd_file)
+reference_docx <- normalizePath(
+  file.path(base_dir, "r_scripts", "templates", "rna_seq_reference.docx"),
+  winslash = "/",
+  mustWork = FALSE
+)
 
-docx_file <- file.path(out_dir, paste(designID, ".docx"))
+rmd_file <- file.path(out_dir, paste0(designID, ".Rmd"))
+report_subtitle <- paste(
+  subtitle_text,
+  organism,
+  molecule,
+  cell,
+  sep = " | "
+)
+report_subtitle_yaml <- gsub("'", "''", report_subtitle, fixed = TRUE)
+atom_logo_docx <- ""
+if (!is.null(base_dir) && nzchar(base_dir)) {
+  candidate <- file.path(base_dir, "frontend", "public", "images", "logo.png")
+  if (file.exists(candidate)) {
+    atom_logo_docx <- normalizePath(candidate, winslash = "/", mustWork = FALSE)
+  }
+}
+entity_logo_docx <- ""
+if (!is.null(params$report_entity_logo_path) && nzchar(params$report_entity_logo_path) && file.exists(params$report_entity_logo_path)) {
+  entity_logo_docx <- normalizePath(params$report_entity_logo_path, winslash = "/", mustWork = FALSE)
+}
+report_branding_block <- ""
+if (nzchar(atom_logo_docx) || nzchar(entity_logo_docx)) {
+  report_branding_block <- paste0(
+    if (nzchar(atom_logo_docx)) paste0("![](", atom_logo_docx, "){width=1.0in}") else "",
+    if (nzchar(atom_logo_docx) && nzchar(entity_logo_docx)) " " else "",
+    if (nzchar(entity_logo_docx)) paste0("![](", entity_logo_docx, "){width=1.0in}") else "",
+    "\n\n"
+  )
+}
+report_scope <- paste0(
+  report_branding_block,
+  "## Study Snapshot\n\n",
+  "- **Design ID:** `", designID, "`\n",
+  if (!is.null(params$report_entity_name) && nzchar(params$report_entity_name)) paste0("- **Entity:** ", params$report_entity_name, "\n") else "",
+  if (!is.null(params$report_author) && nzchar(params$report_author)) paste0("- **Project owner:** ", params$report_author, "\n") else "",
+  "- **Contrast:** ", subtitle_text, "\n",
+  "- **Organism:** ", organism, "\n",
+  "- **Molecule:** ", molecule, "\n",
+  "- **Cell context:** ", cell, "\n",
+  "- **Condition:** ", condition, "\n",
+  "- **Report mode:** Extended interpretation\n\n",
+  "\\newpage\n\n"
+)
+cat(
+    paste0(
+      "---\n",
+      "title: 'RNA-seq Extended Report'\n",
+      "subtitle: '", report_subtitle_yaml, "'\n",
+      "date: '", format(Sys.time(), "%Y-%m-%d %H:%M"), "'\n",
+      "toc: true\n",
+      "toc_depth: 3\n",
+      "number_sections: true\n",
+      "output:\n",
+      "  word_document:\n",
+      "    reference_docx: \"", reference_docx, "\"\n",
+      "---\n\n"
+    ),
+    report_scope,
+    respuesta_clean,
+    sep = "",
+    file = rmd_file
+)
+
+enhanced_results_html <- respuesta_clean
+
+docx_file <- file.path(out_dir, paste0(designID, ".docx"))
 
 # Renderizar a Word
 render(rmd_file, output_format = "word_document", output_file = docx_file)
 
+
+```
+
+## Interpretación Enriquecida
+
+```{r AI_Enriched_Summary, echo=FALSE, results='asis'}
+
+if (exists("enhanced_results_html") && nzchar(enhanced_results_html)) {
+  cat(enhanced_results_html)
+} else {
+  cat("No se pudo generar la interpretación enriquecida para esta ejecución.")
+}
 
 ```
 

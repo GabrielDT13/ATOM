@@ -11,9 +11,15 @@ from typing import Iterator
 
 from backend.app.core.config import get_settings
 from backend.app.services.dashboard_activity import log_analysis_dashboard_event
+from backend.app.services.entities import get_entity_logo_path
 from backend.app.services.project_inventory import read_project_settings
+from backend.app.services.project_repository import _get_project_record
 from backend.app.services.projects import get_project_dir
+from backend.app.services.users import _get_profile_by_username
 from openpyxl import load_workbook
+
+
+DEFAULT_REPORT_AUTHOR = "Juan Vladimir de la Rosa Medina"
 
 
 def _stream_event(payload: dict[str, object]) -> str:
@@ -110,10 +116,6 @@ def clean_resultados(output_dir: Path, design_id: str) -> None:
         output_dir / "differential_expression_results.tsv",
         output_dir / "pca_samples.png",
         output_dir / "python_metadata.tsv",
-        output_dir / "report.docx",
-        output_dir / "report.html",
-        output_dir / "rna_seq_python_poc_results.xlsx",
-        output_dir / "rna_seq_python_poc_results.zip",
         output_dir / "significant_genes.tsv",
         output_dir / "significant_genes_heatmap.png",
         output_dir / "summary_metrics.json",
@@ -127,6 +129,80 @@ def clean_resultados(output_dir: Path, design_id: str) -> None:
             shutil.rmtree(item)
         else:
             item.unlink()
+
+
+def reset_output_dir(output_dir: Path) -> None:
+    if not output_dir.exists():
+        return
+
+    for item in output_dir.iterdir():
+        if item.is_dir():
+            shutil.rmtree(item)
+        else:
+            item.unlink()
+
+
+def _resolve_atom_logo_path(settings) -> Path | None:
+    candidate = settings.project_root / "frontend" / "public" / "images" / "logo.png"
+    if candidate.exists() and candidate.is_file():
+        return candidate
+    return None
+
+
+def _prepare_docx_image_path(path: Path | None, output_dir: Path) -> Path | None:
+    if path is None or not path.exists() or not path.is_file():
+        return None
+
+    if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff"}:
+        return path
+
+    try:
+        from PIL import Image
+
+        converted_path = output_dir / f"{path.stem}_header_docx.png"
+        with Image.open(path) as image:
+            if image.mode not in {"RGB", "RGBA"}:
+                image = image.convert("RGBA")
+            image.save(converted_path, format="PNG")
+        return converted_path
+    except Exception:
+        return None
+
+
+def _apply_docx_branding(docx_path: Path, output_dir: Path, report_branding: dict[str, str], settings) -> None:
+    if not docx_path.exists() or not docx_path.is_file():
+        return
+
+    try:
+        from docx import Document
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.shared import Inches
+    except Exception:
+        return
+
+    atom_logo_path = _prepare_docx_image_path(_resolve_atom_logo_path(settings), output_dir)
+    entity_logo_value = str(report_branding.get("report_entity_logo_path") or "").strip()
+    entity_logo_path = _prepare_docx_image_path(Path(entity_logo_value), output_dir) if entity_logo_value else None
+    if not atom_logo_path and not entity_logo_path:
+        return
+
+    document = Document(str(docx_path))
+    for section in document.sections:
+        header = section.header
+        header.is_linked_to_previous = False
+        paragraph = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+        if paragraph.runs:
+            for run in list(paragraph.runs):
+                run.clear()
+        paragraph.text = ""
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if atom_logo_path and atom_logo_path.exists():
+            paragraph.add_run().add_picture(str(atom_logo_path), width=Inches(0.55))
+        if entity_logo_path and entity_logo_path.exists():
+            if atom_logo_path and atom_logo_path.exists():
+                paragraph.add_run("   ")
+            paragraph.add_run().add_picture(str(entity_logo_path), width=Inches(0.55))
+    document.save(str(docx_path))
 
 
 def resolve_template_file(project_dir: Path) -> Path:
@@ -203,9 +279,9 @@ def _resolve_python_counts_file(project_dir: Path, metadata_rows: list[dict[str,
         }
     )
     if not count_files:
-        raise ValueError("Python PoC requiere counts_file en metadata")
+        raise ValueError("Python RNA-seq requiere counts_file en metadata")
     if len(count_files) != 1:
-        raise ValueError("Python PoC requiere un único counts_file por diseño")
+        raise ValueError("Python RNA-seq requiere un único counts_file por diseño")
 
     count_path = project_dir / count_files[0]
     if not count_path.exists():
@@ -227,7 +303,7 @@ def _resolve_python_contrast(
     )
     if len(observed_values) != 2:
         raise ValueError(
-            f"Python PoC requiere exactamente dos grupos en '{condition_column}', encontrados: {observed_values}"
+            f"Python RNA-seq requiere exactamente dos grupos en '{condition_column}', encontrados: {observed_values}"
         )
     control, case = observed_values[0], observed_values[1]
     return condition_column, case, control
@@ -237,13 +313,39 @@ def _sync_python_report_artifacts(output_dir: Path, design_id: str) -> None:
     artifact_pairs = {
         "report.html": f"{design_id}.html",
         "report.docx": f"{design_id}.docx",
-        "rna_seq_python_poc_results.xlsx": f"{design_id}.xlsx",
-        "rna_seq_python_poc_results.zip": f"{design_id}.zip",
+        "rna_seq_python_results.xlsx": f"{design_id}.xlsx",
+        "rna_seq_python_results.zip": f"{design_id}.zip",
     }
     for source_name, target_name in artifact_pairs.items():
         source_path = output_dir / source_name
-        if source_path.exists():
-            shutil.copy2(source_path, output_dir / target_name)
+        target_path = output_dir / target_name
+        if not source_path.exists():
+            continue
+        shutil.copy2(source_path, target_path)
+        if source_path != target_path and source_path.exists():
+            source_path.unlink()
+
+
+def _resolve_report_branding(project_owner_username: str, project_name: str) -> dict[str, str]:
+    project_record = _get_project_record(project_owner_username, project_name) or {}
+    owner_profile = _get_profile_by_username(project_owner_username) or {}
+
+    owner_display_name = str(owner_profile.get("full_name") or "").strip()
+    owner_username = str(owner_profile.get("username") or "").strip() or project_owner_username
+    entity_name = str(project_record.get("entity_name") or "").strip()
+    entity_id = str(project_record.get("entity_id") or "").strip()
+
+    entity_logo_path = ""
+    if entity_id:
+        candidate_logo_path = get_entity_logo_path(entity_id)
+        if candidate_logo_path.exists() and candidate_logo_path.is_file():
+            entity_logo_path = str(candidate_logo_path)
+
+    return {
+        "report_author": owner_display_name or owner_username or DEFAULT_REPORT_AUTHOR,
+        "report_entity_name": entity_name,
+        "report_entity_logo_path": entity_logo_path,
+    }
 
 
 def _run_python_analysis(
@@ -253,6 +355,7 @@ def _run_python_analysis(
     design_id: str,
     design_row: dict[str, object],
     metadata_rows: list[dict[str, object]],
+    report_branding: dict[str, str],
 ) -> list[str]:
     settings = get_settings()
     counts_path = _resolve_python_counts_file(project_dir, metadata_rows)
@@ -277,6 +380,39 @@ def _run_python_analysis(
         control,
         "--output-dir",
         str(output_dir),
+        "--report-author",
+        str(report_branding.get("report_author") or DEFAULT_REPORT_AUTHOR),
+        "--report-entity-name",
+        str(report_branding.get("report_entity_name") or ""),
+        "--report-entity-logo-path",
+        str(report_branding.get("report_entity_logo_path") or ""),
+        "--report-title",
+        "RNA-seq Python Report",
+        "--report-subtitle",
+        " | ".join(
+            [
+                item
+                for item in (
+                    _string_value(design_row.get("treatment1")) + " vs " + _string_value(design_row.get("treatment2"))
+                    if _string_value(design_row.get("treatment1")) and _string_value(design_row.get("treatment2"))
+                    else "",
+                    _string_value(design_row.get("organism")),
+                    _string_value(design_row.get("molecule")),
+                    _string_value(design_row.get("cell")),
+                )
+                if item
+            ]
+        ),
+        "--report-organism",
+        _string_value(design_row.get("organism")),
+        "--report-molecule",
+        _string_value(design_row.get("molecule")),
+        "--report-cell-context",
+        _string_value(design_row.get("cell")),
+        "--report-condition-description",
+        _string_value(design_row.get("condition")),
+        "--report-mode-label",
+        "Python workflow",
         "--docx",
     ]
     process = subprocess.Popen(
@@ -329,6 +465,7 @@ def _run_r_markdown(
     design_dir: Path,
     design_id: str,
     project_dir: Path,
+    report_branding: dict[str, str],
     script_key: str,
     settings,
 ) -> subprocess.Popen[str]:
@@ -346,7 +483,10 @@ def _run_r_markdown(
             f'params=list(designID="{design_id}", '
             f'base_dir="{settings.project_root}", '
             f'project_dir="{project_dir}", '
-            f'design_dir="{design_dir}"))'
+            f'design_dir="{design_dir}", '
+            f'report_author={json.dumps(str(report_branding.get("report_author") or DEFAULT_REPORT_AUTHOR))}, '
+            f'report_entity_name={json.dumps(str(report_branding.get("report_entity_name") or ""))}, '
+            f'report_entity_logo_path={json.dumps(str(report_branding.get("report_entity_logo_path") or ""))}))'
         ),
     ]
     return subprocess.Popen(
@@ -485,8 +625,10 @@ def iter_analysis_events(
             analysis_type_str,
             preferred_variant=preferred_variant,
         )
+        report_branding = _resolve_report_branding(project_owner_username, project_name)
         design_dir = resolve_design_output_dir(project_dir, design_id_str, script_key)
         design_dir.mkdir(parents=True, exist_ok=True)
+        reset_output_dir(design_dir)
 
         _log_analysis_event(
             "analysis_started",
@@ -519,6 +661,7 @@ def iter_analysis_events(
                     design_id=design_id_str,
                     design_row=record,
                     metadata_rows=filtered_metadata,
+                    report_branding=report_branding,
                 )
                 for line in output_lines:
                     yield {
@@ -536,6 +679,7 @@ def iter_analysis_events(
                     design_dir=design_dir,
                     design_id=design_id_str,
                     project_dir=project_dir,
+                    report_branding=report_branding,
                     script_key=script_key,
                     settings=settings,
                 )
@@ -583,6 +727,24 @@ def iter_analysis_events(
 
         duration_seconds = max(0.0, (datetime.now(UTC) - design_started_at).total_seconds())
         if exit_code == 0:
+            try:
+                _apply_docx_branding(
+                    design_dir / f"{design_id_str}.docx",
+                    design_dir,
+                    report_branding,
+                    settings,
+                )
+            except Exception as exc:
+                yield {
+                    "type": "log",
+                    "message": f"WARNING: No se pudo aplicar branding DOCX: {exc}",
+                    "level": "warning",
+                    "timestamp": _timestamp(),
+                    "analysis_type": script_key,
+                    "current_index": processed_designs + 1,
+                    "design_id": design_id_str,
+                    "total_designs": total_designs,
+                }
             _log_analysis_event(
                 "analysis_completed",
                 actor_username=resolved_actor_username,

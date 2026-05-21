@@ -128,6 +128,26 @@ export function PlusIcon({ className = "h-4 w-4" }: IconProps) {
   );
 }
 
+export function ArrowUpIcon({ className = "h-4 w-4" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M12 19V5M12 5L6.75 10.25M12 5L17.25 10.25"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
 export function ProjectStackIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg

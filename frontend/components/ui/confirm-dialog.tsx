@@ -38,7 +38,7 @@ export function ConfirmDialog({
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="max-w-lg overflow-hidden">
-        <DialogHero description={<div className="text-sm leading-6 text-slate-300">{body}</div>} title={title} />
+        <DialogHero description={body} title={title} />
 
         <DialogFooter className="px-6 pb-6 sm:px-8">
           <DialogClose asChild>
