@@ -2004,26 +2004,6 @@ def _generate_docx_report(
     document = docx_module.Document()
     _configure_document_styles(document, docx_module)
     _configure_docx_header(document, output_dir, branding, docx_module)
-    logo_paragraph = document.add_paragraph()
-    logo_paragraph.alignment = docx_module.enum.text.WD_ALIGN_PARAGRAPH.CENTER
-    added_logo = False
-    atom_logo_path = _resolve_atom_logo_path()
-    safe_atom_logo_path = _prepare_docx_image_path(atom_logo_path, output_dir) if atom_logo_path else None
-    if safe_atom_logo_path and safe_atom_logo_path.exists():
-        logo_run = logo_paragraph.add_run()
-        logo_run.add_picture(str(safe_atom_logo_path), width=docx_module.shared.Inches(0.9))
-        added_logo = True
-    if branding.entity_logo_path:
-        logo_path = Path(branding.entity_logo_path)
-        safe_logo_path = _prepare_docx_image_path(logo_path, output_dir)
-        if safe_logo_path and safe_logo_path.exists():
-            if added_logo:
-                logo_paragraph.add_run("   ")
-            logo_run = logo_paragraph.add_run()
-            logo_run.add_picture(str(safe_logo_path), width=docx_module.shared.Inches(0.9))
-            added_logo = True
-    if not added_logo:
-        document.add_paragraph()
     document.add_paragraph(report_title, style="Title")
     subtitle = document.add_paragraph(style="Subtitle")
     subtitle.paragraph_format.space_after = 0
@@ -2032,9 +2012,6 @@ def _generate_docx_report(
     subtitle_lines = []
     if report_subtitle:
         subtitle_lines.append(report_subtitle)
-    if branding.entity_name:
-        subtitle_lines.append(branding.entity_name)
-    subtitle_lines.append(branding.author)
     subtitle_lines.append(generated_at)
     subtitle.add_run("\n".join(subtitle_lines))
     _add_docx_divider(document, docx_module)
@@ -2078,9 +2055,6 @@ def _generate_docx_report(
     de_images = [entry for entry in image_entries if entry["group"] == "Expresión diferencial"]
     enrichment_images = [entry for entry in image_entries if entry["group"] == "Enriquecimiento funcional"]
 
-    _add_docx_metric_table(document, summary, docx_module)
-    _add_docx_divider(document, docx_module)
-
     _add_docx_section_heading(document, "Executive Summary", level=1)
     _add_docx_body_paragraph(
         document,
@@ -2098,6 +2072,8 @@ def _generate_docx_report(
     for item in sample_distribution:
         _add_docx_body_paragraph(document, f"{item['group']}: {item['count']}", style="List Bullet")
     _add_docx_body_paragraph(document, qc_summary)
+    for entry in qc_images:
+        _add_docx_figure(document, _resolve_figure_key_from_label(entry["label"]), output_dir / entry["filename"], docx_module)
 
     _add_docx_section_heading(document, "Differential Expression Overview", level=1)
     if top_up_genes:
@@ -2112,33 +2088,26 @@ def _generate_docx_report(
         _add_docx_section_heading(document, "Downregulated highlights", level=2)
         for item in top_down_details:
             _add_docx_body_paragraph(document, item, style="List Bullet")
-
-    _add_docx_section_heading(document, "Key significant genes", level=1)
-    for item in _build_ranked_gene_details(de_outputs.significant.nsmallest(10, "padj"), limit=10):
-        _add_docx_body_paragraph(document, item, style="List Bullet")
-
-    if qc_images:
-        _add_docx_section_heading(document, "Quality Control Figures", level=1)
-        for entry in qc_images:
-            _add_docx_figure(document, _resolve_figure_key_from_label(entry["label"]), output_dir / entry["filename"], docx_module)
-        _add_docx_divider(document, docx_module)
-
-    if de_images:
-        _add_docx_section_heading(document, "Differential Expression Figures", level=1)
-        for entry in de_images:
-            _add_docx_figure(document, _resolve_figure_key_from_label(entry["label"]), output_dir / entry["filename"], docx_module)
-        _add_docx_divider(document, docx_module)
-
-    if enrichment_images:
-        _add_docx_section_heading(document, "Functional Enrichment Figures", level=1)
-        for entry in enrichment_images:
-            _add_docx_figure(document, _resolve_figure_key_from_label(entry["label"]), output_dir / entry["filename"], docx_module)
-        _add_docx_divider(document, docx_module)
+    for entry in de_images:
+        _add_docx_figure(document, _resolve_figure_key_from_label(entry["label"]), output_dir / entry["filename"], docx_module)
 
     _add_docx_section_heading(document, "Functional Enrichment", level=1)
     _add_docx_body_paragraph(document, "Preranked enrichment: " + enrichment_summary["prerank"])
     _add_docx_body_paragraph(document, "Upregulated program: " + enrichment_summary["up"])
     _add_docx_body_paragraph(document, "Downregulated program: " + enrichment_summary["down"])
+    for entry in enrichment_images:
+        _add_docx_figure(document, _resolve_figure_key_from_label(entry["label"]), output_dir / entry["filename"], docx_module)
+    if enrichment_highlights:
+        for name, rows in enrichment_highlights.items():
+            _add_docx_section_heading(document, f"{name}", level=2)
+            for row in rows:
+                score_suffix = f" ({row['score']})" if row["score"] else ""
+                _add_docx_body_paragraph(document, f"{row['term']}{score_suffix}", style="List Bullet")
+    else:
+            _add_docx_body_paragraph(
+                document,
+                "No enrichment output was produced. Likely causes include incomplete symbol annotation, small gene sets, or low overlap with configured libraries."
+            )
 
     _add_docx_section_heading(document, "Integrated Biological Interpretation", level=1)
     _add_docx_body_paragraph(document, integrated_interpretation)
@@ -2150,19 +2119,6 @@ def _generate_docx_report(
     _add_docx_section_heading(document, "Limitations", level=1)
     for item in limitations:
         _add_docx_body_paragraph(document, item, style="List Bullet")
-
-    _add_docx_section_heading(document, "Enrichment Highlights", level=1)
-    if enrichment_highlights:
-        for name, rows in enrichment_highlights.items():
-            _add_docx_section_heading(document, f"{name}", level=2)
-            for row in rows:
-                score_suffix = f" ({row['score']})" if row["score"] else ""
-                _add_docx_body_paragraph(document, f"{row['term']}{score_suffix}", style="List Bullet")
-    else:
-        _add_docx_body_paragraph(
-            document,
-            "No enrichment output was produced. Likely causes include incomplete symbol annotation, small gene sets, or low overlap with configured libraries."
-        )
 
     _add_docx_section_heading(document, "References", level=1)
     for item in curated_references:

@@ -19,10 +19,10 @@ BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}"
 
 case "$FRONTEND_MODE" in
   docker)
-    docker compose --env-file "$ENV_FILE" build --no-cache atom-backend atom-frontend
+    docker compose --env-file "$ENV_FILE" build --no-cache atom-backend atom-worker atom-frontend
     ;;
   local)
-    docker compose --env-file "$ENV_FILE" build --no-cache atom-backend
+    docker compose --env-file "$ENV_FILE" build --no-cache atom-backend atom-worker
     ;;
   *)
     echo "ATOM_FRONTEND_MODE invalido: ${FRONTEND_MODE}. Usa 'docker' o 'local'." >&2

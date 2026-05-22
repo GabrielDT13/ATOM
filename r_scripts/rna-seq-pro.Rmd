@@ -2136,28 +2136,7 @@ report_subtitle <- paste(
   sep = " | "
 )
 report_subtitle_yaml <- gsub("'", "''", report_subtitle, fixed = TRUE)
-atom_logo_docx <- ""
-if (!is.null(base_dir) && nzchar(base_dir)) {
-  candidate <- file.path(base_dir, "frontend", "public", "images", "logo.png")
-  if (file.exists(candidate)) {
-    atom_logo_docx <- normalizePath(candidate, winslash = "/", mustWork = FALSE)
-  }
-}
-entity_logo_docx <- ""
-if (!is.null(params$report_entity_logo_path) && nzchar(params$report_entity_logo_path) && file.exists(params$report_entity_logo_path)) {
-  entity_logo_docx <- normalizePath(params$report_entity_logo_path, winslash = "/", mustWork = FALSE)
-}
-report_branding_block <- ""
-if (nzchar(atom_logo_docx) || nzchar(entity_logo_docx)) {
-  report_branding_block <- paste0(
-    if (nzchar(atom_logo_docx)) paste0("![](", atom_logo_docx, "){width=1.0in}") else "",
-    if (nzchar(atom_logo_docx) && nzchar(entity_logo_docx)) " " else "",
-    if (nzchar(entity_logo_docx)) paste0("![](", entity_logo_docx, "){width=1.0in}") else "",
-    "\n\n"
-  )
-}
 report_scope <- paste0(
-  report_branding_block,
   "## Study Snapshot\n\n",
   "- **Design ID:** `", designID, "`\n",
   if (!is.null(params$report_entity_name) && nzchar(params$report_entity_name)) paste0("- **Entity:** ", params$report_entity_name, "\n") else "",
