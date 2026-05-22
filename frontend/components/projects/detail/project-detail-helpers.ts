@@ -56,10 +56,7 @@ export function injectHtmlBaseHref(html: string, fileUrl: string) {
     return normalizedHtml;
   }
 
-  const baseHref = normalizedUrl.endsWith("/")
-    ? normalizedUrl
-    : `${normalizedUrl.slice(0, normalizedUrl.lastIndexOf("/") + 1)}`;
-  const baseTag = `<base href="${baseHref}">`;
+  const baseTag = `<base href="${normalizedUrl}">`;
 
   if (/<base\s/i.test(normalizedHtml)) {
     return normalizedHtml.replace(/<base\s[^>]*>/i, baseTag);
