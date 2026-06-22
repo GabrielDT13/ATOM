@@ -6,6 +6,7 @@ import { useLocale } from "@/components/providers/locale-provider";
 import {
   buildProjectFilePreviewPath,
   buildProjectFileUrl,
+  injectHtmlBaseHref,
 } from "@/components/projects/detail/project-detail-helpers";
 import { DownloadIcon, EyeIcon, ProjectStackIcon } from "@/components/projects/project-management-icons";
 import { ButtonLink } from "@/components/ui/button-link";
@@ -81,11 +82,16 @@ export function ProjectReportView({
         );
 
         if (!cancelled) {
+          const downloadUrl = buildProjectFileUrl(
+            resolvedProject.owner,
+            resolvedProject.name,
+            currentReportPath,
+          );
           setProjectIdentity({
             name: resolvedProject.name,
             owner: resolvedProject.owner,
           });
-          setReportHtml(payload.content);
+          setReportHtml(injectHtmlBaseHref(payload.content, downloadUrl));
         }
       } catch (loadError) {
         if (!cancelled) {

@@ -38,6 +38,24 @@ export function LockIcon({ className = "h-5 w-5" }: IconProps) {
   );
 }
 
+export function UserIcon({ className = "h-5 w-5" }: IconProps) {
+  return (
+    <svg
+      aria-hidden="true"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.8"
+      viewBox="0 0 24 24"
+    >
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 19a7 7 0 0 1 14 0" />
+    </svg>
+  );
+}
+
 export function EyeIcon({ className = "h-5 w-5" }: IconProps) {
   return (
     <svg

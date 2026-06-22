@@ -78,7 +78,7 @@ export function UserManagementFilters({
                 <ChevronDownIcon className="h-4 w-4" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-[min(24rem,calc(100vw-2rem))] p-5">
+            <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-5">
               <div className="flex flex-col gap-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{t ? "Filtros" : "Filters"}</p>
@@ -87,11 +87,11 @@ export function UserManagementFilters({
                   </p>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-slate-500">
                     {t ? "Rol" : "Role"}
                     <select
-                      className="h-12 min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                      className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onRoleFilterChange(event.target.value as UserRoleFilter)}
                       value={roleFilter}
                     >
@@ -101,10 +101,10 @@ export function UserManagementFilters({
                     </select>
                   </label>
 
-                  <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
+                  <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-slate-500">
                     {t ? "Departamento" : "Department"}
                     <select
-                      className="h-12 min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                      className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onDepartmentFilterChange(event.target.value)}
                       value={departmentFilter}
                     >

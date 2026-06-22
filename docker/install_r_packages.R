@@ -29,6 +29,18 @@ ensure_gseavis <- function() {
   }
 }
 
+verify_required_packages <- function(pkgs) {
+  missing <- pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(missing) > 0) {
+    stop(
+      paste0(
+        "Faltan paquetes R requeridos tras instalacion: ",
+        paste(missing, collapse = ", ")
+      )
+    )
+  }
+}
+
 cran_pkgs <- c(
   "BiocManager",
   "remotes",
@@ -51,6 +63,7 @@ cran_pkgs <- c(
   "glue",
   "httr",
   "jsonlite",
+  "base64enc",
   "readr",
   "officer",
   "FactoMineR",
@@ -82,3 +95,4 @@ install_missing_cran(cran_pkgs)
 BiocManager::install(bioc_pkgs, ask = FALSE, update = FALSE)
 
 ensure_gseavis()
+verify_required_packages(c(cran_pkgs, bioc_pkgs, "GseaVis"))

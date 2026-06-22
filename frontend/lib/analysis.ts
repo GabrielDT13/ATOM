@@ -7,8 +7,26 @@ import type {
 } from "@/types/api";
 
 type CreateAnalysisRunPayload =
-  | { owner: string; project_name: string; project_ref?: never }
-  | { owner?: never; project_name?: never; project_ref: string };
+  | {
+      owner: string;
+      project_name: string;
+      project_ref?: never;
+      analysis_variant?: string;
+      batch_id?: string;
+      batch_index?: number;
+      batch_total?: number;
+      notify_on_completion?: boolean;
+    }
+  | {
+      owner?: never;
+      project_name?: never;
+      project_ref: string;
+      analysis_variant?: string;
+      batch_id?: string;
+      batch_index?: number;
+      batch_total?: number;
+      notify_on_completion?: boolean;
+    };
 
 export function createAnalysisRun(payload: CreateAnalysisRunPayload) {
   return apiFetch<AnalysisRunMutationResponse>("/api/analysis/runs", {

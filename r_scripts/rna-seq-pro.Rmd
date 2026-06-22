@@ -1,0 +1,2313 @@
+---
+title: "`r { atom_logo <- ''; if (!is.null(params$base_dir) && nzchar(params$base_dir)) { candidate <- file.path(params$base_dir, 'frontend', 'public', 'images', 'logo.png'); if (file.exists(candidate)) atom_logo <- normalizePath(candidate, winslash = '/', mustWork = FALSE) }; logo_chunks <- character(0); if (nzchar(atom_logo)) logo_chunks <- c(logo_chunks, paste0('![](', atom_logo, '){width=0.95in}')); if (!is.null(params$report_entity_logo_path) && nzchar(params$report_entity_logo_path) && file.exists(params$report_entity_logo_path)) logo_chunks <- c(logo_chunks, paste0('![](', normalizePath(params$report_entity_logo_path, winslash = '/', mustWork = FALSE), '){width=0.95in}')); paste(c(logo_chunks, 'Análisis de RNA-seq'), collapse = ' &emsp; ') }`"
+subtitle: "`r if (!is.null(params$report_entity_name) && nzchar(params$report_entity_name)) params$report_entity_name else ''`"
+author: "`r if (!is.null(params$report_author) && nzchar(params$report_author)) params$report_author else 'Juan Vladimir de la Rosa Medina'`"
+date: "`r Sys.Date()`"
+params:
+  design_dir: NULL
+  project_dir: NULL
+  base_dir: NULL
+  designID: NULL
+  report_author: NULL
+  report_entity_name: NULL
+  report_entity_logo_path: NULL
+output:
+  html_document:
+    self_contained: true
+    toc: true
+    toc_float: true
+    number_sections: true
+  pdf_document: default
+---
+
+```{r load_libraries, include=FALSE}
+
+# Iniciamos un temporizador
+start_time <- Sys.time()
+
+library(readxl)       # Librería para leer archivos de excel
+library(DT)           # Librería para crear tablas formateadas
+library(dplyr)        # Librería para la manipulacion de datos
+library(AnnotationDbi)
+library(DESeq2)       # Librería para el análisis de datos de RNA-seq
+library(ggplot2)      # Librería para visualización de datos
+library(gridExtra)    # Librería para combinar gráficos en un lienzo
+library(PoiClaClu)    # Librería para el análisis de datos de contaje
+library(RColorBrewer) # Librería para proporcionar paletas de colores
+library(pheatmap)     # Librería para generar mapas de calor de matrices de datos
+library(factoextra)   # Librería para visualizar y extraer resultados de análisis multivariantes
+library(EnhancedVolcano)
+library(ComplexHeatmap)
+library(ggvenn)
+library(clusterProfiler)
+library(enrichplot)
+library(fgsea)
+library(msigdbr)
+library(pathview)
+library(ggforce)
+library(gridExtra)
+library(forcats)
+library(GseaVis)
+library(openxlsx)
+library(zip)
+library(glue)
+library(httr)
+library(jsonlite)
+library(base64enc)
+library(readr)
+library(officer)
+library(FactoMineR)
+library(rmarkdown)
+library(Rsubread)
+library(biomaRt)
+library(Rsamtools)
+library(edgeR)
+
+```
+
+```{r setup_analysis, include=FALSE}
+
+# Establecemos la ruta para el directorio de la aplicación
+base_dir <- params$base_dir                                                    
+
+# Establecemos la ruta para el directorio del proyecto
+project_dir <- params$project_dir                               
+
+# Establecemos la ruta para el directorio del diseño
+out_dir <- params$design_dir
+
+# Establecemos el diseño en ejecucion
+designID <- params$designID                   
+
+# Establecemos la ruta para el directorio de salida y si no existe lo creamos
+#out_dir <- file.path(design_dir,"resultados")
+#if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
+
+# establecemos la ruta al archivo excel
+excel_file <- file.path(project_dir, "template.xlsx")
+
+# Creamos un Diccionario con los organismos para consultas en la base de datos GO
+org_db_dict <- list(
+  "mouse" = "org.Mm.eg.db",
+  "mus musculus" = "org.Mm.eg.db",
+  "human" = "org.Hs.eg.db",
+  "homo sapiens" = "org.Hs.eg.db"
+  # aquí puedes añadir más, ej. "rat" = org.Rn.eg.db
+)
+
+# Creamos un Diccionario con los organismos para consultas en la base de datos KEGG
+kegg_dict <- list(
+  "human"          = "hsa",
+  "homo sapiens"   = "hsa",
+  "mouse"          = "mmu",
+  "mus musculus"   = "mmu"
+  # puedes añadir más si trabajas con otros organismos
+)
+
+# OpenAI runtime config desde variables de entorno
+openai_api_key <- trimws(Sys.getenv("OPENAI_API_KEY", ""))
+openai_url <- trimws(Sys.getenv("OPENAI_CHAT_COMPLETIONS_URL", "https://api.openai.com/v1/chat/completions"))
+openai_model <- trimws(Sys.getenv("OPENAI_MODEL", "gpt-4o"))
+openai_image_detail <- trimws(Sys.getenv("OPENAI_IMAGE_DETAIL", "high"))
+openai_temperature <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_TEMPERATURE", "0.2")))
+openai_connect_timeout <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_CONNECT_TIMEOUT_SECONDS", "30")))
+openai_request_timeout <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_REQUEST_TIMEOUT_SECONDS", "180")))
+openai_max_images <- suppressWarnings(as.integer(Sys.getenv("OPENAI_MAX_ANALYSIS_IMAGES", "8")))
+openai_max_image_bytes <- suppressWarnings(as.numeric(Sys.getenv("OPENAI_MAX_ANALYSIS_IMAGE_BYTES", "4000000")))
+openai_max_tokens <- suppressWarnings(as.integer(Sys.getenv("OPENAI_MAX_TOKENS", "2200")))
+
+if (!is.finite(openai_temperature)) openai_temperature <- 0.2
+if (!is.finite(openai_connect_timeout)) openai_connect_timeout <- 30
+if (!is.finite(openai_request_timeout)) openai_request_timeout <- 180
+if (!is.finite(openai_max_images) || openai_max_images < 0) openai_max_images <- 8L
+if (!is.finite(openai_max_image_bytes) || openai_max_image_bytes <= 0) openai_max_image_bytes <- 4000000
+if (!is.finite(openai_max_tokens) || openai_max_tokens <= 0) openai_max_tokens <- 2200L
+
+has_openai_api_key <- function(api_key) {
+  nzchar(trimws(api_key))
+}
+
+infer_mime_type <- function(path) {
+  ext <- tolower(tools::file_ext(path))
+  switch(
+    ext,
+    "jpg" = "image/jpeg",
+    "jpeg" = "image/jpeg",
+    "png" = "image/png",
+    "webp" = "image/webp",
+    "gif" = "image/gif",
+    "application/octet-stream"
+  )
+}
+
+describe_report_image <- function(path) {
+  filename <- basename(path)
+
+  if (filename == "QC_PCA.jpeg") return("PCA scatter plot summarizing sample separation by experimental group.")
+  if (filename == "QC_hm.jpeg") return("Sample-to-sample distance heatmap used for quality control and clustering consistency.")
+  if (filename == "DGE_VP.jpeg") return("Volcano plot highlighting significantly upregulated and downregulated genes.")
+  if (filename == "DGE_map.jpeg") return("MA plot summarizing expression changes across abundance levels.")
+  if (filename == "DGE_Small_hm.jpeg") return("Focused heatmap of top significant genes across samples.")
+  if (filename == "DGE_Big_hm.jpeg") return("Global heatmap of significant differentially expressed genes.")
+  if (filename == "GO_bp_dp.jpeg") return("GO biological process enrichment dot plot or cnet plot, depending on successful render path.")
+  if (filename == "GO_mf_dp.jpeg") return("GO molecular function enrichment dot plot.")
+  if (filename == "GO_cc_dp.jpeg") return("GO cellular component enrichment dot plot.")
+  if (grepl("^GSEA_.*\\.jpe?g$", filename, ignore.case = TRUE)) {
+    return("Representative GSEA enrichment plot for a top-ranked pathway or ontology term.")
+  }
+  if (grepl("\\.pathview\\.png$", filename, ignore.case = TRUE)) {
+    return("KEGG pathway map with differential expression overlaid on pathway nodes.")
+  }
+
+  paste("Analysis figure:", filename)
+}
+
+pick_ranked_images <- function(paths, max_n) {
+  if (length(paths) == 0 || max_n <= 0) {
+    return(character(0))
+  }
+
+  info <- file.info(paths)
+  ranked <- data.frame(
+    path = paths,
+    size = info$size,
+    mtime = info$mtime,
+    stringsAsFactors = FALSE
+  )
+  ranked <- ranked[!is.na(ranked$size), , drop = FALSE]
+  ranked <- ranked[order(-ranked$size, -as.numeric(ranked$mtime)), , drop = FALSE]
+  head(ranked$path, max_n)
+}
+
+select_openai_context_images <- function(dir_path, max_images = openai_max_images, max_bytes = openai_max_image_bytes) {
+  if (!dir.exists(dir_path) || max_images <= 0) {
+    return(character(0))
+  }
+
+  preferred <- file.path(
+    dir_path,
+    c(
+      "QC_PCA.jpeg",
+      "QC_hm.jpeg",
+      "DGE_VP.jpeg",
+      "DGE_map.jpeg",
+      "DGE_Small_hm.jpeg",
+      "DGE_Big_hm.jpeg",
+      "GO_bp_dp.jpeg",
+      "GO_mf_dp.jpeg",
+      "GO_cc_dp.jpeg"
+    )
+  )
+
+  existing_preferred <- preferred[file.exists(preferred)]
+  gsea_candidates <- pick_ranked_images(
+    list.files(dir_path, pattern = "^GSEA_.*\\.jpe?g$", full.names = TRUE),
+    max_n = 2
+  )
+  kegg_candidates <- pick_ranked_images(
+    list.files(dir_path, pattern = "\\.pathview\\.png$", full.names = TRUE),
+    max_n = 2
+  )
+
+  candidates <- unique(c(existing_preferred, gsea_candidates, kegg_candidates))
+  if (length(candidates) == 0) {
+    return(character(0))
+  }
+
+  sizes <- file.info(candidates)$size
+  keep <- !is.na(sizes) & sizes > 0 & sizes <= max_bytes
+  selected <- candidates[keep]
+
+  if (length(selected) > max_images) {
+    selected <- selected[seq_len(max_images)]
+  }
+
+  selected
+}
+
+build_openai_user_content <- function(prompt_text, image_paths = character(0), image_detail = openai_image_detail) {
+  content <- list(list(type = "text", text = prompt_text))
+
+  for (image_path in image_paths) {
+    caption <- describe_report_image(image_path)
+    encoded <- base64encode(image_path)
+    data_url <- paste0("data:", infer_mime_type(image_path), ";base64,", encoded)
+
+    content[[length(content) + 1]] <- list(
+      type = "text",
+      text = paste0("Figure context: ", caption, " File: ", basename(image_path))
+    )
+    content[[length(content) + 1]] <- list(
+      type = "image_url",
+      image_url = list(url = data_url, detail = image_detail)
+    )
+  }
+
+  content
+}
+
+# Función ping opcional para "calentar" la conexión
+openai_ping <- function(api_key, model = openai_model) {
+  if (!has_openai_api_key(api_key)) {
+    message("OPENAI_API_KEY no configurada. Se omite ping de OpenAI.")
+    return(invisible(FALSE))
+  }
+
+  body <- list(
+    model = model,
+    messages = list(
+      list(
+        role = "user",
+        content = list(list(type = "text", text = "ping"))
+      )
+    ),
+    temperature = 0
+  )
+
+  resp <- POST(
+    url = openai_url,
+    add_headers(Authorization = paste("Bearer", api_key)),
+    content_type_json(),
+    encode = "json",
+    body = body,
+    timeout(openai_request_timeout),
+    config = config(connecttimeout = openai_connect_timeout)
+  )
+
+  if (status_code(resp) == 200) {
+    message("OpenAI listo.")
+  } else {
+    warning("No se pudo establecer conexión previa con OpenAI. Código: ", status_code(resp))
+    print(content(resp, as = "text"))
+  }
+}
+
+# Función general para enviar prompt multimodal a la API
+openai_chat <- function(
+  prompt_text,
+  api_key,
+  image_paths = character(0),
+  model = openai_model,
+  temperature = openai_temperature,
+  connect_timeout = openai_connect_timeout,
+  request_timeout = openai_request_timeout,
+  max_tokens = openai_max_tokens
+) {
+  if (!has_openai_api_key(api_key)) {
+    stop("OPENAI_API_KEY no configurada")
+  }
+
+  system_prompt <- paste(
+    "You are a senior bioinformatics scientist and biomedical writer.",
+    "Use only information grounded in provided structured data and figures.",
+    "Integrate quantitative evidence from text with visual evidence from plots.",
+    "If evidence is weak or missing, say so explicitly.",
+    "Do not fabricate methods, sample sizes, citations, pathways, or mechanistic claims.",
+    "When citing literature, include only high-confidence canonical references; otherwise omit the reference instead of guessing.",
+    "Return polished Markdown only, without code fences."
+  )
+
+  body <- list(
+    model = model,
+    messages = list(
+      list(
+        role = "system",
+        content = list(list(type = "text", text = system_prompt))
+      ),
+      list(
+        role = "user",
+        content = build_openai_user_content(prompt_text, image_paths = image_paths)
+      )
+    ),
+    temperature = temperature,
+    max_tokens = max_tokens
+  )
+
+  response <- POST(
+    url = openai_url,
+    add_headers(Authorization = paste("Bearer", api_key)),
+    content_type_json(),
+    encode = "json",
+    body = body,
+    timeout(request_timeout),
+    config = config(connecttimeout = connect_timeout)
+  )
+
+  if (http_error(response)) {
+    stop("Error en la solicitud a OpenAI: ", status_code(response), " - ", content(response, as = "text"))
+  }
+
+  response_content <- content(response, as = "parsed", type = "application/json")
+  reply <- response_content$choices[[1]]$message$content
+  reply
+}
+
+source(file.path(base_dir, "r_scripts", "lib", "rna_seq_shared_helpers.R"))
+
+# Format gene lists as comma separated strings with details
+format_genes_list <- function(df) {
+  if (is.null(df) || nrow(df) == 0) {
+    return("No differentially expressed genes met the reporting threshold.")
+  }
+
+  apply(df, 1, function(row) {
+    paste0(row["symbol"], " (log2FC = ", round(as.numeric(row["log2FoldChange"]), 2),
+           ", padj = ", signif(as.numeric(row["padj"]), 3), ")")
+  }) %>% paste(collapse = ", ")
+}
+
+format_enrichment_table <- function(df, limit = 6) {
+  if (is.null(df) || nrow(df) == 0) {
+    return("No enriched terms found")
+  }
+
+  subset_df <- head(df, limit)
+  desc_col <- intersect(c("Description", "Term", "NAME", "ID"), colnames(subset_df))[1]
+  score_col <- intersect(c("NES", "FoldEnrichment", "enrichmentScore"), colnames(subset_df))[1]
+  q_col <- intersect(c("qvalue", "p.adjust", "pvalue", "Adjusted.P.value", "Adjusted P-value"), colnames(subset_df))[1]
+
+  apply(subset_df, 1, function(row) {
+    desc_val <- if (!is.na(desc_col) && nzchar(desc_col)) row[[desc_col]] else row[[colnames(subset_df)[1]]]
+    score_val <- if (!is.na(score_col) && nzchar(score_col)) paste0(", score = ", signif(as.numeric(row[[score_col]]), 3)) else ""
+    q_val <- if (!is.na(q_col) && nzchar(q_col)) paste0(", q = ", signif(as.numeric(row[[q_col]]), 3)) else ""
+    paste0("- ", desc_val, score_val, q_val)
+  }) %>% paste(collapse = "\n")
+}
+
+build_curated_reference_lines <- function(treatment, molecule, cell) {
+  refs <- c(
+    "Love MI, Huber W, Anders S. Moderated estimation of fold change and dispersion for RNA-seq data with DESeq2. Genome Biology. 2014;15(12):550."
+  )
+
+  context_text <- tolower(paste(treatment, molecule, cell, collapse = " "))
+  if (grepl("gw3965|lxr", context_text)) {
+    refs <- c(
+      refs,
+      "Joseph SB, Tontonoz P. LXRs: new therapeutic targets in atherosclerosis? Nature Reviews Drug Discovery. 2003;2(6):529-540.",
+      "Zelcer N, Tontonoz P. Liver X receptors as integrators of metabolic and inflammatory signaling. Journal of Clinical Investigation. 2006;116(3):607-614."
+    )
+  }
+
+  unique(refs)
+}
+
+normalize_extended_response <- function(text, curated_refs = character(0)) {
+  normalized <- gsub("\\r\\n?", "\n", text)
+  normalized <- gsub(
+    "(?is)### References\\s*(Not enough evidence from provided data\\.?|Omitted due to lack of high-confidence canonical references directly relevant to the biology discussed\\.?|No references are included due to the absence of highly confident canonical sources directly relevant to the discussed biology\\.?)?(\\n|$).*",
+    "",
+    normalized,
+    perl = TRUE
+  )
+
+  has_reference_section <- grepl("(?i)### References", normalized, perl = TRUE)
+  if (!has_reference_section && length(curated_refs) > 0) {
+    normalized <- paste0(
+      normalized,
+      "\n\n### References\n",
+      paste0("- ", curated_refs, collapse = "\n")
+    )
+  }
+
+  normalized
+}
+
+build_fallback_results_report <- function(
+  treatment,
+  molecule,
+  cell,
+  genotype,
+  condition,
+  organism,
+  n_total_genes,
+  n_genes_up,
+  n_genes_down,
+  top_up_text,
+  top_down_text,
+  go_bp_up_text,
+  go_bp_down_text,
+  go_mf_up_text,
+  go_mf_down_text,
+  go_cc_up_text,
+  go_cc_down_text
+) {
+  glue(
+    "### Results\n\n",
+    "Differential gene expression analysis assessing the effects of {treatment} on {molecule} function in {cell}s of {genotype} under {condition} in {organism} identified {n_total_genes} significant genes (padj < 0.05), with {n_genes_up} upregulated and {n_genes_down} downregulated transcripts.\n\n",
+    "### Differential Expression Overview\n",
+    "Top upregulated genes: {top_up_text}\n\n",
+    "Top downregulated genes: {top_down_text}\n\n",
+    "### Functional Enrichment\n",
+    "Upregulated biological processes:\n{go_bp_up_text}\n\n",
+    "Downregulated biological processes:\n{go_bp_down_text}\n\n",
+    "Upregulated molecular functions:\n{go_mf_up_text}\n\n",
+    "Downregulated molecular functions:\n{go_mf_down_text}\n\n",
+    "Upregulated cellular components:\n{go_cc_up_text}\n\n",
+    "Downregulated cellular components:\n{go_cc_down_text}\n\n",
+    "### Limitations\n",
+    "AI-enriched interpretation was not available for this run. This fallback summary is based only on tabular outputs generated inside the pipeline.\n"
+  )
+}
+
+```
+
+```{r load_metadata, include=FALSE}
+
+# Leemos la hoja metadata y filtramos solo las columnas con datos
+metadata <- readxl::read_excel(excel_file, sheet = "metadata")
+
+# convertimos en factor varias variables y otras de tipo carácter
+metadata <- metadata %>%
+  mutate(across(c(condition, treatment, cell, genotype, gender), factor)) %>%
+  mutate(across(c(sample_id, molecule, organism, fastq1_file, fastq2_file,
+                  bam_file, counts_file, bed_file, peaks_file), as.character))
+
+
+# Leemos la hoja design
+design <- readxl::read_excel(excel_file, sheet = "design")
+
+
+# Seleccionamos la fila de la hoja design que coincide con el designID
+design <- design[design$designID == designID, ]
+
+
+# Filtramos los datos de metadata a partir de los datos de design
+if (nrow(design) != 0) {
+  
+  # Extraemos los valores de interés
+  treatments <- unlist(design[, c("treatment1", "treatment2")])
+  genotypes  <- unlist(design[, c("genotype1", "genotype2")])
+  genders    <- unlist(design[, c("gender1", "gender2")])
+  cells      <- unlist(design[, c("cell1", "cell2")])
+  
+  # Filtrar metadata
+  metadata <- metadata %>%
+    dplyr::filter(
+      treatment %in% treatments,
+      genotype  %in% genotypes,
+      gender    %in% genders,
+      cell      %in% cells
+    )
+} else {
+  stop(paste("No se encontró designID", designID, "en la hoja design"))
+}
+
+# seleccionamos las columnas que no esten vacias o contenga NA
+metadata <- metadata[, colSums(metadata != "" & !is.na(metadata)) > 0]
+
+# Extraemos el nombre del organismo
+organism <- tolower(as.character(unique(metadata$organism)))
+
+# Seleccionar la base de datos de anotaciones GO
+org_db <- resolve_org_db(organism, org_db_dict)
+
+# Seleccionar la base de datos de Pathways KEGG
+org_kegg <- kegg_dict[[organism]]
+
+if (is.null(org_kegg)) {
+  stop(paste("Organismo", organism, "no encontrado en diccionario KEGG"))
+}
+
+```
+
+## Introducción
+
+El análisis de secuenciación de ARN mensajero (mRNA-seq o RNA-seq) permite cuantificar y comparar niveles de expresión génica a escala genómica. A través del alineamiento y la cuantificación de las lecturas derivadas del ARN extraído de diferentes condiciones biológicas, este enfoque proporciona una visión integral de los cambios transcripcionales asociados a factores como el genotipo, el tratamiento o el estado fisiológico.
+
+En este informe se presenta un análisis completo de datos de RNA-seq a partir de una matriz de contajes previamente procesada. El flujo de trabajo sigue un enfoque estándar y reproducible, incluyendo:
+
+  1. Preparación y limpieza de datos.
+
+  2. Análisis de expresión diferencial con el paquete DESeq2.
+
+  3. Visualización de resultados mediante gráficos exploratorios (PCA, MA-plot, volcano plot, heatmaps).
+
+  4. Enriquecimiento funcional de genes diferencialmente expresados mediante GSEA, GO y KEGG.
+
+Este análisis permite identificar genes cuya expresión se encuentra significativamente regulada entre condiciones experimentales, así como los procesos biológicos o rutas moleculares implicadas, proporcionando información clave para la interpretación funcional del transcriptoma.
+
+<br>
+
+## Información de las muestras
+
+En esta sección se presenta una tabla con los datos básicos de cada muestra analizada. Esta información incluye el nombre que identifica a la muestra y otros datos asociados importantes como su condición experimental (por ejemplo, control o tratamiento), el genotipo o la especie animal.
+
+A continuación se muestra la tabla con la información de las muestras:
+
+<br>
+
+Datos de las muestras para el analisis
+
+```{r, load_sample_info, echo=FALSE, message=FALSE, warning=FALSE}
+
+datatable(
+metadata,
+rownames = FALSE,
+options = list(
+scrollX = TRUE,
+pageLength = 10
+))
+
+```
+
+```{r start_analysis, include=FALSE}
+
+# Iniciamos el flujo del análisis dependiendo del tipo de archivo del que vayamos 
+# a partir
+
+# Si partimos de una matriz de contajes de lecturas.
+if ("counts_file" %in% colnames(metadata) && any(!is.na(metadata$counts_file))) {
+  
+  message("Se encontró una columna de archivos Counts: iniciar análisis desde archivos Counts (matriz de contajes).")
+  
+  # Establecemos el archivo de contajes de lecturas (mismo para todas las muestras del diseño)
+  count_file <- file.path(project_dir, unique(metadata$counts_file))
+  
+  # Leer matriz de contajes completa
+  cts <- as.matrix(read.table(count_file, header = TRUE, sep = "\t", dec = ".",
+                              row.names = 1))
+
+  # Seleccionar columnas de cts que corresponden a las muestras de este diseño
+  cts <- cts[, as.character(metadata$sample_id)]  
+
+  
+# Si partimos de archivos alineados bam.  
+} else if ("bam_file" %in% colnames(metadata) && any(!is.na(metadata$bam_file))) {
+  
+  
+  message("Se encontró una columna de archivos BAM: iniciar análisis desde archivos BAM (alineados).")
+
+  # Definir BAMs de entrada
+  bam_files <- file.path(project_dir, metadata$bam_file)
+
+  # Definir anotación GTF según organismo (común a todos los flujos)
+  if (organism == "mus musculus") {
+    ref_gtf <- file.path(base_dir, "genomes/mm10/mm10.gtf")
+  } else if (organism == "homo sapiens") {
+    ref_gtf <- file.path(base_dir, "genomes/hg19/hg19.gtf")
+  } else {
+    stop("Organismo no soportado: ", organism)
+  }
+
+  
+  # ==========================================================
+  # Preprocesamiento de BAMs tras alineamiento con Rsubread
+  # ==========================================================
+  
+  bam_clean_files <- c()
+  
+  for (bam in bam_files) {
+    message("Procesando: ", bam)
+    
+    # Ordenar el BAM
+    sorted_bam <- sub("\\.bam$", ".sorted.bam", bam)
+    sortBam(bam, destination = sub("\\.bam$", ".sorted", bam))
+    
+    # Indexar el BAM ordenado
+    indexBam(sorted_bam)
+    
+    # Filtrado más suave para RNA-seq:
+    # - Mantener lecturas mapeadas
+    # - Permitir duplicados
+    # - Evitar descartar secundarios
+    # - MAPQ mínimo 10 (opcional, puedes ajustar)
+    clean_bam <- sub("\\.bam$", ".clean.bam", bam)
+    param <- ScanBamParam(
+      flag = scanBamFlag(
+        isUnmappedQuery = FALSE
+        # No quitamos duplicados ni secundarios
+      ),
+      mapqFilter = 10
+    )
+    filterBam(sorted_bam, destination = clean_bam, param = param)
+    
+    # Indexar el BAM limpio
+    indexBam(clean_bam)
+    
+    bam_clean_files <- c(bam_clean_files, clean_bam)
+  }
+  
+  
+  # ==================================================================#
+  # Cuantificación con featurecounts usando GTF (mRNA, lncRNA, miRNA) #
+  # ==================================================================#
+
+  fc <- featureCounts(
+    files                = bam_clean_files,
+    annot.ext            = ref_gtf,
+    isGTFAnnotationFile  = TRUE,
+    GTF.featureType      = "exon",
+    GTF.attrType         = "gene_id",
+    nthreads             = 8,
+    isPairedEnd          = TRUE,
+    allowMultiOverlap    = TRUE,   # asigna lecturas que caen en varios genes
+    countMultiMappingReads = TRUE  # incluye reads multimapeadas
+  )
+  
+    # Extraemos las columnas numéricas de contajes crudos
+    counts <- as.matrix(fc$counts)
+    
+    # Asegurar que nombres de columna = sample_id
+    colnames(counts) <- colnames(counts) %>% as.character()
+    
+    # quitamos la extensión bam
+    colnames(counts) <- sub("\\.clean.bam$", "", colnames(counts))
+    
+    # Añadimos un nuevo campo con la anotacion de ensembl del gen
+    entrez_id <- mapIds(org_db,
+                        keys=row.names(counts),
+                        column="ENTREZID",
+                        keytype="ENSEMBL",
+                        multiVals="first")
+    
+    # Convertimos la matriz de contajes en un data.frame para manipulación más sencilla
+    counts_df <- as.data.frame(counts)
+    
+    # Añadimos una nueva columna con los IDs de Entrez correspondientes a cada fila
+    counts_df$EntrezID <- entrez_id
+    
+    # Eliminamos filas cuyo EntrezID es NA, ya que no se pueden mapear a genes
+    counts_df <- counts_df[!is.na(counts_df$EntrezID), ]
+    
+    # Identificar columnas de conteo (todas menos EntrezID)
+    sample_cols <- setdiff(colnames(counts_df), "EntrezID")
+    
+    # Eliminar filas sin EntrezID
+    counts_df <- counts_df[!is.na(counts_df$EntrezID), ]
+    
+    # Agrupar por EntrezID y quedarnos con la fila de mayor suma, sin empates
+    counts_clean <- counts_df %>%
+      group_by(EntrezID) %>%
+      slice_max(order_by = rowSums(across(all_of(sample_cols))),
+                n = 1,
+                with_ties = FALSE) %>%
+      ungroup() %>%
+      as.data.frame()   # convertir de nuevo a data.frame, no tibble
+    
+    
+    # Asignar rownames únicos basados en EntrezID
+    rownames(counts_clean) <- make.unique(as.character(counts_clean$EntrezID))
+    
+    # Eliminar la columna EntrezID (ya está en rownames)
+    counts_clean$EntrezID <- NULL
+    
+    # Convertir a matriz de enteros
+    cts <- as.matrix(counts_clean)
+  
+    
+# Si partimos de archivos crudos sin alinear fastq.
+} else if ("fastq1_file" %in% colnames(metadata) && any(!is.na(metadata$fastq1_file))) {
+  
+  
+  message("Se encontraron columnas FASTQ: iniciar análisis desde archivos FASTQ (alineamiento).")
+  message("Iniciando pipeline desde FASTQ con Rsubread...")
+  
+  # Selección del índice y anotación según organismo
+  if (organism == "mus musculus") {
+    index_base <- file.path(base_dir, "genomes/mm10/mm10")                    
+    ref_gtf    <- file.path(base_dir, "genomes/mm10/mm10.gtf")                
+  } else if (organism == "homo sapiens") {
+    index_base <- file.path(base_dir, "genomes/hg19/hg19")                    
+    ref_gtf    <- file.path(base_dir, "genomes/hg19/hg19.gtf")                
+  }
+  
+  
+  # ============================================#
+  # Alineamiento de archivos fastq con Rsubread #
+  # ============================================#
+  bam_files <- c()
+  
+  for (i in seq_len(nrow(metadata))) {
+    
+    sample_id <- as.character(metadata$sample_id[i])
+    
+    fq1 <- file.path(project_dir, metadata$fastq1_file[i])
+    fq2 <- if ("fastq2_file" %in% colnames(metadata) && !is.na(metadata$fastq2_file[i])) {
+      file.path(project_dir, metadata$fastq2_file[i])
+    } else {
+      NULL
+    }
+    
+    # Verificar existencia
+    if (!file.exists(fq1)) stop("Archivo no encontrado: ", fq1)
+    if (!is.null(fq2) && !file.exists(fq2)) stop("Archivo no encontrado: ", fq2)
+    
+    out_bam <- file.path(project_dir, paste0(sample_id, ".bam"))
+    
+    align(
+      index = index_base,
+      readfile1 = fq1,
+      readfile2 = if (!is.na(fq2)) fq2 else NULL,
+      output_file = out_bam,
+      nthreads = 8
+    )
+    bam_files <- c(bam_files, out_bam)
+  }
+  
+  # ==========================================================
+  # Preprocesamiento de BAMs tras alineamiento con Rsubread
+  # ==========================================================
+  
+  bam_clean_files <- c()
+  
+  for (bam in bam_files) {
+    message("Procesando: ", bam)
+    
+    # Ordenar el BAM
+    sorted_bam <- sub("\\.bam$", ".sorted.bam", bam)
+    sortBam(bam, destination = sub("\\.bam$", ".sorted", bam))
+    
+    # Indexar el BAM ordenado
+    indexBam(sorted_bam)
+    
+    # Filtrado más suave para RNA-seq:
+    # - Mantener lecturas mapeadas
+    # - Permitir duplicados
+    # - Evitar descartar secundarios
+    # - MAPQ mínimo 10 (opcional, puedes ajustar)
+    clean_bam <- sub("\\.bam$", ".clean.bam", bam)
+    param <- ScanBamParam(
+      flag = scanBamFlag(
+        isUnmappedQuery = FALSE
+        # No quitamos duplicados ni secundarios
+      ),
+      mapqFilter = 10
+    )
+    filterBam(sorted_bam, destination = clean_bam, param = param)
+    
+    # Indexar el BAM limpio
+    indexBam(clean_bam)
+    
+    bam_clean_files <- c(bam_clean_files, clean_bam)
+  }
+  
+  
+  # ==================================================================#
+  # Cuantificación con featurecounts usando GTF (mRNA, lncRNA, miRNA) #
+  # ==================================================================#
+
+  fc <- featureCounts(
+    files                = bam_clean_files,
+    annot.ext            = ref_gtf,
+    isGTFAnnotationFile  = TRUE,
+    GTF.featureType      = "exon",
+    GTF.attrType         = "gene_id",
+    nthreads             = 8,
+    isPairedEnd          = TRUE,
+    allowMultiOverlap    = TRUE,   # asigna lecturas que caen en varios genes
+    countMultiMappingReads = TRUE  # incluye reads multimapeadas
+  )
+  
+    # Extraemos las columnas numéricas de contajes crudos
+    counts <- as.matrix(fc$counts)
+    
+    # Asegurar que nombres de columna = sample_id
+    colnames(counts) <- colnames(counts) %>% as.character()
+    
+    # quitamos la extensión bam
+    colnames(counts) <- sub("\\.clean.bam$", "", colnames(counts))
+    
+    # Añadimos un nuevo campo con la anotacion de ensembl del gen
+    entrez_id <- mapIds(org_db,
+                        keys=row.names(counts),
+                        column="ENTREZID",
+                        keytype="ENSEMBL",
+                        multiVals="first")
+    
+    # Convertimos la matriz de contajes en un data.frame para manipulación más sencilla
+    counts_df <- as.data.frame(counts)
+    
+    # Añadimos una nueva columna con los IDs de Entrez correspondientes a cada fila
+    counts_df$EntrezID <- entrez_id
+    
+    # Eliminamos filas cuyo EntrezID es NA, ya que no se pueden mapear a genes
+    counts_df <- counts_df[!is.na(counts_df$EntrezID), ]
+    
+    # Identificar columnas de conteo (todas menos EntrezID)
+    sample_cols <- setdiff(colnames(counts_df), "EntrezID")
+    
+    # Eliminar filas sin EntrezID
+    counts_df <- counts_df[!is.na(counts_df$EntrezID), ]
+    
+    # Agrupar por EntrezID y quedarnos con la fila de mayor suma, sin empates
+    counts_clean <- counts_df %>%
+      group_by(EntrezID) %>%
+      slice_max(order_by = rowSums(across(all_of(sample_cols))),
+                n = 1,
+                with_ties = FALSE) %>%
+      ungroup() %>%
+      as.data.frame()   # convertir de nuevo a data.frame, no tibble
+    
+    
+    # Asignar rownames únicos basados en EntrezID
+    rownames(counts_clean) <- make.unique(as.character(counts_clean$EntrezID))
+    
+    # Eliminar la columna EntrezID (ya está en rownames)
+    counts_clean$EntrezID <- NULL
+    
+    # Convertir a matriz de enteros
+    cts <- as.matrix(counts_clean)
+  
+} 
+
+# Convertir a integer
+storage.mode(cts) <- "integer"
+
+# Omitir filas con valores NA en cts
+cts <- na.omit(cts)  
+
+# Save as a tab-delimited text file
+write.table(
+  cts,
+  file = "counts.txt",
+  sep = "\t",
+  quote = FALSE,
+  row.names = TRUE,
+  col.names = NA
+)
+
+# Extraemos el diseño del experimento
+design_var <- unique(design$analysis_design)  
+  
+# Crear objeto DESeq2
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = metadata,
+                              design = as.formula(paste("~", design_var)))
+  
+# Nuestra matriz de contaje en el objeto DESeqDataSet contiene muchas filas con
+# solo ceros y muchas filas con solo un pocos fragmentos en total. Para reducir
+# el tamaño del objeto y aumentar la velocidad de nuestras funciones, podemos
+# eliminar las filas que no tienen o casi no tienen información sobre la cantidad
+# de expresión génica. Aquí eliminamos filas del objeto DESeqDataSet que no tienen
+# recuentos, o solo un único recuento en todas las muestras:
+dds <- dds[rowSums(counts(dds)) > 1, ]
+  
+# Muchos métodos estadísticos comunes para el análisis exploratorio de datos
+# multidimensionales, por ejemplo, agrupación y análisis principal de componentes
+# (PCA), funciona mejor con datos que generalmente tienen el mismo rango de varianza
+# en diferentes rangos de valores medios.. Como solución, DESeq2 ofrece transformaciones
+# para datos de contaje que estabilizan la varianza a lo largo de la media. Una
+# de esas transformaciones es la transformación de logaritmo regularizado o rlog
+rld <- rlog(dds, blind=FALSE)
+  
+
+
+```
+
+
+
+<br>
+
+## Control de calidad
+
+Antes de realizar el análisis de expresión diferencial, es fundamental evaluar la calidad y coherencia de las muestras. Para ello, se aplican varias herramientas gráficas que permiten detectar posibles errores, muestras atípicas o desviaciones inesperadas en el diseño experimental.
+
+**1. Gráficos de dispersión entre muestras**
+
+Los gráficos de dispersión comparan la expresión génica entre pares de muestras. Si las muestras son similares, los puntos se alinean cerca de la diagonal, lo que indica buena concordancia entre replicados.
+
+```{r QC_Scatter_Plots, include=FALSE}
+
+# Estimar size factors
+dds <- estimateSizeFactors(dds)
+
+# Lista para guardar combinaciones por nivel del factor
+combinations_by_design <- list()
+
+# Convertimos a factor la columna de diseño experimental
+metadata[[design_var]] <- factor(metadata[[design_var]])
+
+# Obtener nombres de los tratamientos
+design_levels <- levels(metadata[[design_var]])
+
+# Inicializar contador global de índices de muestra
+#global_indices <- 1:nrow(metadata)
+#names(global_indices) <- metadata$sample_id
+
+# Dividir los índices globales por tratamiento
+#design_groups <- split(global_indices, metadata[[design_var]])
+
+# Bucle para generar combinaciones y mantener numeración continua
+#for (treat in design_levels) {
+#  idx <- design_groups[[treat]]
+#  if (length(idx) >= 2) {
+#    combs <- combn(idx, 2, simplify = FALSE)
+#    combinations_by_design[[treat]] <- combs
+#  } else {
+#    combinations_by_design[[treat]] <- list()
+#  }
+#}
+
+# Crear una única lista con todas las combinaciones posibles
+#lista_total_combinaciones <- unlist(combinations_by_design[1], recursive = FALSE)
+
+#n_plots <- length(lista_total_combinaciones)
+#n_filas <- ceiling(n_plots / 3)
+
+#plots <- lapply(lista_total_combinaciones, function(samples) {
+  # Construir data.frame con los dos samples de la combinación
+#  df <- data.frame(
+#    x = log2(counts(dds, normalized = TRUE)[, samples[1]] + 1),
+#    y = log2(counts(dds, normalized = TRUE)[, samples[2]] + 1)
+#  )
+  
+  # Crear scatterplot de comparación
+#  ggplot(df, aes(x = x, y = y)) +
+#    geom_point(size = 0.3, alpha = 0.6) +
+#    labs(
+#      x = paste0("Sample ", colnames(counts(dds))[samples[1]]),
+#      y = paste0("Sample ", colnames(counts(dds))[samples[2]])
+#    ) +
+#    theme_minimal(base_size = 10)
+#})
+
+# Combinar en un panel de 3 columnas
+#QC_sp1 <- grid.arrange(grobs = plots, ncol = 3)
+
+# Guardar en archivo
+#out_file <- file.path(out_dir, "QC_sp1.jpeg")
+
+#plots_split <- split(plots, ceiling(seq_along(plots) / 9))
+
+#for (i in seq_along(plots_split)) {
+#  p <- grid.arrange(grobs = plots_split[[i]], ncol = 3)
+#  ggsave(
+#    file.path(out_dir, paste0("QC_sp1_part", i, ".jpeg")),
+#    p,
+#    width = 12,
+#    height = 12,
+#    dpi = 300
+#  )
+#}
+
+#ggsave(out_file, QC_sp1, width = n_plots * 4, height = n_filas * 4, dpi = 300)
+
+
+# Combinar todas las combinaciones en una única lista
+#lista_total_combinaciones <- unlist(combinations_by_design[2], recursive = FALSE)
+
+#n_plots <- length(lista_total_combinaciones)
+#n_filas <- ceiling(n_plots / 3)
+
+#plots <- lapply(lista_total_combinaciones, function(samples) {
+  # Construir data.frame con los dos samples de la combinación
+#  df <- data.frame(
+#    x = log2(counts(dds, normalized = TRUE)[, samples[1]] + 1),
+#    y = log2(counts(dds, normalized = TRUE)[, samples[2]] + 1)
+#  )
+  
+  # Crear scatterplot de comparación
+#  ggplot(df, aes(x = x, y = y)) +
+#    geom_point(size = 0.3, alpha = 0.6) +
+#    labs(
+#      x = paste0("Sample ", colnames(counts(dds))[samples[1]]),
+#      y = paste0("Sample ", colnames(counts(dds))[samples[2]])
+#    ) +
+#    theme_minimal(base_size = 10)
+#})
+
+# Combinar en un panel de 3 columnas
+#QC_sp2 <- grid.arrange(grobs = plots, ncol = 3)
+
+# Guardar en archivo
+#out_file <- file.path(out_dir, "QC_sp2.jpeg")
+
+#plots_split <- split(plots, ceiling(seq_along(plots) / 9))
+
+#for (i in seq_along(plots_split)) {
+#  p <- grid.arrange(grobs = plots_split[[i]], ncol = 3)
+#  ggsave(
+#    file.path(out_dir, paste0("QC_sp2_part", i, ".jpeg")),
+#    p,
+#    width = 12,
+#    height = 12,
+#    dpi = 300
+#  )
+#}
+
+#ggsave(out_file, QC_sp2, width = n_plots * 4, height = n_filas * 4, dpi = 300)
+
+```
+
+<br>
+
+Muestras tratadas con: `r paste(design_levels[1], collapse = ", ")`.
+
+<br>
+
+```{r QC_Scatter_Plots_2, echo=FALSE, eval=FALSE}
+
+#{r QC_Scatter_Plots_2, echo=FALSE, fig.width=n_plots * 3, fig.height=n_filas * 3, fig.align='center', eval=FALSE}
+
+#grid::grid.draw(QC_sp1)
+
+```
+
+<br>
+
+Muestras tratadas con: `r paste(design_levels[2], collapse = ", ")`.
+
+<br>
+
+```{r QC_Scatter_Plots_3, echo=FALSE, eval=FALSE}
+
+#{r QC_Scatter_Plots_3, echo=FALSE, fig.width=n_plots * 3, fig.height=n_filas * 3, fig.align='center', eval=FALSE}
+
+#grid::grid.draw(QC_sp2)
+
+```
+
+<br>
+
+**2. Mapa de calor de correlación**
+
+Este gráfico muestra la relación global entre todas las muestras mediante una matriz de correlación. Las muestras más similares presentan colores más intensos y se agrupan juntas, lo que permite verificar la consistencia del experimento.
+
+<br>
+
+```{r QC_Heatmap, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=7, fig.height=6, fig.align='center'}
+
+# Para calcular distancias muestrales es utilizar la Distancia de Poisson,
+# implementada en el paquete PoiClaClu. Esta medida de disimilitud entre conteos
+# también toma en cuenta la estructura de varianza inherente de los contajes al
+# calcular las distancias entre las muestras. La función PoissonDistance toma la
+# matriz original de recuento (no normalizada, ya que normaliza los recuentos
+# internamente) con muestras como filas en lugar de columnas, por lo que
+# necesitamos para transponer las cuentas en dds.
+poisd <- PoissonDistance(t(counts(dds)))
+
+# Creamos una matriz con los valores de distancias entre las diferentes muestras.
+# Agregamos los nombres de las filas, quitamos los nombres de las columnas.
+# Creamos la paleta de colores
+samplePoisDistMatrix <- as.matrix( poisd$dd )
+rownames(samplePoisDistMatrix) <- colnames(rld)
+colnames(samplePoisDistMatrix) <- colnames(rld)
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+# Creamos el mapa de calor con los valores de correlación entre las diferentes
+# muestras
+
+QC_hm <- pheatmap(samplePoisDistMatrix,
+                  clustering_distance_rows=poisd$dd,
+                  clustering_distance_cols=poisd$dd,
+                  col=colors)
+
+out_file <- file.path(out_dir, "QC_hm.jpeg")
+jpeg(out_file, width = 1000, height = 800, res = 300)
+
+draw(QC_hm)
+
+dev.off()
+
+# Mostrar en el documento
+QC_hm
+
+```
+
+<br>
+
+**3. Análisis de Componentes Principales (PCA)**
+
+El PCA reduce la complejidad del conjunto de datos y permite observar la agrupación de las muestras según su perfil de expresión. Las muestras que se agrupan en el gráfico suelen compartir características experimentales similares.
+
+<br>
+
+```{r QC_PCA_Plot, echo=FALSE, message=FALSE, fig.width=7, fig.height=6, fig.align='center'}
+
+# Variance-stabilizing transformation
+vst_mat <- assay(vst(dds))
+
+# PCA
+pca_res <- prcomp(t(vst_mat), scale. = TRUE)
+
+#metadata$treatment_factor <- factor(metadata$treatment)
+
+# Draw PCA
+QC_PCA <- fviz_pca_ind(
+  pca_res,
+  habillage = metadata[[design_var]],
+  geom.ind = "point",
+  pointsize = 3,
+  addEllipses = TRUE,
+  ellipse.type = "confidence",
+  ellipse.level = 0.95,
+  palette = c("blue", "red"),
+  mean.point = FALSE,
+  title = "PCA - Biplot"
+) +
+  theme_bw() +
+  theme(panel.border = element_rect(color = "black", fill = NA, linewidth = 1))
+
+# Guardar en archivo
+out_file <- file.path(out_dir, "QC_PCA.jpeg")
+ggsave(out_file, QC_PCA, width = 10, height = 8, dpi = 300)
+
+print(QC_PCA)
+
+```
+
+<br>
+
+## Expresión Génica Diferencial
+
+El análisis de expresión génica diferencial permite identificar genes cuya expresión varía significativamente entre condiciones experimentales. En este estudio se utilizó el paquete DESeq2, que aplica un modelo lineal generalizado basado en la distribución binomial negativa para modelar la dispersión y estimar los cambios en los niveles de expresión.
+
+Los datos utilizados fueron previamente normalizados mediante factores de tamaño (sizeFactors), y se aplicó un ajuste por múltiples comparaciones utilizando el método de Benjamini-Hochberg para controlar la tasa de falsos descubrimientos (FDR).
+
+ - Los genes se consideraron diferencialmente expresados si cumplían con los siguientes criterios:
+
+ - Valor ajustado (padj) < 0.05
+
+ - Cambio en la expresión absoluto (|log2 Fold Change|) > 1
+
+A continuación, se presenta una tabla con los genes más significativamente regulados entre las condiciones comparadas.
+
+<br>
+
+```{r load_SIG_DGE, echo=FALSE, message=FALSE, warning=FALSE}
+
+dds <- DESeq(dds)
+res <- results(dds)
+
+# Añadimos un nuevo campo con la anotacion de ensembl del gen
+res$symbol <- mapIds(org_db,
+                         keys=row.names(res),
+                         column="SYMBOL",
+                         keytype="ENTREZID",
+                         multiVals="first")
+
+# Añadimos un nuevo campo con la anotación de ENTREZID
+res$entrez <- mapIds(org_db,
+                         keys=row.names(res),
+                         column="ENTREZID",
+                         keytype="ENTREZID",
+                         multiVals="first")
+
+# creamos un dataframe con los resultados de la expresión diferencial
+res.DGE <- as.data.frame(res[order(res$log2FoldChange, decreasing = TRUE), ])
+
+# eliminamos todos los datos nulos
+res.DGE <- na.omit(res.DGE)
+
+# seleccionamos solo los genes significativos
+res.DGE.SIG <- res.DGE[res.DGE$pvalue < 0.05 & abs(res.DGE$log2FoldChange) > 1,]
+
+res.DGE.SIG.UP <- res.DGE.SIG[res.DGE.SIG$log2FoldChange >= 1,]
+
+res.DGE.SIG.DOWN <- res.DGE.SIG[res.DGE.SIG$log2FoldChange <= -1,]
+
+res.DGE.SIG.TOP <- rbind(head(res.DGE.SIG.UP, n=20),tail(res.DGE.SIG.DOWN, n=20))
+
+
+# Dibujamos la tabla con los valores de DEGs
+datatable(
+  res.DGE.SIG.TOP,
+  rownames = FALSE,
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10
+))
+
+```
+
+
+<br>
+
+**MA-Plot del Análisis de Expresión Génica Diferencial**
+
+El gráfico MA es una representación visual utilizada para explorar los resultados del análisis de expresión diferencial. En este tipo de gráfico, cada punto representa un gen, donde:
+
+ - Eje X (A): Promedio de la expresión (log-transformed) entre las condiciones comparadas.
+
+ - Eje Y (M): Cambio en la expresión (log₂ fold change) entre las condiciones.
+
+Este gráfico permite identificar genes con cambios significativos en su expresión, que aparecen como puntos desviados del centro (log₂FC ≠ 0), mientras que los genes no regulados se agrupan alrededor del eje horizontal.
+
+
+```{r DGE_MA-Plot, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=6, fig.height=6, fig.align='center'}
+
+DGE_map <- DESeq2::plotMA(res, alpha = 0.1, ylim = c(-5, 5),
+                 colNonSig = "lightgrey", colSig = "blue")
+
+
+# Guardar en archivo
+out_file <- file.path(out_dir, "DGE_map.jpeg")
+# Abrir dispositivo gráfico
+jpeg(out_file, width = 800, height = 800, res = 150)
+# Dibujar el Heatmap
+DESeq2::plotMA(res, alpha = 0.1, ylim=c(-5,5), colNonSig = "lightgrey", colSig = "blue")
+# Cerrar el dispositivo gráfico
+dev.off()
+
+```
+
+<br>
+
+**Volcano Plot del Análisis de Expresión Génica Diferencial**
+
+El volcano plot es un gráfico de dispersión que permite visualizar simultáneamente la magnitud del cambio en la expresión génica y su significancia estadística. En este gráfico:
+
+ - Eje X: Representa el cambio en la expresión génica, expresado como log₂ fold change (log₂FC).
+
+ - Eje Y: Representa la significancia estadística, generalmente como el –log₁₀ del p-valor ajustado (padj).
+
+Este tipo de visualización permite identificar rápidamente genes diferencialmente expresados que presentan cambios relevantes en su expresión y que además son estadísticamente significativos.
+
+Los genes que cumplen con los umbrales de significancia se destacan con colores específicos para facilitar su interpretación.
+
+<br>
+
+```{r DGE_VolcanoPlot, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=8, fig.align='center'}
+
+# EXTRAEMOS LOS NOMBRES DE LOS 10 GENES MAS SIGNIFICATIVOS CON FC < -1 Y FC > 1
+
+# 5 genes más significativos (p-valor más bajo) con log2FC > 0
+up.genes <- res.DGE[res.DGE$log2FoldChange > 0, ]
+up.genes <- up.genes[order(up.genes$pvalue), ]
+up.genes <- head(up.genes$symbol, 5)
+
+# 5 genes más significativos (p-valor más bajo) con log2FC < 0
+down.genes <- res.DGE[res.DGE$log2FoldChange < 0, ]
+down.genes <- down.genes[order(down.genes$pvalue), ]
+down.genes <- head(down.genes$symbol, 5)
+
+# Combinar ambos grupos
+DGE.Selected <- c(up.genes, down.genes)
+
+# ESTABLECEMOS EL COLOR DE LOS PUNTOS DE FONDO DE COLOR NEGRO
+keyvals <- rep('#9c9898', nrow(res.DGE))
+
+# ESTABLECEMOS EL NOMBRE PARA LOS GENES NS "NO SIGNIFICATIVOS"
+names(keyvals) <- rep('NS', nrow(res.DGE))
+
+# ESTABLECEMOS EL COLOR ROJO PARA LOS GENES CON UN FC > 1.5
+keyvals[which(res.DGE$log2FoldChange > 1 & res.DGE$pvalue < 0.05)] <- '#ff0000'
+names(keyvals)[which(res.DGE$log2FoldChange > 1 & res.DGE$pvalue < 0.05)] <- 'UP'
+
+# ESTABLECEMOS EL COLOR AZUL PARA LOS GENES CON UN FC < -1.5
+keyvals[which(res.DGE$log2FoldChange < -1 & res.DGE$pvalue < 0.05)] <- '#0b02fa'
+names(keyvals)[which(res.DGE$log2FoldChange < -1 & res.DGE$pvalue < 0.05)] <- 'DOWN'
+
+# Extraer los grupos únicos usados en la comparación
+groups_used <- levels(droplevels(metadata[[design_var]]))
+
+# Crear subtítulo
+subtitle_text <- paste(groups_used[1], "vs", groups_used[2])
+
+# DIBUJAMOS EL VOLCANO PLOT
+DGE_VP <- EnhancedVolcano(res.DGE,
+                          lab = res.DGE$symbol,
+                          x = 'log2FoldChange',
+                          y = 'pvalue',
+                          selectLab = DGE.Selected,
+                          xlab = bquote(~Log[2]~ 'fold change'),
+                          ylab = bquote(~-Log[10]~italic(P)),
+                          title = 'Differential Gene Expression Analysis',
+                          subtitle = subtitle_text,
+                          caption = paste("Genes UP = ", nrow(subset(res.DGE,
+                                                                     subset=(log2FoldChange > 1 & pvalue < 0.05))),
+                                          "| Genes DOWN = ", nrow(subset(res.DGE,
+                                                                         subset=(log2FoldChange < -1 & pvalue < 0.05)))),
+                          pCutoff = 0.05,
+                          FCcutoff = 1,
+                          cutoffLineType = 'longdash',
+                          cutoffLineCol = 'black',
+                          cutoffLineWidth = 0.5,
+                          pointSize = c(ifelse(abs(res.DGE$log2FoldChange) > 1 &
+                                                 res.DGE$pvalue < 0.05, 2.5, 1)),
+                          labSize = 4.0,
+                          labCol = 'black',
+                          labFace = 'plain',
+                          boxedLabels = FALSE,
+                          colCustom = keyvals,
+                          colAlpha = 1,
+                          legend=c("NS", "Log2 FC", "padj", "padj & Log2 FC"),
+                          legendLabels = c('NS', expression(Log[2]~FC),
+                                           "padj", expression(padj~and~Log[2]~FC)),
+                          legendPosition = 'right',
+                          legendLabSize = 12,
+                          legendIconSize = 6,
+                          gridlines.major = FALSE,
+                          gridlines.minor = FALSE,
+                          border = 'full',
+                          borderWidth = 1,
+                          borderColour = 'black',
+                          drawConnectors = TRUE,
+                          widthConnectors = 1.0,
+                          colConnectors = 'black')
+
+
+# Guardar en archivo
+out_file <- file.path(out_dir, "DGE_VP.jpeg")
+ggsave(out_file, DGE_VP, width = 8, height = 8, dpi = 300)
+
+print(DGE_VP)
+
+```
+
+<br>
+
+**Mapa de calor de la expresión génica diferencial**
+
+El heatmap (mapa de calor) es una herramienta de visualización que representa los niveles de expresión génica mediante una escala de colores. En este gráfico, cada fila corresponde a un gen y cada columna a una muestra. La intensidad del color indica el nivel relativo de expresión de cada gen en cada condición.
+
+Este tipo de visualización permite identificar fácilmente patrones de expresión, agrupamientos entre genes o entre muestras, y posibles firmas transcriptómicas asociadas a los grupos experimentales. Los genes seleccionados para este mapa son aquellos diferencialmente expresados de forma significativa.
+
+<br>
+
+```{r DGE_Big_HeatMap, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=8, fig.align='center'}
+
+# selecciono de la matriz de contajes solo los genes DEG significativos
+mydat <- as.matrix(subset(cts, rownames(cts) %in%  rownames(res.DGE.SIG)))
+
+# ESCALAMOS SOLO LOS DATOS DE LAS FILAS APLICANDO LA FUNCION
+z.mydat <- apply(mydat, MARGIN = 1, FUN = scale )
+
+# TRANSPONEMOS LA MATRIZ RESULTANTE
+z.mydat <- t(z.mydat)
+
+# ELIMINAMOS TODOS LOS DATOS NULOS
+z.mydat <- na.omit(z.mydat)
+
+# AÑADIMOS LOS NOMBRES DE LOS GENES A LAS FILAS
+colnames(z.mydat)<-colnames(mydat)
+
+# Crear anotación de columnas
+col_ha <- HeatmapAnnotation(Condition = metadata[[design_var]])
+
+# Creamos el Heatmap
+DGE_bhm <- Heatmap(matrix = z.mydat,
+                   name = "z-score",
+                   row_names_gp = gpar(fontsize = 1),
+                   show_row_names = FALSE,
+                   column_names_gp = gpar(fontsize = 10),
+                   show_column_names = TRUE,
+                   clustering_distance_columns = "euclidean",
+                   clustering_distance_rows = "euclidean",
+                   clustering_method_columns = "average",
+                   clustering_method_rows = "average",
+                   row_split = 2,
+                   column_split = metadata[[design_var]],
+                   row_title = "Cluster %s")
+
+# Guardar en archivo JPEG (aquí NO usar ggsave)
+out_file <- file.path(out_dir, "DGE_Big_hm.jpeg")
+jpeg(out_file, width = 2000, height = 2000, res = 300)  # abres dispositivo
+draw(DGE_bhm)                                            # dibujas el heatmap
+dev.off()                                               # cierras dispositivo
+
+# Mostrar en el documento
+DGE_bhm
+
+```
+
+<br>
+
+En este mapa se muestra el detalle de los genes mas expresados diferencialmente.
+
+<br>
+
+```{r DGE_Small_HeatMap, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=8, fig.align='center'}
+
+# Convertimos rownames a caracteres
+rownames(cts) <- as.character(rownames(cts))
+
+# Limpiamos IDs para evitar NA o duplicados
+entrez_ids <- unique(na.omit(as.character(res.DGE.SIG.TOP$entrez)))
+
+# Confirmamos que todos estén en cts
+entrez_ids <- entrez_ids[entrez_ids %in% rownames(cts)]
+
+# Extraemos filas de forma segura
+mydat <- cts[entrez_ids, , drop=FALSE]
+
+# Comprobamos que la extracción tenga filas
+if(nrow(mydat) == 0) stop("Error: No rows selected in mydat, revisar entrez_ids y rownames(cts)")
+
+# Convertimos a matriz
+mydat <- as.matrix(mydat)
+
+# Obtenemos símbolos para las filas, si disponibles
+symbols <- res.DGE.SIG.TOP$symbol[match(entrez_ids, res.DGE.SIG.TOP$entrez)]
+symbols[is.na(symbols)] <- entrez_ids[is.na(symbols)] # fallback a IDs
+
+rownames(mydat) <- symbols
+
+# Escalamos filas y transponemos
+z.mydat <- t(apply(mydat, 1, scale))
+z.mydat <- na.omit(z.mydat)
+
+# Ajustamos nombres columnas
+colnames(z.mydat) <- colnames(mydat)
+
+# Anotación
+col_ha <- HeatmapAnnotation(Condition = metadata[[design_var]])   # ¡OJO MODIFICAR SEGÚN LO QUE INTERESE
+
+# Heatmap
+DGE_shm <- Heatmap(matrix = z.mydat,
+                     name = "z-score",
+                     row_names_gp = gpar(fontsize = 10),
+                     show_row_names = TRUE,
+                     column_names_gp = gpar(fontsize = 15),
+                     show_column_names = TRUE,
+                     clustering_distance_columns = "euclidean",
+                     clustering_distance_rows = "euclidean",
+                     clustering_method_columns = "average",
+                     clustering_method_rows = "average",
+                     row_split = 2,
+                     column_split = metadata[[design_var]],  # ¡OJO MODIFICAR SEGÚN LO QUE INTERESE
+                     row_title = "Cluster %s"
+                    )
+
+# Guardar en archivo JPEG (aquí NO usar ggsave)
+out_file <- file.path(out_dir, "DGE_Small_hm.jpeg")
+jpeg(out_file, width = 2000, height = 2000, res = 300)  # abres dispositivo
+draw(DGE_shm)                                            # dibujas el heatmap
+dev.off()                                               # cierras dispositivo
+
+# Mostrar en el documento
+DGE_shm
+
+```
+
+<br>
+
+**Diagrama de Venn de la Expresión Génica Diferencial**
+
+Un diagrama de Venn es una representación gráfica que muestra las relaciones lógicas entre diferentes conjuntos de datos. Se utiliza comúnmente para ilustrar las intersecciones y elementos únicos entre listas de genes o condiciones experimentales.
+
+```{r DGE_Venn_Diagram, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=7, fig.height=7, fig.align='center'}
+
+res.VD.UP <- as.vector(rownames(res.DGE.SIG.UP))
+res.VD.DOWN <- as.vector(rownames(res.DGE.SIG.DOWN))
+res.VD.ALL <- as.vector(rownames(res))
+
+# OBTENEMOS TODAS LAS LISTAS DE GENES COMPLETAS
+res.VD.UP.COMM <- setdiff(res.VD.ALL, res.VD.DOWN)
+res.VD.DOWN.COMM <- setdiff(res.VD.ALL, res.VD.UP)
+
+x <- list(UP = res.VD.UP.COMM, DOWN = res.VD.DOWN.COMM)
+
+DGE_vp <- ggvenn(x,
+                  fill_color = c("#FF0000", "#0080FF"),
+                  stroke_size = 0.5,
+                  set_name_size = 6)
+
+# Guardar en archivo
+out_file <- file.path(out_dir, "DGE_vp.jpeg")
+ggsave(out_file, DGE_vp, width = 7, height = 7, dpi = 300)
+
+# Mostrar en el documento
+DGE_vp
+
+```
+
+## Enriquecimiento (GO)
+
+La Ontología de Genes (Gene Ontology, GO) define conceptos o clases que se utilizan para describir la función de los genes y las relaciones entre estos conceptos. Clasifica las funciones en tres aspectos principales: proceso biológico (BP, biological process: rutas y procesos amplios compuestos por las actividades de múltiples productos génicos), función molecular (MF, molecular function: actividades moleculares de los productos génicos) y componente celular (CC, cellular component: ubicación donde los productos génicos están activos).
+
+<br>
+Términos GO sobre Procesos biológicos
+
+```{r GO_bf_DotPlot, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=8, fig.align='center'}
+
+# Creamos la lista de genes
+geneList <- res.DGE.SIG$log2FoldChange
+
+# AÑADIMOS NOMBRES A LAS FILAS DEL VECTOR NUMERICO
+names(geneList) = as.character(res.DGE.SIG$symbol)
+geneList<-na.omit(geneList)
+
+gse_bp <- gseGO(geneList=geneList,
+            ont ="BP",
+            keyType = "SYMBOL",
+            #nPerm = 10000,
+            minGSSize = 3,
+            maxGSSize = 800,
+            pvalueCutoff = 0.05,
+            verbose = TRUE,
+            OrgDb = org_db,
+            pAdjustMethod = "none")
+
+#require(DOSE)
+
+# Convertir los resultados a un data.frame
+gse_bp_results <- as.data.frame(gse_bp)
+
+
+# Comprobar si hay resultados
+if (nrow(gse_bp_results) == 0) {
+  
+  mensaje <- message("No se obtuvieron términos enriquecidos en BP con los parámetros actuales")
+ 
+} else {
+ 
+  # Crear head+tail
+  gse_bp_subset <- rbind(head(gse_bp_results, 10), tail(gse_bp_results, 10))
+  gse_bp_subset <- gse_bp_subset[, c("ID","Description","setSize","NES","p.adjust","core_enrichment")]
+  gse_bp_subset$ID <- trimws(as.character(gse_bp_subset$ID))
+  gse_bp_subset$ID <- stringr::word(gse_bp_subset$ID, 1)
+  rownames(gse_bp_subset) <- NULL
+
+  datatable(
+  gse_bp_subset,
+  rownames = FALSE,
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10
+  ))
+  
+  p <- dotplotGsea(data = gse_bp, topn = 10, order.by = 'NES')$plot +
+  ggtitle("Biological Process (BP)")
+
+  # Lo imprimimos para mostrarlo en HTML
+  print(p)  
+  
+  ggsave(filename=file.path(out_dir,"GO_bp_dp.jpeg"), plot=p, width=8, height=8, dpi=100)
+  
+}
+
+```
+
+<br>
+
+GSEA Plots
+
+<br>
+
+```{r DGE_GSEA_Plots, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=10, fig.height=7, fig.align='center'}
+
+# Extraemos los  5 gse con valor NES positivo y 5 con valor negativo
+selected_gses <- rbind(head(gse_bp_results, 5), tail(gse_bp_results, 5))
+
+# Bucle para generar los gráficos
+for (i in seq_len(nrow(selected_gses))) {
+  
+  this_id <- selected_gses$ID[i]
+  this_desc <- selected_gses$Description[i]
+  
+  # Crear el gráfico
+  p <- gseaplot2(
+    gse_bp,
+    geneSetID = this_id,
+    title = this_desc,
+    base_size = 20,
+    pvalue_table = TRUE
+  )                                   
+  
+  # Crear un ID "seguro" para usar en el nombre del archivo
+  safe_id <- gsub("[:]", "_", this_id)
+  
+  # Definir nombre de salida
+  out_file <- file.path(out_dir, paste0("GSEA_", safe_id, ".jpeg"))
+  
+  # Guardar en archivo
+  ggsave(out_file, plot = p, width = 10, height = 6.5, dpi = 300)
+  
+  print(p)
+  
+  cat("\n\n\n")
+}
+
+```
+
+<br>
+
+Términos GO sobre Funciones moleculares
+
+<br>
+
+```{r GO_mf_DotPlot, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=8, fig.align='center'}
+
+# `res.DGE.SIG` debe tener al menos columnas con "entrez" y "logFC"
+geneList2 <- res.DGE.SIG$log2FoldChange
+names(geneList2) <- res.DGE.SIG$entrez
+geneList2 <- sort(geneList, decreasing = TRUE)
+
+gse_mf <- gseGO(geneList=geneList2,
+            ont ="MF",
+            keyType = "SYMBOL",
+            #nPerm = 10000,
+            minGSSize = 3,
+            maxGSSize = 800,
+            pvalueCutoff = 0.05,
+            verbose = TRUE,
+            OrgDb = org_db,
+            pAdjustMethod = "none")
+
+# Convertir los resultados a un data.frame
+gse_mf_results <- as.data.frame(gse_mf)
+
+# Comprobar si hay resultados
+if (nrow(gse_mf_results) == 0) {
+  
+  mensaje <- message("No se obtuvieron términos enriquecidos en MF con los parámetros actuales")
+ 
+} else {
+
+  # Crear head+tail
+  gse_mf_subset <- rbind(head(gse_mf_results, 10), tail(gse_mf_results, 10))
+  gse_mf_subset <- gse_mf_subset[, c("ID","Description","setSize","NES","p.adjust","core_enrichment")]
+  gse_mf_subset$ID <- trimws(as.character(gse_mf_subset$ID))
+  gse_mf_subset$ID <- stringr::word(gse_mf_subset$ID, 1)
+  rownames(gse_mf_subset) <- NULL
+
+
+  datatable(
+  gse_mf_subset,
+  rownames = FALSE,
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10
+  ))
+  
+  p <- dotplotGsea(data = gse_mf, topn = 10, order.by = 'NES')$plot +
+  ggtitle("Molecular Function (MF)")
+
+  # Lo imprimimos para mostrarlo en HTML
+  print(p)  
+  
+  ggsave(filename=file.path(out_dir,"GO_mf_dp.jpeg"), plot=p, width=8, height=8, dpi=100)
+  
+}
+
+```
+
+<br>
+
+Términos GO sobre Componentes celulares
+
+<br>
+
+```{r GO_cc_DotPlot, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=8, fig.height=8, fig.align='center'}
+
+gse_cc <- gseGO(geneList=geneList,
+            ont ="CC",
+            keyType = "SYMBOL",
+            #nPerm = 10000,
+            minGSSize = 3,
+            maxGSSize = 800,
+            pvalueCutoff = 0.05,
+            verbose = TRUE,
+            OrgDb = org_db,
+            pAdjustMethod = "none")
+
+# Convertir los resultados a un data.frame
+gse_cc_results <- as.data.frame(gse_cc)
+
+# Comprobar si hay resultados
+if (nrow(gse_cc_results) == 0) {
+  
+  mensaje <- message("No se obtuvieron términos enriquecidos en MF con los parámetros actuales")
+ 
+} else {
+
+  # Crear head+tail
+  gse_cc_subset <- rbind(head(gse_cc_results, 10), tail(gse_cc_results, 10))
+  gse_cc_subset <- gse_cc_subset[, c("ID","Description","setSize","NES","p.adjust","core_enrichment")]
+  gse_cc_subset$ID <- trimws(as.character(gse_cc_subset$ID))
+  gse_cc_subset$ID <- stringr::word(gse_cc_subset$ID, 1)
+  rownames(gse_cc_subset) <- NULL
+
+  # Creamos la tabla
+  datatable(
+  gse_cc_subset,
+  rownames = FALSE,
+  options = list(
+    scrollX = TRUE,
+    pageLength = 10
+  ))
+  
+  p <- dotplotGsea(data = gse_cc, topn = 10, order.by = 'NES')$plot +
+  ggtitle("Celular Component (CC)")
+
+  # Lo imprimimos para mostrarlo en HTML
+  print(p)  
+  
+  ggsave(filename=file.path(out_dir,"GO_cc_dp.jpeg"), plot=p, width=8, height=8, dpi=100)
+  
+}
+
+```
+
+<br>
+
+**Red de genes y conceptos biológicos**
+
+Este gráfico muestra en forma de red cómo se relacionan los genes con funciones biológicas concretas (como términos de GO o rutas de KEGG). Permite visualizar de manera clara qué genes están asociados a cada proceso o categoría funcional.
+
+```{r load_CenPlot, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.width=9, fig.height=9, fig.align='center'}
+
+geneList2 <- res.DGE.SIG$log2FoldChange
+names(geneList2) <- res.DGE.SIG$entrez
+geneList2 <- sort(geneList2, decreasing = TRUE)
+
+# Enriquecimiento GO
+edo <- enrichGO(gene = names(geneList2),
+               OrgDb = org_db,
+               keyType = "ENTREZID",
+               ont = "BP",
+               pAdjustMethod = "BH",
+               qvalueCutoff = 0.05)
+
+# Convertir a símbolos
+edo_symbol <- setReadable(edo, OrgDb = org_db, keyType = "ENTREZID")
+
+# Convertir los resultados a un data.frame
+edo_results <- as.data.frame(edo)
+
+# Comprobar si hay resultados
+if (nrow(edo_results) == 0) {
+  
+  mensaje <- message("No se obtuvieron términos enriquecidos en MF con los parámetros actuales")
+  
+} else {
+
+  # Crear gráfico tipo red con fallback por cambios entre versiones de enrichplot/ggtangle
+  p <- tryCatch(
+    {
+      cnetplot(edo_symbol, categorySize = "pvalue", foldChange = geneList2)
+    },
+    error = function(e1) {
+      message("cnetplot con categorySize='pvalue' falló, se reintenta con 'geneNum'. Detalle: ", conditionMessage(e1))
+      tryCatch(
+        {
+          cnetplot(edo_symbol, categorySize = "geneNum", foldChange = geneList2)
+        },
+        error = function(e2) {
+          message("No se pudo generar cnetplot: ", conditionMessage(e2))
+          NULL
+        }
+      )
+    }
+  )
+
+  if (!is.null(p)) {
+    # Guardamos el gráfico
+    ggsave(filename=file.path(out_dir,"GO_bp_dp.jpeg"), plot=p, width=10, height=10, dpi=100)
+    
+    print(p)
+  }
+  
+}
+
+```
+
+**Análisis de enriquecimiento de genes en rutas KEGG**
+
+KEGG es una base de datos que ayuda a interpretar cómo funcionan los sistemas biológicos (como células u organismos) a partir de datos moleculares. Este análisis identifica qué rutas biológicas están enriquecidas con los genes diferencialmente expresados.
+
+```{r Pathways_KEGG_Plots, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+
+# Preparamos los genes
+genes <- res.DGE.SIG$entrez
+genes <- na.omit(genes)
+
+kg <- tryCatch(
+  {
+    enrichKEGG(
+      gene         = genes,
+      organism     = org_kegg,
+      pvalueCutoff = 0.05
+    )
+  },
+  error = function(e) {
+    message(sprintf("KEGG enrichment unavailable: %s", e$message))
+    NULL
+  }
+)
+
+kg <- if (is.null(kg)) data.frame() else as.data.frame(kg)
+old_wd <- getwd()
+
+# Comprobar si hay resultados
+if (nrow(kg) == 0) {
+  
+  message("No se obtuvieron términos enriquecidos en KEGG con los parámetros actuales")
+  
+} else {
+  
+  kg <- kg[order(kg$FoldEnrichment, decreasing = TRUE), ]
+  
+  geneList3 <- as.data.frame(res.DGE.SIG[,c(2, 8)])
+  geneList3 <- na.omit(geneList3)
+  geneList3 <- geneList3[order(geneList3$log2FoldChange, decreasing = TRUE), ]
+  geneList4 <- geneList3[,1]
+  names(geneList4) <- geneList3[,2]
+  
+  setwd(out_dir)
+  
+  # Bucle principal
+  for (i in 1:nrow(kg)) {
+    pathway_id <- kg$ID[i]
+    out_suffix <- paste0("pathway_", i)  
+    gene_limit <- suppressWarnings(max(abs(geneList4), na.rm = TRUE))
+    
+    if (is.finite(gene_limit) && gene_limit > 0) {
+      tryCatch({
+        pathview(
+          gene.data   = geneList4,
+          pathway.id  = pathway_id,
+          species     = org_kegg,
+          res         = 1000,
+          limit       = list(gene = gene_limit, cpd = 1),
+          kegg.dir    = out_dir
+        )
+        
+      }, error = function(e) {
+        message(sprintf("Error en pathway %s (%s): %s", pathway_id, out_suffix, e$message))
+      })
+    } else {
+      message(sprintf("Saltado pathway %s (%s): geneList3 vacío o no mapeado", pathway_id, out_suffix))
+    }
+  }
+}
+
+# all png/xml files
+all_kg_files <- list.files(out_dir, pattern = "\\.(png|xml)$", full.names = TRUE, ignore.case = TRUE)
+
+# keep pathview images
+keep_files <- grepl("\\.pathview\\.png$", all_kg_files, ignore.case = TRUE)
+to_delete <- all_kg_files[!keep_files]
+
+if (length(to_delete) == 0) {
+  message("No auxiliary files to delete.")
+} else {
+  # uncomment to actually delete:
+  invisible(file.remove(to_delete))
+}
+
+# Listar todos los .pathview.png en la carpeta "output"
+files <- list.files(
+  path = out_dir,
+  pattern = "\\.pathview\\.png$",
+  full.names = TRUE
+)
+
+# Obtener info de los archivos
+info <- file.info(files)
+
+# Seleccionar los que tengan tamaño 0 bytes
+empty_files <- rownames(info[info$size == 0, ])
+
+try(invisible(dev.off()), silent = TRUE)
+
+# Eliminar solo los vacíos
+if (length(empty_files) > 0) {
+  invisible(file.remove(empty_files))
+}
+
+setwd(old_wd)
+
+if (nrow(kg) > 0) {
+  img_files <- list.files(out_dir, pattern = "\\.pathview\\.png$", full.names = TRUE)
+  img_files_filtered <- img_files[file.size(img_files) > 10240]
+  
+  output_md <- vapply(img_files_filtered, function(f) {
+    # Construir ruta relativa respecto al HTML
+    rel_path <- file.path(out_dir, basename(f))
+    paste0("![](", rel_path, "){width=100%}\n")
+  }, character(1))
+  
+  # Retornar explícitamente el bloque Markdown
+  cat(paste(output_md, collapse = "\n\n"), "\n\n")
+}
+
+```
+
+```{r save_excel_Results, echo=FALSE, results='asis', warning=FALSE, message=FALSE}
+
+# Crear un nuevo workbook
+wb <- createWorkbook()
+
+# Agregar cada dataframe como una hoja
+addWorksheet(wb, "DEG_UP")
+writeData(wb, "DEG_UP", res.DGE.SIG.UP)
+
+addWorksheet(wb, "DEG_DOWN")
+writeData(wb, "DEG_DOWN", res.DGE.SIG.DOWN)
+
+addWorksheet(wb, "GO_BP")
+writeData(wb, "GO_BP", gse_bp_results)
+
+addWorksheet(wb, "GO_MF")
+writeData(wb, "GO_MF", gse_mf_results)
+
+addWorksheet(wb, "GO_CC")
+writeData(wb, "GO_CC", gse_cc_results)
+
+addWorksheet(wb, "KEGG")
+writeData(wb, "KEGG", kg)
+
+# Guardar el Excel en el directorio de salida
+saveWorkbook(wb, file.path(out_dir,paste0(designID, ".xlsx")), overwrite = TRUE)
+
+```
+
+<br>
+
+## Paquetes de R utilizados
+
+A continuación, se muestra una tabla con los paquetes de R empleados en este análisis, junto con sus respectivas versiones.
+
+```{r Package_Info, echo=FALSE, message=FALSE, warning=FALSE}
+
+sessionInfo()
+
+```
+
+```{r Create_Summary, include=FALSE}
+
+# --- 1. get the data ---
+
+# Extraer variables
+condition <- get_variable(metadata, "condition")
+treatment <- get_variable(metadata, "treatment")
+cell      <- get_variable(metadata, "cell")
+gender    <- get_variable(metadata, "gender")
+genotype  <- get_variable(metadata, "genotype")
+organism <- get_variable(metadata, "organism")
+molecule <- get_variable(metadata, "molecule")
+
+top_up <- head(res.DGE.SIG.UP, n=20)
+top_down <- tail(res.DGE.SIG.DOWN, n=20)
+n_genes_up <- nrow(res.DGE.SIG.UP)
+n_genes_down <- nrow(res.DGE.SIG.DOWN)
+n_total_genes <- (n_genes_up + n_genes_down)
+
+go_bp_up <- data.frame()
+go_bp_down <- data.frame()
+go_mf_up <- data.frame()
+go_mf_down <- data.frame()
+go_cc_up <- data.frame()
+go_cc_down <- data.frame()
+kegg_top <- data.frame()
+gsea_top <- data.frame()
+
+if (exists("gse_bp_subset")){
+  go_bp_up <- get_top_go_terms(gse_bp_subset, "up")
+  go_bp_down <- get_top_go_terms(gse_bp_subset, "down")
+}
+
+if (exists("gse_mf_subset")){
+  go_mf_up <- get_top_go_terms(gse_mf_subset, "up")
+  go_mf_down <- get_top_go_terms(gse_mf_subset, "down")
+}
+
+if (exists("gse_cc_subset")){
+  go_cc_up <- get_top_go_terms(gse_cc_subset, "up")
+  go_cc_down <- get_top_go_terms(gse_cc_subset, "down")
+}
+
+if (exists("kg") && is.data.frame(kg) && nrow(kg) > 0) {
+  kegg_top <- head(kg, 6)
+}
+
+if (exists("selected_gses") && is.data.frame(selected_gses) && nrow(selected_gses) > 0) {
+  gsea_top <- head(selected_gses, 6)
+}
+
+
+# --- 2. Compose full prompt text ---
+
+prompt_text <- glue(
+  "Prepare an AI-enriched RNA-seq report section in academic English.\n",
+  "Study context: assess effects of {treatment} on {molecule} function in {cell}s of {genotype} under {condition} in {organism}.\n",
+  "Differential expression summary: {n_total_genes} significant genes (padj < 0.05), with {n_genes_up} upregulated and {n_genes_down} downregulated.\n",
+  "Additional metadata: gender = {gender}; designID = {designID}.\n\n",
+  
+  "### Top 20 Upregulated Genes\n",
+  "{format_genes_list(top_up)}\n\n",
+  
+  "### Top 20 Downregulated Genes\n",
+  "{format_genes_list(top_down)}\n\n",
+  
+  "### GO Biological Processes Enriched in Upregulated Genes\n",
+  "{safe_format(go_bp_up)}\n\n",
+  
+  "### GO Biological Processes Enriched in Downregulated Genes\n",
+  "{safe_format(go_bp_down)}\n\n",
+  
+  "### GO Molecular Functions Enriched in Upregulated Genes\n",
+  "{safe_format(go_mf_up)}\n\n",
+  
+  "### GO Molecular Functions Enriched in Downregulated Genes\n",
+  "{safe_format(go_mf_down)}\n\n",
+  
+  "### GO Cellular Component Enriched in Upregulated Genes\n",
+  "{safe_format(go_cc_up)}\n\n",
+  
+  "### GO Cellular Component Enriched in Downregulated Genes\n",
+  "{safe_format(go_cc_down)}\n\n",
+
+  "### Representative GSEA Terms\n",
+  "{format_enrichment_table(gsea_top)}\n\n",
+
+  "### Representative KEGG Pathways\n",
+  "{format_enrichment_table(kegg_top)}\n\n",
+  
+  "### Writing instructions\n",
+  "- Start with heading '### Results'\n",
+  "- Then include these sections in order: '### Executive Summary', '### Quality Control and Sample Separation', '### Differential Expression Overview', '### Functional Enrichment', '### Integrated Biological Interpretation', '### Suggested Validation or Follow-up', and '### Limitations'\n",
+  "- Make report at least as informative as a conventional bioinformatics results section, not a short executive note.\n",
+  "- In '### Differential Expression Overview', explicitly summarize at least five top upregulated genes and five top downregulated genes using evidence from the provided ranked lists.\n",
+  "- In '### Functional Enrichment', explicitly separate findings for upregulated and downregulated programs, and cover GO biological process, GO molecular function, GO cellular component, plus GSEA/KEGG only when evidence is available.\n",
+  "- Mention pathway-level patterns and figure-supported observations when plots support them.\n",
+  "- Use *italics* for gene names\n",
+  "- Include concise numerical summaries (log2FC, padj, NES, q-values) in parentheses whenever evidence is available\n",
+  "- Use figures to comment on sample separation, clustering, DEG distribution, and pathway-level coherence when visual evidence supports it\n",
+  "- Distinguish clearly between strong findings and tentative hypotheses\n",
+  "- If evidence for a subsection is missing, say so briefly inside the relevant analytical section or summarize the uncertainty in '### Limitations'; do not let the whole report collapse into placeholders.\n",
+  "- For '### Functional Enrichment', summarize strongest GO/GSEA/KEGG signals separately for upregulated and downregulated programs when evidence exists.\n",
+  "- Prefer rich biological detail over brevity when evidence is available.\n",
+  "- Do not fabricate exact citations. Add a '### References' section only if you are highly confident in canonical background references directly relevant to the biology discussed; otherwise omit that section entirely.\n",
+  "- Never write 'Not enough evidence from provided data.' inside the References section. If references are uncertain, omit the entire References section.\n",
+  "Return clean Markdown ready to paste into a Word document or R Markdown report."
+)
+
+# --- 3. Format the prompt ---
+
+# Eliminamos saltos de linea
+prompt_text <- paste(prompt_text, collapse = "\n")
+
+# --- 4. ChatGPT conexion ---
+
+selected_ai_images <- select_openai_context_images(out_dir)
+if (length(selected_ai_images) > 0) {
+  message("Se enviarán a OpenAI ", length(selected_ai_images), " figuras: ", paste(basename(selected_ai_images), collapse = ", "))
+} else {
+  message("No se encontraron figuras válidas para enviar a OpenAI. Se usará solo contexto textual.")
+}
+
+respuesta <- tryCatch({
+  openai_ping(openai_api_key)
+  openai_chat(
+    prompt_text,
+    openai_api_key,
+    image_paths = selected_ai_images
+  )
+}, error = function(e) {
+  warning("No se pudo generar informe enriquecido con OpenAI. Se usará resumen local. Detalle: ", conditionMessage(e))
+  build_fallback_results_report(
+    treatment = treatment,
+    molecule = molecule,
+    cell = cell,
+    genotype = genotype,
+    condition = condition,
+    organism = organism,
+    n_total_genes = n_total_genes,
+    n_genes_up = n_genes_up,
+    n_genes_down = n_genes_down,
+    top_up_text = format_genes_list(top_up),
+    top_down_text = format_genes_list(top_down),
+    go_bp_up_text = safe_format(go_bp_up),
+    go_bp_down_text = safe_format(go_bp_down),
+    go_mf_up_text = safe_format(go_mf_up),
+    go_mf_down_text = safe_format(go_mf_down),
+    go_cc_up_text = safe_format(go_cc_up),
+    go_cc_down_text = safe_format(go_cc_down)
+  )
+})
+
+# --- 5. Save the response ---
+
+# Convertir \n en saltos de línea reales
+respuesta_clean <- gsub("\\n", "\n", respuesta)
+
+# Quitar la primera línea si empieza con '### Results'
+respuesta_clean <- gsub("^### Results\\n\\n", "", respuesta_clean)
+curated_references <- build_curated_reference_lines(treatment, molecule, cell)
+respuesta_clean <- normalize_extended_response(respuesta_clean, curated_references)
+
+# Crear archivo Rmd automáticamente
+
+reference_docx <- normalizePath(
+  file.path(base_dir, "r_scripts", "templates", "rna_seq_reference.docx"),
+  winslash = "/",
+  mustWork = FALSE
+)
+
+rmd_file <- file.path(out_dir, paste0(designID, ".Rmd"))
+report_subtitle <- paste(
+  subtitle_text,
+  organism,
+  molecule,
+  cell,
+  sep = " | "
+)
+report_subtitle_yaml <- gsub("'", "''", report_subtitle, fixed = TRUE)
+report_scope <- paste0(
+  "## Study Snapshot\n\n",
+  "- **Design ID:** `", designID, "`\n",
+  if (!is.null(params$report_entity_name) && nzchar(params$report_entity_name)) paste0("- **Entity:** ", params$report_entity_name, "\n") else "",
+  if (!is.null(params$report_author) && nzchar(params$report_author)) paste0("- **Project owner:** ", params$report_author, "\n") else "",
+  "- **Contrast:** ", subtitle_text, "\n",
+  "- **Organism:** ", organism, "\n",
+  "- **Molecule:** ", molecule, "\n",
+  "- **Cell context:** ", cell, "\n",
+  "- **Condition:** ", condition, "\n",
+  "- **Report mode:** Extended interpretation\n\n",
+  "\\newpage\n\n"
+)
+cat(
+    paste0(
+      "---\n",
+      "title: 'RNA-seq Extended Report'\n",
+      "subtitle: '", report_subtitle_yaml, "'\n",
+      "date: '", format(Sys.time(), "%Y-%m-%d %H:%M"), "'\n",
+      "toc: true\n",
+      "toc_depth: 3\n",
+      "number_sections: true\n",
+      "output:\n",
+      "  word_document:\n",
+      "    reference_docx: \"", reference_docx, "\"\n",
+      "---\n\n"
+    ),
+    report_scope,
+    respuesta_clean,
+    sep = "",
+    file = rmd_file
+)
+
+enhanced_results_html <- respuesta_clean
+
+docx_file <- file.path(out_dir, paste0(designID, ".docx"))
+
+# Renderizar a Word
+render(rmd_file, output_format = "word_document", output_file = docx_file)
+
+
+```
+
+## Interpretación Enriquecida
+
+```{r AI_Enriched_Summary, echo=FALSE, results='asis'}
+
+if (exists("enhanced_results_html") && nzchar(enhanced_results_html)) {
+  cat(enhanced_results_html)
+} else {
+  cat("No se pudo generar la interpretación enriquecida para esta ejecución.")
+}
+
+```
+
+```{r Save_Data, include=FALSE}
+
+# ================================
+# Save only existing objects for reproducibility
+# ================================
+
+# Lista completa de objetos que queremos guardar
+objs_to_save <- c("combinations_by_design",
+                  "combs",
+                  "cts",
+                  "cts2",
+                  "dds",
+                  "design",
+                  "design_groups",
+                  "edo",
+                  "edo_results",
+                  "edo_symbol",
+                  "genelist3",
+                  "gse_bp",
+                  "gse_bp_results",
+                  "gse_bp_subset",
+                  "info",
+                  "kegg_category",
+                  "kegg_dict",
+                  "kg",
+                  "lista_total_combinaciones",
+                  "metadata",
+                  "org_db_dict",
+                  "pca_res",
+                  "plots",
+                  "res",
+                  "res.DGE",
+                  "res.DGE.SIG",
+                  "res.DGE.SIG.DOWN",
+                  "res.DGE.SIG.TOP",
+                  "res.DGE.SIG.UP",
+                  "rld",
+                  "selected_gses",
+                  "vst_mat",
+                  "all_kg_files",
+                  "base_dir",
+                  "cells",
+                  "count_file",
+                  "design_levels",
+                  "design_var",
+                  "designID",
+                  "DGE_VP",
+                  "DGE.Selected",
+                  "down.genes",
+                  "empty_files",
+                  "excel_file",
+                  "files",
+                  "genders",
+                  "gene_id",
+                  "gene_limit",
+                  "gene_title",
+                  "geneList",
+                  "geneList2",
+                  "geneList4",
+                  "genes",
+                  "genotypes",
+                  "global_indices",
+                  "groups_used",
+                  "i",
+                  "idx",
+                  "img_files",
+                  "img_files_filtered",
+                  "keep_files",
+                  "keyvals",
+                  "n_filas",
+                  "n_plots",
+                  "old_wd",
+                  "org_db",
+                  "org_kegg",
+                  "organism",
+                  "out-dir",
+                  "out_file",
+                  "out_suffix",
+                  "output_md",
+                  "p",
+                  "pathway_id",
+                  "QC_PCA",
+                  "safe_id",
+                  "subtitle_text",
+                  "this_desc",
+                  "this_id",
+                  "to_delete",
+                  "treat",
+                  "treatments",
+                  "up.genes")
+
+# Filtramos solo los que existen
+objs_existing <- intersect(objs_to_save, ls())
+
+# Guardamos los objetos existentes
+save(list = objs_existing, file = file.path(out_dir, paste0(designID, ".RData")))
+
+```
+
+```{r Data_compress, include=FALSE}
+
+# Crear el path del archivo zip en la misma carpeta padre
+zipfile <- file.path(out_dir, paste0(designID, ".zip"))
+
+# Comprimir todos los archivos y subcarpetas
+zip::zipr(zipfile, files = list.files(out_dir, full.names = TRUE, recursive = TRUE))
+
+```
+
+## Tiempo de ejecución del análisis
+
+<br>
+
+```{r Elapsed_Time_Calc, echo=FALSE, message=FALSE, warning=FALSE}
+
+end_time <- Sys.time()
+duration <- end_time - start_time
+cat("⏱️ Tiempo total de ejecución del analisis:", round(duration, 2), "minutos\n")
+
+```

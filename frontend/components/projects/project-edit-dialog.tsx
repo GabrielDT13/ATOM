@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, useEffect, useState } from "react";
 
 import { useLocale } from "@/components/providers/locale-provider";
@@ -20,17 +21,34 @@ import {
 } from "@/components/projects/project-management-icons";
 import { ProjectAccessManager } from "@/components/projects/project-access-manager";
 import {
+  getAllowedVariantsForStudy,
+  normalizeVariantSelection,
+  PROJECT_STATE_OPTIONS,
+  RNA_SEQ_VARIANT_OPTIONS,
+  STUDY_OPTIONS,
+} from "@/components/projects/project-study-options";
+import {
   CreatableSelectField,
   type CreatableSelectOption,
 } from "@/components/ui/creatable-select-field";
 import { InfoTooltip } from "@/components/ui/info-tooltip";
-import type { EntityRecord, ProjectVisibility } from "@/types/api";
+import type {
+  EntityRecord,
+  ProjectAnalysisVariant,
+  ProjectLifecycleStatus,
+  ProjectStudyType,
+  ProjectVisibility,
+} from "@/types/api";
 import type { ProjectRecord } from "@/components/projects/project-management-utils";
 
 export type ProjectEditValues = {
   additionalFiles: File[];
+  enabledAnalysisVariants: ProjectAnalysisVariant[];
   entityName: string;
   name: string;
+  primaryAnalysisVariant: ProjectAnalysisVariant;
+  projectState: ProjectLifecycleStatus;
+  studyType: ProjectStudyType;
   templateFiles: File[];
   visibility: ProjectVisibility;
 };
@@ -145,6 +163,10 @@ export function ProjectEditDialog({
   const [name, setName] = useState("");
   const [entityName, setEntityName] = useState("");
   const [visibility, setVisibility] = useState<ProjectVisibility>("private");
+  const [studyType, setStudyType] = useState<ProjectStudyType>("rna-seq");
+  const [projectState, setProjectState] = useState<ProjectLifecycleStatus>("draft");
+  const [enabledAnalysisVariants, setEnabledAnalysisVariants] = useState<ProjectAnalysisVariant[]>(["basic", "enhanced"]);
+  const [primaryAnalysisVariant, setPrimaryAnalysisVariant] = useState<ProjectAnalysisVariant>("basic");
   const [templateFiles, setTemplateFiles] = useState<File[]>([]);
   const [additionalFiles, setAdditionalFiles] = useState<File[]>([]);
   const [confirmReplacementOpen, setConfirmReplacementOpen] = useState(false);
@@ -166,17 +188,50 @@ export function ProjectEditDialog({
     setName(project.name);
     setEntityName(project.entity_name ?? "");
     setVisibility(project.visibility);
+    setStudyType(project.study_type ?? "rna-seq");
+    setProjectState(project.project_state ?? "draft");
+    setEnabledAnalysisVariants(
+      project.enabled_analysis_variants?.length ? project.enabled_analysis_variants : ["basic", "enhanced"],
+    );
+    setPrimaryAnalysisVariant(project.primary_analysis_variant ?? "basic");
     setTemplateFiles([]);
     setAdditionalFiles([]);
     setConfirmReplacementOpen(false);
     setResultsReplacementConfirmed(false);
   }, [open, project]);
 
+  useEffect(() => {
+    const normalized = normalizeVariantSelection(
+      studyType,
+      enabledAnalysisVariants,
+      primaryAnalysisVariant,
+    );
+    if (
+      normalized.primaryVariant !== primaryAnalysisVariant
+      || normalized.enabledVariants.join("|") !== enabledAnalysisVariants.join("|")
+    ) {
+      setEnabledAnalysisVariants(normalized.enabledVariants);
+      setPrimaryAnalysisVariant(normalized.primaryVariant);
+    }
+  }, [enabledAnalysisVariants, primaryAnalysisVariant, studyType]);
+
+  function toggleVariant(variant: ProjectAnalysisVariant) {
+    setEnabledAnalysisVariants((current) => {
+      const exists = current.includes(variant);
+      const nextVariants = exists ? current.filter((item) => item !== variant) : [...current, variant];
+      return normalizeVariantSelection(studyType, nextVariants, primaryAnalysisVariant).enabledVariants;
+    });
+  }
+
   async function submitChanges() {
     await onSubmit({
       additionalFiles,
+      enabledAnalysisVariants,
       entityName: entityName.trim(),
       name: name.trim(),
+      primaryAnalysisVariant,
+      projectState,
+      studyType,
       templateFiles,
       visibility,
     });
@@ -225,6 +280,121 @@ export function ProjectEditDialog({
               options={entityOptions}
               value={entityName}
             />
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                  {t ? "Tipo de estudio" : "Study type"}
+                  <InfoTooltip
+                    content={t
+                      ? "Solo RNA-seq está disponible por ahora. Los demás quedan visibles para próximos flujos."
+                      : "Only RNA-seq is available for now. Others stay visible for upcoming workflows."}
+                  />
+                </span>
+              </div>
+              <div className="grid gap-4 lg:grid-cols-2">
+                {STUDY_OPTIONS.map((option) => {
+                  const selected = studyType === option.id;
+                  const disabled = !option.available;
+                  return (
+                    <button
+                      className={`overflow-hidden rounded-[28px] border text-left transition ${
+                        selected ? "border-primary bg-sky-50 shadow-sm shadow-sky-100" : "border-slate-200 bg-white"
+                      } ${disabled ? "opacity-70" : "hover:border-slate-300"}`}
+                      disabled={disabled}
+                      key={option.id}
+                      onClick={() => setStudyType(option.id)}
+                      type="button"
+                    >
+                      <div className="relative h-28 w-full bg-slate-100">
+                        <Image alt={option.label[locale]} className="object-cover" fill sizes="(min-width: 1024px) 50vw, 100vw" src={option.imagePath} />
+                      </div>
+                      <div className="p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-900">{option.label[locale]}</p>
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
+                            disabled ? "bg-slate-100 text-slate-500" : selected ? "bg-primary/10 text-primary" : "bg-emerald-100 text-emerald-700"
+                          }`}>
+                            {disabled ? (t ? "Próximamente" : "Soon") : selected ? (t ? "Seleccionado" : "Selected") : (t ? "Disponible" : "Available")}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-500">{option.description[locale]}</p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <label className="flex flex-col gap-2">
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                {t ? "Estado del proyecto" : "Project state"}
+                <InfoTooltip
+                  content={t
+                    ? "Puedes dejarlo en borrador mientras comparas variantes y activarlo cuando quede listo."
+                    : "You can keep it in draft while comparing variants and activate it when ready."}
+                />
+              </span>
+              <select
+                className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                onChange={(event) => setProjectState(event.target.value as ProjectLifecycleStatus)}
+                value={projectState}
+              >
+                {PROJECT_STATE_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label[locale]}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {studyType === "rna-seq" ? (
+              <div className="grid gap-6 rounded-[28px] border border-slate-200 bg-slate-50 p-5">
+                <div>
+                  <span className="inline-flex items-center gap-1 text-sm font-semibold text-slate-700">
+                    {t ? "Variantes RNA-seq" : "RNA-seq variants"}
+                    <InfoTooltip
+                      content={t
+                        ? "Las variantes marcadas estarán disponibles para ejecutar y comparar dentro del proyecto."
+                        : "Checked variants will be available to run and compare inside the project."}
+                    />
+                  </span>
+                </div>
+                <div className="grid gap-4">
+                  {RNA_SEQ_VARIANT_OPTIONS.filter((option) => getAllowedVariantsForStudy(studyType).includes(option.id)).map((option) => {
+                    const checked = enabledAnalysisVariants.includes(option.id);
+                    return (
+                      <label className={`flex items-start gap-4 rounded-3xl border bg-white px-4 py-4 transition ${checked ? "border-primary" : "border-slate-200"}`} key={option.id}>
+                        <input
+                          checked={checked}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                          onChange={() => toggleVariant(option.id)}
+                          type="checkbox"
+                        />
+                        <span className="flex-1">
+                          <span className="block text-sm font-semibold text-slate-900">{option.label[locale]}</span>
+                          <span className="mt-1 block text-sm leading-6 text-slate-500">{option.description[locale]}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <label className="flex flex-col gap-2">
+                  <span className="text-sm font-semibold text-slate-700">{t ? "Variante principal" : "Primary variant"}</span>
+                  <select
+                    className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                    onChange={(event) => setPrimaryAnalysisVariant(event.target.value as ProjectAnalysisVariant)}
+                    value={primaryAnalysisVariant}
+                  >
+                    {RNA_SEQ_VARIANT_OPTIONS.filter((option) => enabledAnalysisVariants.includes(option.id)).map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label[locale]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
 
             {canManageVisibility ? (
               <label className="flex flex-col gap-2">

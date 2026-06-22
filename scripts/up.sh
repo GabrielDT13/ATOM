@@ -36,7 +36,7 @@ case "$FRONTEND_MODE" in
     echo "Frontend levantado en http://localhost:${PORT}"
     ;;
   local)
-    docker compose --env-file "$ENV_FILE" up "${COMPOSE_UP_ARGS[@]}" atom-backend
+    docker compose --env-file "$ENV_FILE" up "${COMPOSE_UP_ARGS[@]}" atom-backend atom-worker
     echo "Frontend en modo local. Ejecuta ./scripts/frontend-local.sh en otra terminal."
     ;;
   *)

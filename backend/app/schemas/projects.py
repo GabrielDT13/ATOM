@@ -8,6 +8,10 @@ from pydantic import BaseModel, Field, field_validator
 ProjectMemberRole = Literal["editor", "owner", "viewer"]
 ProjectEditableMemberRole = Literal["editor", "viewer"]
 ProjectVisibility = Literal["private", "public"]
+ProjectAnalysisProfile = Literal["basic", "enhanced"]
+ProjectAnalysisVariant = Literal["basic", "enhanced", "python"]
+ProjectLifecycleStatus = Literal["active", "draft"]
+ProjectStudyType = Literal["atac-seq", "chip-seq", "rna-seq", "scrna-seq"]
 
 
 class ProjectFileResponse(BaseModel):
@@ -22,7 +26,9 @@ class ProjectSummaryResponse(BaseModel):
     access_role: ProjectMemberRole | None = None
     active_run: AnalysisRunResponse | None = None
     additional_files: list[str]
+    analysis_profile: ProjectAnalysisProfile | None = None
     created_at: str
+    enabled_analysis_variants: list[ProjectAnalysisVariant] | None = None
     entity_id: str | None = None
     entity_logo_url: str | None = None
     entity_name: str | None = None
@@ -33,8 +39,11 @@ class ProjectSummaryResponse(BaseModel):
     id: str | None = None
     owner: str
     name: str
+    primary_analysis_variant: ProjectAnalysisVariant | None = None
+    project_state: ProjectLifecycleStatus | None = None
     slug: str | None = None
     status: str
+    study_type: ProjectStudyType | None = None
     template_file: str | None
     updated_at: str
     visibility: ProjectVisibility = "private"

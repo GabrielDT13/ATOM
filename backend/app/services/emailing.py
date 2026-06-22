@@ -396,3 +396,26 @@ def send_notification_email(
         html_body=html,
         text_body=text,
     )
+
+
+def send_access_request_denied_email(
+    *,
+    full_name: str,
+    to_email: str,
+) -> bool:
+    html, text = build_email_contents(
+        title="Solicitud revisada",
+        preview="Hemos revisado tu solicitud de acceso a ATOM.",
+        intro=f"Hola {full_name}, hemos revisado tu solicitud de acceso a ATOM.",
+        paragraphs=[
+            "En este momento no podemos aprobar el alta solicitada.",
+            "Si necesitas más contexto o quieres volver a intentarlo más adelante, contacta con el equipo administrador.",
+        ],
+        footer="Este mensaje se ha generado automáticamente tras revisar tu solicitud.",
+    )
+    return send_email(
+        to_email=to_email,
+        subject="ATOM · Solicitud de acceso denegada",
+        html_body=html,
+        text_body=text,
+    )

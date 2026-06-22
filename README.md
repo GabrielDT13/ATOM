@@ -59,6 +59,19 @@ Variables nuevas para PostgreSQL directo:
 - `JWT_AUDIENCE`
 - `JWT_SECRET`
 
+Variables para enriquecer informes con OpenAI desde los `Rmd`:
+
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL`: por defecto `gpt-4o`
+- `OPENAI_CHAT_COMPLETIONS_URL`: por defecto `https://api.openai.com/v1/chat/completions`
+- `OPENAI_IMAGE_DETAIL`: `low`, `high` o `auto`
+- `OPENAI_TEMPERATURE`
+- `OPENAI_CONNECT_TIMEOUT_SECONDS`
+- `OPENAI_REQUEST_TIMEOUT_SECONDS`
+- `OPENAI_MAX_ANALYSIS_IMAGES`: limita cuántas figuras del análisis se envían al modelo
+- `OPENAI_MAX_ANALYSIS_IMAGE_BYTES`: descarta imágenes demasiado pesadas antes de adjuntarlas
+- `OPENAI_MAX_TOKENS`
+
 Overrides opcionales para tests o ejecuciones aisladas:
 
 - `ATOM_PROJECT_ROOT`

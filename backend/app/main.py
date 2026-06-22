@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from backend.app.api.routes.access_requests import router as access_requests_router
 from backend.app.api.routes.analysis import router as analysis_router
 from backend.app.api.routes.auth import router as auth_router
 from backend.app.api.routes.dashboard import router as dashboard_router
@@ -49,6 +50,7 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(auth_router)
+    app.include_router(access_requests_router)
     app.include_router(dashboard_router)
     app.include_router(navigation_router)
     app.include_router(notifications_router)

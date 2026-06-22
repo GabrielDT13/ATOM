@@ -133,6 +133,30 @@ def get_latest_active_analysis_run_for_project(project_id: str) -> dict[str, obj
     return _normalize_analysis_run(row)
 
 
+def get_latest_active_analysis_run_for_project_trigger(
+    project_id: str,
+    trigger_source: str,
+) -> dict[str, object] | None:
+    normalized_trigger_source = str(trigger_source or "").strip()
+    if not normalized_trigger_source:
+        return None
+
+    try:
+        row = fetch_one(
+            _fetch_analysis_run_query() + """
+            WHERE ar.project_id = %s
+              AND ar.trigger_source = %s
+              AND ar.status = ANY(%s)
+            ORDER BY ar.created_at DESC
+            LIMIT 1
+            """,
+            (project_id, normalized_trigger_source, list(ACTIVE_ANALYSIS_RUN_STATUSES)),
+        )
+    except UndefinedTable:
+        return None
+    return _normalize_analysis_run(row)
+
+
 def list_analysis_runs_for_project(project_id: str, limit: int = 20) -> list[dict[str, object]]:
     try:
         rows = fetch_all(
@@ -182,7 +206,7 @@ def create_or_reuse_analysis_run(
     requested_by_user_id: str,
     trigger_source: str = "manual",
 ) -> tuple[dict[str, object], bool]:
-    active_run = get_latest_active_analysis_run_for_project(project_id)
+    active_run = get_latest_active_analysis_run_for_project_trigger(project_id, trigger_source)
     if active_run:
         return active_run, False
 

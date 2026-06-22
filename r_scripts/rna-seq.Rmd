@@ -1,13 +1,16 @@
 ---
-title: >
-  ![](../assets/images/logo.png){width=3in} &emsp; Análisis de RNA-seq
-author: "Juan Vladimir de la Rosa Medina"
+title: "`r { atom_logo <- ''; if (!is.null(params$base_dir) && nzchar(params$base_dir)) { candidate <- file.path(params$base_dir, 'frontend', 'public', 'images', 'logo.png'); if (file.exists(candidate)) atom_logo <- normalizePath(candidate, winslash = '/', mustWork = FALSE) }; logo_chunks <- character(0); if (nzchar(atom_logo)) logo_chunks <- c(logo_chunks, paste0('![](', atom_logo, '){width=0.95in}')); if (!is.null(params$report_entity_logo_path) && nzchar(params$report_entity_logo_path) && file.exists(params$report_entity_logo_path)) logo_chunks <- c(logo_chunks, paste0('![](', normalizePath(params$report_entity_logo_path, winslash = '/', mustWork = FALSE), '){width=0.95in}')); paste(c(logo_chunks, 'Análisis de RNA-seq'), collapse = ' &emsp; ') }`"
+subtitle: "`r if (!is.null(params$report_entity_name) && nzchar(params$report_entity_name)) params$report_entity_name else ''`"
+author: "`r if (!is.null(params$report_author) && nzchar(params$report_author)) params$report_author else 'Juan Vladimir de la Rosa Medina'`"
 date: "`r Sys.Date()`"
 params:
   design_dir: NULL
   project_dir: NULL
   base_dir: NULL
   designID: NULL
+  report_author: NULL
+  report_entity_name: NULL
+  report_entity_logo_path: NULL
 output:
   html_document:
     self_contained: true
@@ -24,9 +27,8 @@ start_time <- Sys.time()
 
 library(readxl)       # Librería para leer archivos de excel
 library(DT)           # Librería para crear tablas formateadas
-library(org.Mm.eg.db) # Librería para cargar la base de datos de raton
-library(org.Hs.eg.db) # Librería para cargar la base de datos de humanos
 library(dplyr)        # Librería para la manipulacion de datos
+library(AnnotationDbi)
 library(DESeq2)       # Librería para el análisis de datos de RNA-seq
 library(ggplot2)      # Librería para visualización de datos
 library(gridExtra)    # Librería para combinar gráficos en un lienzo
@@ -85,10 +87,10 @@ excel_file <- file.path(project_dir, "template.xlsx")
 
 # Creamos un Diccionario con los organismos para consultas en la base de datos GO
 org_db_dict <- list(
-  "mouse" = org.Mm.eg.db,
-  "mus musculus" = org.Mm.eg.db,
-  "human" = org.Hs.eg.db,
-  "homo sapiens" = org.Hs.eg.db
+  "mouse" = "org.Mm.eg.db",
+  "mus musculus" = "org.Mm.eg.db",
+  "human" = "org.Hs.eg.db",
+  "homo sapiens" = "org.Hs.eg.db"
   # aquí puedes añadir más, ej. "rat" = org.Rn.eg.db
 )
 
@@ -102,8 +104,8 @@ kegg_dict <- list(
 )
 
 # establecemos las variables con el api key y la url de chatGPT
-openai_api_key <- "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"
-openai_url <- "https://api.openai.com/v1/chat/completions"
+openai_api_key <- trimws(Sys.getenv("OPENAI_API_KEY", ""))
+openai_url <- trimws(Sys.getenv("OPENAI_CHAT_COMPLETIONS_URL", "https://api.openai.com/v1/chat/completions"))
 
 # Función ping opcional para "calentar" la conexión ---
 openai_ping <- function(api_key) {
@@ -170,17 +172,7 @@ openai_chat <- function(prompt_text, api_key, model = "gpt-4o", temperature = 0.
   return(reply)
 }
 
-# Función auxiliar para extraer valores únicos y concatenarlos si hay varios
-get_variable <- function(df, column) {
-  vals <- unique(df[[column]])
-  if(length(vals) > 1) {
-    # Ordenar para consistencia y concatenar con 'versus'
-    vals <- sort(vals)
-    return(paste(vals, collapse = " versus "))
-  } else {
-    return(vals)
-  }
-}
+source(file.path(base_dir, "r_scripts", "lib", "rna_seq_shared_helpers.R"))
 
 # Format gene lists as comma separated strings with details
 format_genes_list <- function(df) {
@@ -188,35 +180,6 @@ format_genes_list <- function(df) {
     paste0(row["symbol"], " (log2FC = ", round(as.numeric(row["log2FoldChange"]), 2),
            ", padj = ", signif(as.numeric(row["padj"]), 3), ")")
   }) %>% paste(collapse = ", ")
-}
-
-# Funcion para tener los 20 terminos
-get_top_go_terms <- function(go_data, direction = c("up", "down")) {
-  direction <- match.arg(direction)
-  if(direction == "up") {
-    go_data %>% filter(NES > 0) %>% arrange(desc(NES)) %>% slice_head(n = 20)
-  } else {
-    go_data %>% filter(NES < 0) %>% arrange(NES) %>% slice_head(n = 20)
-  }
-}
-
-# Funcion para dar formato a los GO Terms
-format_go_terms <- function(go_df) {
-  paste0(
-    "- ", go_df$ID, ": ", go_df$Description,
-    " (NES = ", round(go_df$NES, 2),
-    ", q = ", signif(as.numeric(go_df$qvalue), 3),
-    ", genes = ", go_df$setSize, ")"
-  ) %>% paste(collapse = "\n")
-}
-
-# Funcion para verificar que existen los archivos de terminos GO 
-safe_format <- function(obj) {
-  if (exists(deparse(substitute(obj))) && nrow(obj) > 0) {
-    format_go_terms(obj)
-  } else {
-    "No enriched terms found"
-  }
 }
 
 ```
@@ -269,13 +232,13 @@ metadata <- metadata[, colSums(metadata != "" & !is.na(metadata)) > 0]
 organism <- tolower(as.character(unique(metadata$organism)))
 
 # Seleccionar la base de datos de anotaciones GO
-org_db <- org_db_dict[[organism]]
+org_db <- resolve_org_db(organism, org_db_dict)
 
 # Seleccionar la base de datos de Pathways KEGG
 org_kegg <- kegg_dict[[organism]]
 
 if (is.null(org_kegg)) {
-  stop(paste("Organismo", org_raw, "no encontrado en diccionario KEGG"))
+  stop(paste("Organismo", organism, "no encontrado en diccionario KEGG"))
 }
 
 ```
@@ -1573,18 +1536,27 @@ KEGG es una base de datos que ayuda a interpretar cómo funcionan los sistemas b
 genes <- res.DGE.SIG$entrez
 genes <- na.omit(genes)
 
-kg <- enrichKEGG(
-  gene         = genes,
-  organism     = org_kegg, #ifelse(tolower(unique(metadata$organism)) %in% c("human","homo sapiens"), "hsa", "mmu"), 
-  pvalueCutoff = 0.05
+kg <- tryCatch(
+  {
+    enrichKEGG(
+      gene         = genes,
+      organism     = org_kegg,
+      pvalueCutoff = 0.05
+    )
+  },
+  error = function(e) {
+    message(sprintf("KEGG enrichment unavailable: %s", e$message))
+    NULL
+  }
 )
 
-kg <- as.data.frame(kg)
+kg <- if (is.null(kg)) data.frame() else as.data.frame(kg)
+old_wd <- getwd()
 
 # Comprobar si hay resultados
 if (nrow(kg) == 0) {
   
-  mensaje <- message("No se obtuvieron términos enriquecidos en KEGG con los parámetros actuales")
+  message("No se obtuvieron términos enriquecidos en KEGG con los parámetros actuales")
   
 } else {
   
@@ -1596,7 +1568,6 @@ if (nrow(kg) == 0) {
   geneList4 <- geneList3[,1]
   names(geneList4) <- geneList3[,2]
   
-  old_wd <- getwd()
   setwd(out_dir)
   
   # Bucle principal
@@ -1652,7 +1623,7 @@ info <- file.info(files)
 # Seleccionar los que tengan tamaño 0 bytes
 empty_files <- rownames(info[info$size == 0, ])
 
-invisible(dev.off())
+try(invisible(dev.off()), silent = TRUE)
 
 # Eliminar solo los vacíos
 if (length(empty_files) > 0) {
@@ -1661,9 +1632,7 @@ if (length(empty_files) > 0) {
 
 setwd(old_wd)
 
-if (nrow(kg) == 0) {
-  mensaje
-} else {
+if (nrow(kg) > 0) {
   img_files <- list.files(out_dir, pattern = "\\.pathview\\.png$", full.names = TRUE)
   img_files_filtered <- img_files[file.size(img_files) > 10240]
   
@@ -1817,12 +1786,54 @@ respuesta_clean <- gsub("^### Results\\n\\n", "", respuesta_clean)
 
 # Crear archivo Rmd automáticamente
 
-rmd_file <- file.path(out_dir, paste0(designID, ".Rmd"))
-cat("---\ntitle: 'Results'\noutput: word_document\n---\n\n",
-    respuesta_clean,
-    file = rmd_file)
+reference_docx <- normalizePath(
+  file.path(base_dir, "r_scripts", "templates", "rna_seq_reference.docx"),
+  winslash = "/",
+  mustWork = FALSE
+)
 
-docx_file <- file.path(out_dir, paste(designID, ".docx"))
+rmd_file <- file.path(out_dir, paste0(designID, ".Rmd"))
+report_subtitle <- paste(
+  subtitle_text,
+  organism,
+  molecule,
+  cell,
+  sep = " | "
+)
+report_subtitle_yaml <- gsub("'", "''", report_subtitle, fixed = TRUE)
+report_scope <- paste0(
+  "## Study Snapshot\n\n",
+  "- **Design ID:** `", designID, "`\n",
+  if (!is.null(params$report_entity_name) && nzchar(params$report_entity_name)) paste0("- **Entity:** ", params$report_entity_name, "\n") else "",
+  if (!is.null(params$report_author) && nzchar(params$report_author)) paste0("- **Project owner:** ", params$report_author, "\n") else "",
+  "- **Contrast:** ", subtitle_text, "\n",
+  "- **Organism:** ", organism, "\n",
+  "- **Molecule:** ", molecule, "\n",
+  "- **Cell context:** ", cell, "\n",
+  "- **Condition:** ", condition, "\n\n",
+  "\\newpage\n\n"
+)
+cat(
+    paste0(
+      "---\n",
+      "title: 'RNA-seq Basic Report'\n",
+      "subtitle: '", report_subtitle_yaml, "'\n",
+      "date: '", format(Sys.time(), "%Y-%m-%d %H:%M"), "'\n",
+      "toc: true\n",
+      "toc_depth: 3\n",
+      "number_sections: true\n",
+      "output:\n",
+      "  word_document:\n",
+      "    reference_docx: \"", reference_docx, "\"\n",
+      "---\n\n"
+    ),
+    report_scope,
+    respuesta_clean,
+    sep = "",
+    file = rmd_file
+)
+
+docx_file <- file.path(out_dir, paste0(designID, ".docx"))
 
 # Renderizar a Word
 render(rmd_file, output_format = "word_document", output_file = docx_file)

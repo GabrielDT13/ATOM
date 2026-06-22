@@ -114,7 +114,7 @@ export function buildWorkbookPreviewMarkup(fileName: string, worksheets: Workshe
         <style>
           :root {
             color-scheme: light;
-            font-family: Inter, system-ui, sans-serif;
+            font-family: Aptos, "Segoe UI", system-ui, sans-serif;
           }
           body {
             margin: 0;
@@ -124,7 +124,7 @@ export function buildWorkbookPreviewMarkup(fileName: string, worksheets: Workshe
             color: #0f172a;
           }
           .page {
-            padding: 24px;
+            padding: 28px;
           }
           .hero {
             border: 1px solid rgba(148, 163, 184, 0.22);
@@ -298,7 +298,10 @@ export function buildDocxPreviewMarkup(fileName: string, contentHtml: string, lo
             border: 1px solid rgba(148, 163, 184, 0.22);
             border-radius: 24px;
             background: rgba(255, 255, 255, 0.92);
-            padding: 28px;
+            max-width: 920px;
+            margin-left: auto;
+            margin-right: auto;
+            padding: 34px 38px;
             box-shadow: 0 20px 50px -42px rgba(15, 23, 42, 0.35);
           }
           .content :first-child {
@@ -310,11 +313,52 @@ export function buildDocxPreviewMarkup(fileName: string, contentHtml: string, lo
           .content h1, .content h2, .content h3 {
             color: #0f172a;
             line-height: 1.3;
+            font-family: "Aptos Display", Aptos, "Segoe UI", system-ui, sans-serif;
+          }
+          .content h1 {
+            font-size: 28px;
+            margin-bottom: 16px;
+          }
+          .content h2 {
+            font-size: 21px;
+            margin-top: 28px;
+            margin-bottom: 12px;
+          }
+          .content h3 {
+            font-size: 17px;
+            margin-top: 22px;
           }
           .content p, .content li {
             color: #334155;
             line-height: 1.7;
             font-size: 15px;
+          }
+          .content a {
+            color: #0f4c81;
+            text-decoration: none;
+          }
+          .content a:hover {
+            text-decoration: underline;
+          }
+          .content nav,
+          .content [class*="toc"],
+          .content p[class*="TOC"],
+          .content div[class*="TOC"] {
+            border: 1px solid #dbeafe;
+            border-radius: 18px;
+            background: linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%);
+            padding: 14px 16px;
+          }
+          .content ul, .content ol {
+            padding-left: 22px;
+          }
+          .content blockquote {
+            margin: 18px 0;
+            padding: 14px 18px;
+            border-left: 4px solid #38bdf8;
+            background: #f8fafc;
+            border-radius: 0 16px 16px 0;
+            color: #334155;
           }
           .content table {
             width: 100%;
@@ -329,6 +373,16 @@ export function buildDocxPreviewMarkup(fileName: string, contentHtml: string, lo
           }
           .content th {
             background: #eff6ff;
+          }
+          .content tbody tr:nth-child(even) td {
+            background: #f8fafc;
+          }
+          .content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 16px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 18px 38px -30px rgba(15, 23, 42, 0.45);
           }
         </style>
       </head>

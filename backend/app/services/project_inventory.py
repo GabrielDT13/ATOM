@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal
@@ -16,6 +17,14 @@ from psycopg.errors import UndefinedTable
 ALLOWED_TEMPLATE_EXTENSIONS = {".xlsx", ".xls"}
 ProjectStatus = Literal["configured", "empty", "results"]
 ProjectFileKind = Literal["additional", "result", "template"]
+ProjectAnalysisProfile = Literal["basic", "enhanced"]
+ProjectAnalysisVariant = Literal["basic", "enhanced", "python"]
+ProjectLifecycleStatus = Literal["active", "draft"]
+ProjectStudyType = Literal["atac-seq", "chip-seq", "rna-seq", "scrna-seq"]
+PROJECT_INTERNAL_DIRNAME = ".atom"
+PROJECT_SETTINGS_FILENAME = "project-config.json"
+
+
 def _resolve_owner_dir(owner: str) -> Path:
     return get_legacy_owner_dir(owner)
 
@@ -68,6 +77,218 @@ def _classify_project_file(file_path: str) -> ProjectFileKind:
     return "additional"
 
 
+def _project_internal_dir(project_dir: Path) -> Path:
+    return project_dir / PROJECT_INTERNAL_DIRNAME
+
+
+def _project_settings_path(project_dir: Path) -> Path:
+    return _project_internal_dir(project_dir) / PROJECT_SETTINGS_FILENAME
+
+
+def _is_internal_project_path(file_path: str) -> bool:
+    path = Path(file_path)
+    parts = path.parts
+    return bool(parts) and parts[0] == PROJECT_INTERNAL_DIRNAME
+
+
+def normalize_project_analysis_profile(value: object) -> ProjectAnalysisProfile:
+    normalized = str(value or "").strip().lower()
+    if normalized == "enhanced":
+        return "enhanced"
+    return "basic"
+
+
+def normalize_project_analysis_variant(value: object) -> ProjectAnalysisVariant:
+    normalized = str(value or "").strip().lower()
+    if normalized in {"python", "python-poc"}:
+        return "python"
+    if normalized in {"enhanced", "extended", "pro"}:
+        return "enhanced"
+    return "basic"
+
+
+def normalize_project_study_type(value: object) -> ProjectStudyType:
+    normalized = str(value or "").strip().lower()
+    if normalized in {"atac-seq", "chip-seq", "scrna-seq"}:
+        return normalized  # type: ignore[return-value]
+    return "rna-seq"
+
+
+def normalize_project_lifecycle_status(value: object) -> ProjectLifecycleStatus:
+    normalized = str(value or "").strip().lower()
+    if normalized == "active":
+        return "active"
+    return "draft"
+
+
+def normalize_enabled_analysis_variants(
+    values: object,
+    *,
+    study_type: ProjectStudyType = "rna-seq",
+    fallback_profile: object | None = None,
+) -> list[ProjectAnalysisVariant]:
+    if study_type != "rna-seq":
+        return ["basic"]
+
+    normalized_items: list[ProjectAnalysisVariant] = []
+    raw_items = values if isinstance(values, list | tuple | set) else []
+    for item in raw_items:
+        normalized_variant = normalize_project_analysis_variant(item)
+        if normalized_variant not in normalized_items:
+            normalized_items.append(normalized_variant)
+
+    if not normalized_items:
+        legacy_profile = normalize_project_analysis_profile(fallback_profile)
+        return ["enhanced"] if legacy_profile == "enhanced" else ["basic"]
+
+    ordered_variants = [variant for variant in ("basic", "enhanced", "python") if variant in normalized_items]
+    return ordered_variants or ["basic"]
+
+
+def normalize_primary_analysis_variant(
+    value: object,
+    *,
+    enabled_variants: list[ProjectAnalysisVariant] | None = None,
+    fallback_profile: object | None = None,
+    study_type: ProjectStudyType = "rna-seq",
+) -> ProjectAnalysisVariant:
+    allowed_variants = normalize_enabled_analysis_variants(
+        enabled_variants or [],
+        fallback_profile=fallback_profile,
+        study_type=study_type,
+    )
+    normalized_variant = normalize_project_analysis_variant(value)
+    if normalized_variant in allowed_variants:
+        return normalized_variant
+    return allowed_variants[0]
+
+
+def _default_project_settings() -> dict[str, object]:
+    return {
+        "analysis_profile": "basic",
+        "enabled_analysis_variants": ["basic"],
+        "primary_analysis_variant": "basic",
+        "project_state": "draft",
+        "study_type": "rna-seq",
+    }
+
+
+def read_project_settings(project_dir: Path) -> dict[str, object]:
+    settings_path = _project_settings_path(project_dir)
+    if not settings_path.exists():
+        return _default_project_settings()
+
+    try:
+        payload = json.loads(settings_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        payload = {}
+
+    settings_payload = payload or {}
+    study_type = normalize_project_study_type(settings_payload.get("study_type"))
+    enabled_variants = normalize_enabled_analysis_variants(
+        settings_payload.get("enabled_analysis_variants"),
+        fallback_profile=settings_payload.get("analysis_profile"),
+        study_type=study_type,
+    )
+    primary_variant = normalize_primary_analysis_variant(
+        settings_payload.get("primary_analysis_variant"),
+        enabled_variants=enabled_variants,
+        fallback_profile=settings_payload.get("analysis_profile"),
+        study_type=study_type,
+    )
+    analysis_profile = "enhanced" if primary_variant == "enhanced" else "basic"
+
+    return {
+        "analysis_profile": analysis_profile,
+        "enabled_analysis_variants": enabled_variants,
+        "primary_analysis_variant": primary_variant,
+        "project_state": normalize_project_lifecycle_status(settings_payload.get("project_state")),
+        "study_type": study_type,
+    }
+
+
+def write_project_settings(
+    project_dir: Path,
+    *,
+    analysis_profile: object | None = None,
+    enabled_analysis_variants: object | None = None,
+    primary_analysis_variant: object | None = None,
+    project_state: object | None = None,
+    study_type: object | None = None,
+) -> dict[str, object]:
+    current_settings = read_project_settings(project_dir)
+    analysis_profile_source = (
+        analysis_profile
+        if analysis_profile is not None
+        else current_settings.get("analysis_profile")
+    )
+    enabled_variants_source = (
+        enabled_analysis_variants
+        if enabled_analysis_variants is not None
+        else current_settings.get("enabled_analysis_variants")
+    )
+    primary_variant_source = (
+        primary_analysis_variant
+        if primary_analysis_variant is not None
+        else current_settings.get("primary_analysis_variant")
+    )
+    if analysis_profile is not None and enabled_analysis_variants is None and primary_analysis_variant is None:
+        legacy_profile = normalize_project_analysis_profile(analysis_profile)
+        enabled_variants_source = ["enhanced"] if legacy_profile == "enhanced" else ["basic"]
+        primary_variant_source = enabled_variants_source[0]
+
+    normalized_study_type = normalize_project_study_type(
+        study_type if study_type is not None else current_settings.get("study_type"),
+    )
+    normalized_enabled_variants = normalize_enabled_analysis_variants(
+        enabled_variants_source,
+        fallback_profile=analysis_profile_source,
+        study_type=normalized_study_type,
+    )
+    normalized_primary_variant = normalize_primary_analysis_variant(
+        primary_variant_source,
+        enabled_variants=normalized_enabled_variants,
+        fallback_profile=analysis_profile_source,
+        study_type=normalized_study_type,
+    )
+    normalized_profile = "enhanced" if normalized_primary_variant == "enhanced" else "basic"
+    normalized_project_state = normalize_project_lifecycle_status(
+        project_state if project_state is not None else current_settings.get("project_state"),
+    )
+
+    normalized_settings = {
+        "analysis_profile": normalized_profile,
+        "enabled_analysis_variants": normalized_enabled_variants,
+        "primary_analysis_variant": normalized_primary_variant,
+        "project_state": normalized_project_state,
+        "study_type": normalized_study_type,
+    }
+    settings_path = _project_settings_path(project_dir)
+    settings_path.parent.mkdir(parents=True, exist_ok=True)
+    settings_path.write_text(
+        json.dumps(normalized_settings, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return normalized_settings
+
+
+def read_project_analysis_profile(project_dir: Path) -> ProjectAnalysisProfile:
+    settings = read_project_settings(project_dir)
+    return normalize_project_analysis_profile(settings.get("analysis_profile"))
+
+
+def write_project_analysis_profile(project_dir: Path, profile: object) -> ProjectAnalysisProfile:
+    normalized_profile = normalize_project_analysis_profile(profile)
+    enabled_variants = ["enhanced"] if normalized_profile == "enhanced" else ["basic"]
+    settings = write_project_settings(
+        project_dir,
+        analysis_profile=normalized_profile,
+        enabled_analysis_variants=enabled_variants,
+        primary_analysis_variant=enabled_variants[0],
+    )
+    return normalize_project_analysis_profile(settings.get("analysis_profile"))
+
+
 def _project_status(files: list[str], html_files: list[str]) -> ProjectStatus:
     if html_files:
         return "results"
@@ -93,7 +314,12 @@ def _list_project_files(project_dir: Path) -> list[Path]:
     if not project_dir.exists():
         return []
     return sorted(
-        [path for path in project_dir.rglob("*") if path.is_file()],
+        [
+            path
+            for path in project_dir.rglob("*")
+            if path.is_file()
+            and not _is_internal_project_path(path.relative_to(project_dir).as_posix())
+        ],
         key=lambda item: item.relative_to(project_dir).as_posix().lower(),
     )
 
@@ -129,10 +355,54 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
     resolved_entity_slug = str(metadata.get("entity_slug") or "").strip() if metadata else ""
     resolved_slug = str(metadata.get("slug") or "").strip() if metadata else ""
     resolved_visibility = str(metadata.get("visibility") or "").strip().lower() if metadata else ""
+    project_settings = read_project_settings(project_dir)
+    metadata_study_type = metadata.get("study_type") if metadata else None
+    metadata_enabled_variants = metadata.get("enabled_analysis_variants") if metadata else None
+    metadata_primary_variant = metadata.get("primary_analysis_variant") if metadata else None
+    metadata_project_state = metadata.get("project_state") if metadata else None
+    metadata_analysis_profile = metadata.get("analysis_profile") if metadata else None
+
+    resolved_study_type = normalize_project_study_type(
+        metadata_study_type if metadata_study_type is not None else project_settings.get("study_type"),
+    )
+    resolved_enabled_variants = normalize_enabled_analysis_variants(
+        (
+            metadata_enabled_variants
+            if metadata_enabled_variants is not None
+            else project_settings.get("enabled_analysis_variants")
+        ),
+        fallback_profile=(
+            metadata_analysis_profile
+            if metadata_analysis_profile is not None
+            else project_settings.get("analysis_profile")
+        ),
+        study_type=resolved_study_type,
+    )
+    resolved_primary_variant = normalize_primary_analysis_variant(
+        (
+            metadata_primary_variant
+            if metadata_primary_variant is not None
+            else project_settings.get("primary_analysis_variant")
+        ),
+        enabled_variants=resolved_enabled_variants,
+        fallback_profile=(
+            metadata_analysis_profile
+            if metadata_analysis_profile is not None
+            else project_settings.get("analysis_profile")
+        ),
+        study_type=resolved_study_type,
+    )
+    resolved_analysis_profile = (
+        "enhanced" if resolved_primary_variant == "enhanced" else "basic"
+    )
+    resolved_project_state = normalize_project_lifecycle_status(
+        metadata_project_state if metadata_project_state is not None else project_settings.get("project_state"),
+    )
 
     return {
         "access_role": resolved_access_role or None,
         "additional_files": additional_files,
+        "analysis_profile": resolved_analysis_profile,
         "created_at": created_at,
         "entity_id": resolved_entity_id or None,
         "entity_logo_url": resolved_entity_logo_url or None,
@@ -153,9 +423,13 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
         "html_files": html_files,
         "id": resolved_id or None,
         "name": resolved_name,
+        "enabled_analysis_variants": resolved_enabled_variants,
         "owner": resolved_owner,
+        "primary_analysis_variant": resolved_primary_variant,
+        "project_state": resolved_project_state,
         "slug": resolved_slug or None,
         "status": _project_status(files, html_files),
+        "study_type": resolved_study_type,
         "template_file": template_file,
         "updated_at": updated_at,
         "visibility": resolved_visibility if resolved_visibility in {"private", "public"} else "private",

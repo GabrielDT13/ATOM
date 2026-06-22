@@ -49,6 +49,26 @@ export function buildProjectFileUrl(
   );
 }
 
+export function injectHtmlBaseHref(html: string, fileUrl: string) {
+  const normalizedHtml = String(html || "");
+  const normalizedUrl = String(fileUrl || "").trim();
+  if (!normalizedHtml || !normalizedUrl) {
+    return normalizedHtml;
+  }
+
+  const baseTag = `<base href="${normalizedUrl}">`;
+
+  if (/<base\s/i.test(normalizedHtml)) {
+    return normalizedHtml.replace(/<base\s[^>]*>/i, baseTag);
+  }
+
+  if (/<head[^>]*>/i.test(normalizedHtml)) {
+    return normalizedHtml.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`);
+  }
+
+  return `${baseTag}${normalizedHtml}`;
+}
+
 export function buildProjectFilePreviewPath(
   owner: string,
   projectName: string,

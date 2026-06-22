@@ -72,6 +72,8 @@ function formatRelativeTime(dateValue: string | null | undefined, locale: "en" |
 function getNotificationTypeLabel(notification: NotificationRecord, locale: "en" | "es") {
   if (locale === "en") {
     switch (notification.type) {
+      case "access_request_created":
+        return "Request";
       case "analysis_completed":
         return "Analysis";
       case "analysis_failed":
@@ -88,6 +90,8 @@ function getNotificationTypeLabel(notification: NotificationRecord, locale: "en"
   }
 
   switch (notification.type) {
+    case "access_request_created":
+      return "Solicitud";
     case "analysis_completed":
       return "Análisis";
     case "analysis_failed":
@@ -109,6 +113,8 @@ function getNotificationSummary(notification: NotificationRecord, locale: "en" |
   if (locale === "en") {
     const projectNameEn = notification.project_name?.trim() || "Project";
     switch (notification.type) {
+      case "access_request_created":
+        return "New access request received.";
       case "analysis_completed":
         return `${projectNameEn} finished successfully.`;
       case "analysis_failed":
@@ -125,6 +131,8 @@ function getNotificationSummary(notification: NotificationRecord, locale: "en" |
   }
 
   switch (notification.type) {
+    case "access_request_created":
+      return "Se ha recibido una nueva solicitud de acceso.";
     case "analysis_completed":
       return `${projectName} ha terminado correctamente.`;
     case "analysis_failed":
@@ -143,6 +151,8 @@ function getNotificationSummary(notification: NotificationRecord, locale: "en" |
 function getNotificationActionLabel(notification: NotificationRecord, locale: "en" | "es") {
   if (locale === "en") {
     switch (notification.type) {
+      case "access_request_created":
+        return "Review request";
       case "analysis_completed":
       case "analysis_failed":
         return "Open run";
@@ -156,6 +166,8 @@ function getNotificationActionLabel(notification: NotificationRecord, locale: "e
   }
 
   switch (notification.type) {
+    case "access_request_created":
+      return "Revisar solicitud";
     case "analysis_completed":
     case "analysis_failed":
       return "Abrir ejecución";
@@ -212,7 +224,7 @@ export function HeaderNotificationsPopover({
           viewMore: "Ver más",
           open: "Abrir",
           emptyTitle: "No hay notificaciones todavía.",
-          emptyDescription: "Aquí verás avisos cuando se comparta un proyecto contigo o termine una ejecución.",
+          emptyDescription: "Aquí verás avisos cuando se comparta un proyecto, termine una ejecución o entre una solicitud de acceso.",
           detail: "Detalle",
           project: "Proyecto",
           source: "Origen",
@@ -229,7 +241,7 @@ export function HeaderNotificationsPopover({
           viewMore: "View more",
           open: "Open",
           emptyTitle: "No notifications yet.",
-          emptyDescription: "You will see alerts here when a project is shared with you or an execution finishes.",
+          emptyDescription: "You will see alerts here when a project is shared, an execution finishes, or a new access request arrives.",
           detail: "Detail",
           project: "Project",
           source: "Source",

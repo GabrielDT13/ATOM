@@ -3,6 +3,7 @@ import {
   buildProjectFileUrl,
   canAttemptEmbeddedPreview,
   getExecutionPreviewableFiles,
+  injectHtmlBaseHref,
   isPreviewableTextFile,
 } from "@/components/projects/detail/project-detail-helpers";
 import { parseOfficePreview } from "@/components/projects/detail/project-detail-office-preview";
@@ -48,12 +49,13 @@ export async function buildProjectPreviewState({
   projectName: string;
 }): Promise<PreviewState> {
   if (isHtmlProjectFile(file)) {
+    const downloadUrl = buildProjectFileUrl(owner, projectName, file.path, cacheKey);
     const fileContent = await apiFetch<FileContentResponse>(
       buildProjectFilePreviewPath(owner, projectName, file.path, cacheKey),
     );
 
     return {
-      content: fileContent.content,
+      content: injectHtmlBaseHref(fileContent.content, downloadUrl),
       label: file.path,
       mode: "html",
     };

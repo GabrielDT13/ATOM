@@ -4,6 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useLocale } from "@/components/providers/locale-provider";
+import {
+  buildProjectFileUrl,
+  getExecutionDeliverables,
+} from "@/components/projects/detail/project-detail-helpers";
+import { buildProjectDetailModel } from "@/components/projects/project-detail-utils";
+import { RNA_SEQ_VARIANT_OPTIONS } from "@/components/projects/project-study-options";
 import { formatDuration, formatTimeOfDay } from "@/components/projects/project-execution-utils";
 import { SectionCard } from "@/components/projects/detail/project-detail-panels";
 import {
@@ -21,33 +27,150 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { buttonStyles } from "@/components/ui/button";
 import { useAppToast } from "@/hooks/use-app-toast";
 import { useProjectAnalysisStream } from "@/hooks/use-project-analysis-stream";
+import { createAnalysisRun } from "@/lib/analysis";
 import {
   buildProjectDetailHref,
   buildProjectExecutionHref,
+  buildProjectReportHref,
   getProject,
   getProjectByRef,
   resolveProjectRouteRef,
 } from "@/lib/projects";
 import { cn } from "@/lib/utils";
-import type { ProjectDetails } from "@/types/api";
+import type { ProjectAnalysisVariant, ProjectDetails } from "@/types/api";
 import { buildProjectExecutionTarget } from "@/components/projects/project-execution-target";
 
 type ProjectExecutionPageProps =
   | {
       autoStart?: boolean;
+      initialAnalysisVariant?: string;
+      initialAnalysisVariants?: string[];
       owner: string;
       projectName: string;
       projectRef?: never;
     }
   | {
       autoStart?: boolean;
+      initialAnalysisVariant?: string;
+      initialAnalysisVariants?: string[];
       owner?: never;
       projectName?: never;
       projectRef: string;
     };
 
+type BatchExecutionStepStatus = "completed" | "failed" | "pending" | "queued" | "running";
+
+type BatchExecutionStep = {
+  runId: string | null;
+  status: BatchExecutionStepStatus;
+  variant: ProjectAnalysisVariant;
+};
+
+type FinalVariantSummary = {
+  deliverablesCount: number;
+  docxCount: number;
+  excelCount: number;
+  groups: ReturnType<typeof buildProjectDetailModel>["executionGroups"];
+  htmlFile: ProjectDetails["file_entries"][number] | null;
+  step: BatchExecutionStep;
+  zipFile: ProjectDetails["file_entries"][number] | null;
+};
+
+function getVariantScriptKey(variant: ProjectAnalysisVariant) {
+  switch (variant) {
+    case "enhanced":
+      return "rna-seq-pro";
+    case "python":
+      return "rna-seq-python";
+    case "basic":
+    default:
+      return "rna-seq";
+  }
+}
+
+function getBatchStepStatusLabel(status: BatchExecutionStepStatus, locale: "en" | "es") {
+  const t = locale === "es";
+  switch (status) {
+    case "completed":
+      return t ? "Completado" : "Completed";
+    case "failed":
+      return t ? "Fallido" : "Failed";
+    case "running":
+    case "queued":
+      return t ? "En curso" : "In progress";
+    case "pending":
+    default:
+      return t ? "Pendiente" : "Pending";
+  }
+}
+
+function parseBatchIndexFromTriggerSource(triggerSource: string | null | undefined) {
+  const parts = String(triggerSource || "")
+    .split(":")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  const batchIndexPart = parts.find((part) => part.startsWith("index="));
+  if (!batchIndexPart) {
+    return null;
+  }
+  const parsed = Number.parseInt(batchIndexPart.slice("index=".length), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed - 1;
+}
+
+function buildVariantComparisonNarrative(
+  summaries: FinalVariantSummary[],
+  locale: "en" | "es",
+) {
+  if (summaries.length === 0) {
+    return null;
+  }
+
+  const t = locale === "es";
+  const successfulSummaries = summaries.filter((summary) => summary.step.status === "completed");
+  if (successfulSummaries.length === 0) {
+    return t
+      ? "Ninguna variante terminó correctamente. Conviene revisar logs y artefactos antes de comparar resultados."
+      : "No variant finished successfully. Review logs and artifacts before comparing results.";
+  }
+
+  const byDeliverables = [...successfulSummaries].sort((left, right) => right.deliverablesCount - left.deliverablesCount);
+  const byReports = [...successfulSummaries].sort(
+    (left, right) =>
+      right.groups.filter((group) => group.htmlFile).length - left.groups.filter((group) => group.htmlFile).length,
+  );
+  const byDocuments = [...successfulSummaries].sort((left, right) => (right.docxCount + right.excelCount) - (left.docxCount + left.excelCount));
+  const richest = byDeliverables[0];
+  const strongestReporting = byReports[0];
+  const strongestTables = byDocuments[0];
+  const failedCount = summaries.length - successfulSummaries.length;
+  const failedSuffix = failedCount > 0
+    ? t
+      ? ` ${failedCount} variante(s) quedaron con incidencias.`
+      : ` ${failedCount} variant(s) finished with issues.`
+    : "";
+
+  const richestLabel = RNA_SEQ_VARIANT_OPTIONS.find((item) => item.id === richest.step.variant)?.label[locale] ?? richest.step.variant;
+  const reportingLabel = RNA_SEQ_VARIANT_OPTIONS.find((item) => item.id === strongestReporting.step.variant)?.label[locale] ?? strongestReporting.step.variant;
+  const tablesLabel = RNA_SEQ_VARIANT_OPTIONS.find((item) => item.id === strongestTables.step.variant)?.label[locale] ?? strongestTables.step.variant;
+
+  if (summaries.length === 1) {
+    return t
+      ? `${richestLabel} generó ${richest.deliverablesCount} entregables, con ${richest.docxCount} DOCX y ${richest.excelCount} Excel listos.`
+      : `${richestLabel} generated ${richest.deliverablesCount} deliverables, with ${richest.docxCount} DOCX and ${richest.excelCount} Excel outputs ready.`;
+  }
+
+  return t
+    ? `${richestLabel} dejó mayor volumen de entregables (${richest.deliverablesCount}). ${reportingLabel} destacó en informes HTML. ${tablesLabel} concentró más tablas y documentos exportables.${failedSuffix}`
+    : `${richestLabel} produced highest deliverable volume (${richest.deliverablesCount}). ${reportingLabel} stood out in HTML reports. ${tablesLabel} concentrated most exportable tables and documents.${failedSuffix}`;
+}
+
 export function ProjectExecutionPage({
   autoStart = false,
+  initialAnalysisVariant,
+  initialAnalysisVariants = [],
   owner,
   projectName,
   projectRef,
@@ -56,42 +179,158 @@ export function ProjectExecutionPage({
   const t = locale === "es";
   const router = useRouter();
   const appToast = useAppToast();
-  const completionHandledRef = useRef(false);
+  const batchIdRef = useRef<string | null>(null);
+  const handledRunCompletionRef = useRef<string | null>(null);
+  const plannedBatchVariantsRef = useRef<ProjectAnalysisVariant[]>([]);
+  const redirectHandledRef = useRef(false);
+  const redirectIntervalRef = useRef<number | null>(null);
+  const redirectTimeoutRef = useRef<number | null>(null);
   const [project, setProject] = useState<ProjectDetails | null>(null);
+  const [selectedAnalysisVariant, setSelectedAnalysisVariant] = useState<ProjectAnalysisVariant | null>(
+    (initialAnalysisVariant as ProjectAnalysisVariant | undefined) ?? null,
+  );
+  const [batchSteps, setBatchSteps] = useState<BatchExecutionStep[]>([]);
+  const [currentBatchIndex, setCurrentBatchIndex] = useState(0);
+  const [batchStarted, setBatchStarted] = useState(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
   const [boundRunId, setBoundRunId] = useState<string | null>(null);
+  const [redirectCountdown, setRedirectCountdown] = useState<number | null>(null);
   const [loadingProject, setLoadingProject] = useState(true);
   const [projectError, setProjectError] = useState<string | null>(null);
+  const initialVariantsKey = initialAnalysisVariants.join("|");
+  const normalizedInitialVariants = useMemo(
+    () =>
+      initialVariantsKey
+        .split("|")
+        .map((variant) => variant.trim())
+        .filter(Boolean),
+    [initialVariantsKey],
+  );
+  const requestedExecutionVariants = useMemo<ProjectAnalysisVariant[]>(
+    () => normalizedInitialVariants.map((variant) => variant as ProjectAnalysisVariant),
+    [normalizedInitialVariants],
+  );
   const resolvedProjectRef = project ? resolveProjectRouteRef(project) : null;
+  const queuedVariants = batchSteps.map((step) => step.variant);
+  const executionVariants = queuedVariants.length > 0
+    ? queuedVariants
+    : requestedExecutionVariants.length > 0
+      ? requestedExecutionVariants
+      : initialAnalysisVariant
+        ? [initialAnalysisVariant as ProjectAnalysisVariant]
+        : [];
   const executionPageHref =
     resolvedProjectRef
-      ? buildProjectExecutionHref(resolvedProjectRef)
+      ? buildProjectExecutionHref(resolvedProjectRef, {
+          variant: executionVariants.length === 1 ? executionVariants[0] : null,
+          variants: executionVariants.length > 1 ? executionVariants : null,
+        })
       : project
-        ? `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`
+        ? (() => {
+            const searchParams = new URLSearchParams();
+            if (executionVariants.length > 1) {
+              searchParams.set("variants", executionVariants.join(","));
+            } else if (executionVariants.length === 1) {
+              searchParams.set("variant", executionVariants[0]);
+            }
+            const basePath = `/dashboard/project-execution/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`;
+            const queryString = searchParams.toString();
+            return queryString ? `${basePath}?${queryString}` : basePath;
+          })()
         : null;
   const analysisTarget = useMemo(
     () =>
       buildProjectExecutionTarget({
-        autoStart,
+        analysisVariant: selectedAnalysisVariant,
+        autoStart: false,
         boundRunId,
         project,
         resolvedProjectRef,
       }),
-    [autoStart, boundRunId, project, resolvedProjectRef],
+    [boundRunId, project, resolvedProjectRef, selectedAnalysisVariant],
   );
   const execution = useProjectAnalysisStream(analysisTarget, locale);
+  const currentRunBatchIndex = parseBatchIndexFromTriggerSource(
+    execution.run?.trigger_source ?? project?.active_run?.trigger_source,
+  );
+  const activeBatchIndex = currentRunBatchIndex ?? currentBatchIndex;
 
   useEffect(() => {
+    batchIdRef.current = null;
+    handledRunCompletionRef.current = null;
+    plannedBatchVariantsRef.current = [];
+    redirectHandledRef.current = false;
+    if (redirectIntervalRef.current !== null) {
+      window.clearInterval(redirectIntervalRef.current);
+      redirectIntervalRef.current = null;
+    }
+    if (redirectTimeoutRef.current !== null) {
+      window.clearTimeout(redirectTimeoutRef.current);
+      redirectTimeoutRef.current = null;
+    }
+    setBatchError(null);
+    setBatchStarted(false);
+    setBatchSteps([]);
+    setCurrentBatchIndex(0);
     setBoundRunId(null);
-  }, [owner, projectName, projectRef]);
+  }, [initialAnalysisVariant, initialVariantsKey, owner, projectName, projectRef]);
 
   useEffect(() => {
-    const nextRunId = execution.run?.id?.trim() || project?.active_run?.id?.trim() || null;
+    if (!project) {
+      return;
+    }
+
+    const allowedVariants = (
+      project.enabled_analysis_variants?.length
+        ? project.enabled_analysis_variants
+        : ["basic", "enhanced"]
+    ) as ProjectAnalysisVariant[];
+    const requestedVariants = (requestedExecutionVariants.length > 0
+      ? requestedExecutionVariants
+      : initialAnalysisVariant
+        ? [initialAnalysisVariant]
+        : []
+    )
+      .map((variant) => String(variant).trim() as ProjectAnalysisVariant)
+      .filter((variant, index, items) => allowedVariants.includes(variant) && items.indexOf(variant) === index);
+    const effectiveVariants = requestedVariants.length > 0
+      ? requestedVariants
+      : [(project.primary_analysis_variant ?? allowedVariants[0]) as ProjectAnalysisVariant];
+
+    plannedBatchVariantsRef.current = effectiveVariants;
+
+    setBatchSteps((current) => {
+      if (current.length > 0) {
+        return current;
+      }
+      return effectiveVariants.map((variant) => ({
+        runId: null,
+        status: "pending",
+        variant,
+      }));
+    });
+
+    if (!selectedAnalysisVariant || !allowedVariants.includes(selectedAnalysisVariant)) {
+      setSelectedAnalysisVariant(effectiveVariants[0] ?? allowedVariants[0]);
+    }
+  }, [initialAnalysisVariant, project, requestedExecutionVariants, selectedAnalysisVariant]);
+
+  useEffect(() => {
+    const nextRunId = execution.run?.id?.trim() || (!batchStarted ? project?.active_run?.id?.trim() : "") || null;
     if (!nextRunId) {
       return;
     }
 
     setBoundRunId((current) => (current === nextRunId ? current : nextRunId));
-  }, [execution.run?.id, project?.active_run?.id]);
+  }, [batchStarted, execution.run?.id, project?.active_run?.id]);
+
+  useEffect(() => {
+    if (currentRunBatchIndex === null) {
+      return;
+    }
+    setCurrentBatchIndex((current) => (current === currentRunBatchIndex ? current : currentRunBatchIndex));
+    setBatchStarted(true);
+  }, [currentRunBatchIndex]);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,6 +350,7 @@ export function ProjectExecutionPage({
         }
 
         setProject(nextProject);
+        setSelectedAnalysisVariant((current) => current ?? nextProject.primary_analysis_variant ?? "basic");
       } catch (loadError) {
         if (cancelled) {
           return;
@@ -140,12 +380,12 @@ export function ProjectExecutionPage({
       return;
     }
 
-    if (!boundRunId) {
+    if (!batchStarted && !boundRunId) {
       return;
     }
 
     router.replace(executionPageHref, { scroll: false });
-  }, [autoStart, boundRunId, executionPageHref, router]);
+  }, [autoStart, batchStarted, boundRunId, executionPageHref, router]);
 
   const projectDetailHref =
     resolvedProjectRef
@@ -153,63 +393,222 @@ export function ProjectExecutionPage({
       : project
         ? `/dashboard/projects/${encodeURIComponent(project.owner)}/${encodeURIComponent(project.name)}`
         : "/dashboard/projects";
+  const batchFinished = batchSteps.length > 0 && batchSteps.every((step) => step.status === "completed" || step.status === "failed");
+  const finalProjectModel = useMemo(() => (project ? buildProjectDetailModel(project) : null), [project]);
+  const finalVariantSummaries = useMemo<FinalVariantSummary[]>(
+    () =>
+      finalProjectModel
+        ? batchSteps.map((step) => {
+            const scriptKey = getVariantScriptKey(step.variant);
+            const groups = finalProjectModel.executionGroups.filter((group) => group.directory.endsWith(`__${scriptKey}`));
+            const deliverables = groups.flatMap((group) => getExecutionDeliverables(group));
+            const htmlFile = groups.flatMap((group) => (group.htmlFile ? [group.htmlFile] : [])).at(-1) ?? null;
+            const zipFile = deliverables.findLast((file) => file.extension.toLowerCase() === ".zip") ?? null;
+            const docxCount = deliverables.filter((file) => file.extension.toLowerCase() === ".docx").length;
+            const excelCount = deliverables.filter((file) => [".xls", ".xlsx"].includes(file.extension.toLowerCase())).length;
+            return {
+              deliverablesCount: deliverables.length,
+              docxCount,
+              excelCount,
+              groups,
+              htmlFile,
+              step,
+              zipFile,
+            };
+          })
+        : [],
+    [batchSteps, finalProjectModel],
+  );
+  const variantComparisonNarrative = useMemo(
+    () => buildVariantComparisonNarrative(finalVariantSummaries, locale),
+    [finalVariantSummaries, locale],
+  );
 
-  useEffect(() => {
-    if (execution.status !== "completed" && execution.status !== "failed") {
+  async function startBatchRun(stepIndex: number) {
+    const plannedVariants = plannedBatchVariantsRef.current;
+    const targetVariant = plannedVariants[stepIndex];
+    if (!targetVariant) {
       return;
     }
 
-    let cancelled = false;
+    setBatchError(null);
+    setBatchStarted(true);
+    setCurrentBatchIndex(stepIndex);
+    setSelectedAnalysisVariant(targetVariant);
+    setBatchSteps((current) =>
+      current.map((step, index) =>
+        index === stepIndex
+          ? {
+              ...step,
+              status: step.status === "completed" ? step.status : "queued",
+            }
+          : step,
+      ),
+    );
 
-    async function refreshProjectSnapshot() {
+    const totalSteps = plannedVariants.length || 1;
+    if (!batchIdRef.current) {
+      batchIdRef.current = globalThis.crypto?.randomUUID?.() ?? `batch-${Date.now()}`;
+    }
+
+    try {
+      const payload =
+        typeof projectRef === "string"
+          ? {
+              analysis_variant: targetVariant,
+              batch_id: totalSteps > 1 ? batchIdRef.current : undefined,
+              batch_index: totalSteps > 1 ? stepIndex + 1 : undefined,
+              batch_total: totalSteps > 1 ? totalSteps : undefined,
+              notify_on_completion: stepIndex === totalSteps - 1,
+              project_ref: projectRef,
+            }
+          : {
+              analysis_variant: targetVariant,
+              batch_id: totalSteps > 1 ? batchIdRef.current : undefined,
+              batch_index: totalSteps > 1 ? stepIndex + 1 : undefined,
+              batch_total: totalSteps > 1 ? totalSteps : undefined,
+              notify_on_completion: stepIndex === totalSteps - 1,
+              owner,
+              project_name: projectName,
+            };
+
+      const response = await createAnalysisRun(payload);
+      setBoundRunId(response.run.id);
+      setBatchSteps((current) =>
+        current.map((step, index) =>
+          index === stepIndex
+            ? {
+                ...step,
+                runId: response.run.id,
+                status: response.run.status as BatchExecutionStepStatus,
+              }
+            : step,
+        ),
+      );
+    } catch (runError) {
+      setBatchError(
+        runError instanceof Error
+          ? runError.message
+          : t
+            ? "No se pudo iniciar la ejecución."
+            : "Could not start execution.",
+      );
+    }
+  }
+
+  useEffect(() => {
+    if (!autoStart || !project || batchSteps.length === 0 || batchStarted || boundRunId) {
+      return;
+    }
+
+    if (project.active_run?.status === "queued" || project.active_run?.status === "running") {
+      return;
+    }
+
+    void startBatchRun(0);
+  }, [autoStart, batchStarted, batchSteps, boundRunId, project]);
+
+  useEffect(() => {
+    const completedRunId = execution.run?.id?.trim();
+    if (!completedRunId || (execution.status !== "completed" && execution.status !== "failed")) {
+      return;
+    }
+
+    if (handledRunCompletionRef.current === completedRunId) {
+      return;
+    }
+
+    handledRunCompletionRef.current = completedRunId;
+    const nextSteps = batchSteps.map((step, index) =>
+      index === activeBatchIndex
+        ? {
+            ...step,
+            runId: completedRunId,
+            status: execution.status as BatchExecutionStepStatus,
+          }
+        : step,
+    );
+    setBatchSteps(nextSteps);
+
+    const nextStepIndex = activeBatchIndex + 1;
+    const plannedVariants = plannedBatchVariantsRef.current;
+    if (nextStepIndex < plannedVariants.length) {
+      setBoundRunId(null);
+      void startBatchRun(nextStepIndex);
+      return;
+    }
+
+    if (redirectHandledRef.current) {
+      return;
+    }
+
+    redirectHandledRef.current = true;
+    const failedVariants = nextSteps.filter((step) => step.status === "failed");
+    setRedirectCountdown(8);
+    if (failedVariants.length > 0) {
+      appToast.error(
+        t ? "Secuencia terminada con incidencias" : "Sequence finished with issues",
+        t ? "Revisa resumen final antes de volver al proyecto." : "Review final summary before returning to the project.",
+      );
+    } else {
+      appToast.success(
+        nextSteps.length > 1
+          ? t ? "Informes generados correctamente" : "Reports generated successfully"
+          : t ? "Informe generado correctamente" : "Report generated successfully",
+        t ? "Resumen final disponible antes de volver al proyecto." : "Final summary available before returning to the project.",
+        5000,
+      );
+    }
+
+    void (async () => {
       try {
         const nextProject =
           typeof projectRef === "string"
             ? await getProjectByRef(projectRef)
             : await getProject(owner, projectName);
-
-        if (!cancelled) {
-          setProject(nextProject);
-          router.refresh();
-        }
+        setProject(nextProject);
       } catch {
-        // El detalle puede permanecer con el último snapshot disponible.
+        // Mantener último snapshot disponible.
       }
+    })();
+
+    if (redirectIntervalRef.current !== null) {
+      window.clearInterval(redirectIntervalRef.current);
+    }
+    if (redirectTimeoutRef.current !== null) {
+      window.clearTimeout(redirectTimeoutRef.current);
     }
 
-    void refreshProjectSnapshot();
+    redirectIntervalRef.current = window.setInterval(() => {
+      setRedirectCountdown((current) => {
+        if (current === null) {
+          return null;
+        }
+        return current <= 1 ? 0 : current - 1;
+      });
+    }, 1000);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [execution.status, owner, projectName, projectRef, router]);
-
-  useEffect(() => {
-    if (execution.status !== "completed") {
-      completionHandledRef.current = false;
-      return;
-    }
-
-    if (completionHandledRef.current) {
-      return;
-    }
-
-    completionHandledRef.current = true;
-    appToast.success(
-      t ? "Informe generado correctamente" : "Report generated successfully",
-      t ? "Volverás al proyecto en unos segundos." : "You will return to the project in a few seconds.",
-      5000,
-    );
-
-    const timeoutId = window.setTimeout(() => {
+    redirectTimeoutRef.current = window.setTimeout(() => {
+      if (redirectIntervalRef.current !== null) {
+        window.clearInterval(redirectIntervalRef.current);
+        redirectIntervalRef.current = null;
+      }
+      redirectTimeoutRef.current = null;
       router.refresh();
       router.replace(projectDetailHref);
-    }, 5000);
+    }, 8000);
+  }, [activeBatchIndex, appToast, batchSteps, execution.run?.id, execution.status, owner, projectDetailHref, projectName, projectRef, router, t]);
 
+  useEffect(() => {
     return () => {
-      window.clearTimeout(timeoutId);
+      if (redirectIntervalRef.current !== null) {
+        window.clearInterval(redirectIntervalRef.current);
+      }
+      if (redirectTimeoutRef.current !== null) {
+        window.clearTimeout(redirectTimeoutRef.current);
+      }
     };
-  }, [appToast, execution.status, projectDetailHref, router, t]);
+  }, []);
 
   if (loadingProject) {
     return (
@@ -242,13 +641,13 @@ export function ProjectExecutionPage({
     );
   }
 
-  if (execution.error) {
+  if (batchError || execution.error) {
     return (
       <section className="rounded-[28px] border border-rose-200 bg-rose-50 p-6 text-rose-800 shadow-sm">
         <h1 className="text-lg font-semibold">
           {t ? "No se pudo iniciar la ejecución" : "Could not start execution"}
         </h1>
-        <p className="mt-2 text-sm leading-6">{execution.error}</p>
+        <p className="mt-2 text-sm leading-6">{batchError ?? execution.error}</p>
         <div className="mt-5">
           <ButtonLink href={projectDetailHref} variant="secondary">
             {t ? "Volver al proyecto" : "Back to project"}
@@ -274,11 +673,35 @@ export function ProjectExecutionPage({
             {t ? "Volver al proyecto" : "Back to project"}
           </ButtonLink>
           {resolvedProjectRef ? (
-            <ButtonLink href={buildProjectExecutionHref(resolvedProjectRef, { autoStart: true })}>
-              {t ? "Iniciar ejecución" : "Start execution"}
+            <ButtonLink
+              href={buildProjectExecutionHref(resolvedProjectRef, {
+                autoStart: true,
+                variant: queuedVariants.length === 1 ? queuedVariants[0] : selectedAnalysisVariant,
+                variants: queuedVariants.length > 1 ? queuedVariants : null,
+              })}
+            >
+              {queuedVariants.length > 1
+                ? t ? "Iniciar secuencia completa" : "Start full sequence"
+                : t ? "Iniciar variante principal" : "Start primary variant"}
             </ButtonLink>
           ) : null}
         </div>
+        {resolvedProjectRef && project.study_type === "rna-seq" && (project.enabled_analysis_variants?.length ?? 0) > 0 ? (
+          <div className="mt-5 flex flex-wrap gap-3">
+            {(project.enabled_analysis_variants ?? []).map((variant) => {
+              const option = RNA_SEQ_VARIANT_OPTIONS.find((item) => item.id === variant);
+              return (
+                <ButtonLink
+                  href={buildProjectExecutionHref(resolvedProjectRef, { autoStart: true, variant })}
+                  key={variant}
+                  variant="secondary"
+                >
+                  {t ? "Ejecutar" : "Run"} {option?.label[locale] ?? variant}
+                </ButtonLink>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
     );
   }
@@ -316,6 +739,16 @@ export function ProjectExecutionPage({
               <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
                 @{project.owner}
               </span>
+              {selectedAnalysisVariant ? (
+                <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                  {t ? "Variante" : "Variant"}: {RNA_SEQ_VARIANT_OPTIONS.find((option) => option.id === selectedAnalysisVariant)?.label[locale] ?? selectedAnalysisVariant}
+                </span>
+              ) : null}
+              {batchSteps.length > 1 ? (
+                <span className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200">
+                  {t ? "Secuencia" : "Sequence"}: {Math.min(currentBatchIndex + 1, batchSteps.length)}/{batchSteps.length}
+                </span>
+              ) : null}
             </div>
           </div>
 
@@ -329,6 +762,69 @@ export function ProjectExecutionPage({
       </section>
 
       <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+        {project.study_type === "rna-seq" && (project.enabled_analysis_variants?.length ?? 0) > 0 ? (
+          <div className="border-b border-slate-200 bg-slate-50 px-6 py-5">
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-semibold text-slate-900">
+                {t ? "Variante de ejecución" : "Execution variant"}
+              </p>
+              <p className="text-sm leading-6 text-slate-500">
+                {t
+                  ? "Cada variante se guarda en su propia carpeta para comparar resultados dentro del mismo proyecto."
+                  : "Each variant is stored in its own folder so you can compare results inside the same project."}
+              </p>
+            </div>
+            {batchSteps.length > 1 ? (
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {batchSteps.map((step, index) => {
+                  const option = RNA_SEQ_VARIANT_OPTIONS.find((item) => item.id === step.variant);
+                  const active = index === currentBatchIndex;
+                  return (
+                    <div
+                      className={`rounded-2xl border px-4 py-3 text-sm ${
+                        step.status === "completed"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                          : step.status === "failed"
+                            ? "border-rose-200 bg-rose-50 text-rose-800"
+                            : active
+                              ? "border-primary/30 bg-sky-50 text-slate-900"
+                              : "border-slate-200 bg-white text-slate-600"
+                      }`}
+                      key={step.variant}
+                    >
+                      <p className="font-semibold">{option?.label[locale] ?? step.variant}</p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em]">
+                        {getBatchStepStatusLabel(step.status, locale)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+            <div className="mt-4 flex flex-wrap gap-3">
+              {(project.enabled_analysis_variants ?? []).map((variant) => {
+                const option = RNA_SEQ_VARIANT_OPTIONS.find((item) => item.id === variant);
+                const selected = selectedAnalysisVariant === variant;
+                const runLocked = batchStarted || execution.run?.status === "queued" || execution.run?.status === "running";
+                return (
+                  <button
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      selected
+                        ? "border-primary bg-primary text-white"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    }`}
+                    disabled={runLocked}
+                    key={variant}
+                    onClick={() => setSelectedAnalysisVariant(variant)}
+                    type="button"
+                  >
+                    {option?.label[locale] ?? variant}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
         <div className="grid gap-0 xl:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.1fr)]">
           <div className="page-hero-surface relative overflow-hidden border-b border-white/10 px-6 py-8 xl:border-b-0 xl:border-r xl:border-white/10">
             <div className="absolute inset-0">
@@ -438,16 +934,131 @@ export function ProjectExecutionPage({
               </div>
             ) : null}
 
-            {execution.status === "completed" ? (
+            {execution.status === "completed" && batchFinished ? (
               <div className="mt-6 rounded-[24px] border border-emerald-200 bg-emerald-50 p-5 text-sm leading-6 text-emerald-800">
                 {t
-                  ? "Los entregables ya están listos. Redirigiendo al detalle del proyecto en 5 segundos..."
-                  : "Deliverables are ready. Redirecting to the project detail in 5 seconds..."}
+                  ? `Entregables listos. Redirigiendo al detalle del proyecto en ${redirectCountdown ?? 8} segundos...`
+                  : `Deliverables ready. Redirecting to project detail in ${redirectCountdown ?? 8} seconds...`}
+              </div>
+            ) : null}
+
+            {execution.status === "completed" && !batchFinished && batchSteps.length > 1 ? (
+              <div className="mt-6 rounded-[24px] border border-sky-200 bg-sky-50 p-5 text-sm leading-6 text-sky-800">
+                {t
+                  ? "Variante completada. Lanzando siguiente ejecución de la secuencia..."
+                  : "Variant completed. Starting next execution in sequence..."}
               </div>
             ) : null}
           </div>
         </div>
       </section>
+
+      {batchFinished && finalVariantSummaries.length > 0 ? (
+        <section className="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 px-6 py-5 sm:px-8">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+              {t ? "Comparativa final" : "Final comparison"}
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">
+              {t ? "Resumen por variante" : "Variant summary"}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              {t
+                ? "Vista rápida de resultados generados por cada variante antes de volver al proyecto."
+                : "Quick view of results generated by each variant before returning to the project."}
+            </p>
+            {variantComparisonNarrative ? (
+              <p className="mt-3 max-w-4xl text-sm leading-6 text-slate-700">
+                {variantComparisonNarrative}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-3 sm:p-8">
+            {finalVariantSummaries.map((summary) => {
+              const option = RNA_SEQ_VARIANT_OPTIONS.find((item) => item.id === summary.step.variant);
+              const htmlHref =
+                resolvedProjectRef && summary.htmlFile
+                  ? buildProjectReportHref(resolvedProjectRef, summary.htmlFile.path)
+                  : null;
+              const zipHref = summary.zipFile
+                ? buildProjectFileUrl(project.owner, project.name, summary.zipFile.path, project.updated_at ?? null)
+                : null;
+
+              return (
+                <div
+                  className={`rounded-[24px] border p-5 ${
+                    summary.step.status === "failed"
+                      ? "border-rose-200 bg-rose-50"
+                      : "border-emerald-200 bg-emerald-50"
+                  }`}
+                  key={summary.step.variant}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {option?.label[locale] ?? summary.step.variant}
+                      </p>
+                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-slate-500">
+                        {summary.step.status === "failed"
+                          ? t ? "Finalizada con incidencias" : "Finished with issues"
+                          : t ? "Finalizada correctamente" : "Finished successfully"}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      summary.step.status === "failed"
+                        ? "bg-rose-100 text-rose-700"
+                        : "bg-emerald-100 text-emerald-700"
+                    }`}>
+                      {summary.groups.length} {t ? "run(s)" : "run(s)"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 text-sm text-slate-700 md:grid-cols-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{t ? "Informes" : "Reports"}</p>
+                      <p className="mt-1">{summary.groups.filter((group) => group.htmlFile).length}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900">Excel</p>
+                      <p className="mt-1">{summary.excelCount}</p>
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900">DOCX</p>
+                      <p className="mt-1">{summary.docxCount}</p>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-sm leading-6 text-slate-600">
+                    {t
+                      ? `${summary.deliverablesCount} entregables detectados para esta variante.`
+                      : `${summary.deliverablesCount} deliverables detected for this variant.`}
+                  </p>
+
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    {htmlHref ? (
+                      <ButtonLink href={htmlHref} variant="secondary">
+                        <EyeIcon className="h-4 w-4" />
+                        {t ? "Abrir informe" : "Open report"}
+                      </ButtonLink>
+                    ) : null}
+                    {zipHref ? (
+                      <a
+                        className={buttonStyles({ variant: "secondary" })}
+                        href={zipHref}
+                        rel="noreferrer"
+                        target="_blank"
+                      >
+                        {t ? "Descargar ZIP" : "Download ZIP"}
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
         <SectionCard
