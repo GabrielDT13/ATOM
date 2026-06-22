@@ -128,11 +128,11 @@ export function TeamManagementFilters({
                   </p>
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-slate-500">
                     {locale === "es" ? "Responsable" : "Owner"}
                     <select
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                      className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onOwnerFilterChange(event.target.value)}
                       value={ownerFilter}
                     >
@@ -145,10 +145,10 @@ export function TeamManagementFilters({
                     </select>
                   </label>
 
-                  <label className="flex flex-col gap-2 text-sm font-medium text-slate-500">
+                  <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-slate-500">
                     {locale === "es" ? "Entidad" : "Entity"}
                     <select
-                      className="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
+                      className="h-12 w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 outline-none transition focus:border-primary focus:ring-4 focus:ring-sky-100"
                       onChange={(event) => onEntityFilterChange(event.target.value)}
                       value={entityFilter}
                     >

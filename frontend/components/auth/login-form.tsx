@@ -123,6 +123,24 @@ export function LoginForm() {
             </Link>
           </div>
 
+          <div className="login-access-request-card rounded-2xl border border-sky-100 bg-sky-50/80 p-4">
+            <p className="login-access-request-title text-sm font-semibold text-slate-900">
+              {locale === "es" ? "¿Necesitas acceso a ATOM?" : "Need access to ATOM?"}
+            </p>
+            <p className="login-access-request-body mt-1 text-sm leading-6 text-slate-600">
+              {locale === "es"
+                ? "Solicita tu incorporación y revisaremos el alta por correo."
+                : "Request access and our team will review it by email."}
+            </p>
+            <Link
+              className="login-access-request-link mt-3 inline-flex items-center text-sm font-semibold text-primary transition-colors hover:text-blue-700"
+              href="/request-access"
+            >
+              {locale === "es" ? "Solicitar acceso" : "Request access"}
+              <ArrowRightIcon className="ml-2 h-4 w-4" />
+            </Link>
+          </div>
+
           <button
             className="mt-2 inline-flex h-12 w-full items-center justify-center rounded-lg bg-primary text-base font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             disabled={loading}

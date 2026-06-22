@@ -183,6 +183,27 @@ html[data-theme="dark"] [data-sonner-toaster] {
   --error-text: #ffe4e6;
 }
 
+html[data-theme="dark"] .login-access-request-card {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.26), rgba(30, 41, 59, 0.92)) !important;
+  border-color: rgba(125, 211, 252, 0.3) !important;
+}
+
+html[data-theme="dark"] .login-access-request-title {
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .login-access-request-body {
+  color: #dbeafe !important;
+}
+
+html[data-theme="dark"] .login-access-request-link {
+  color: #7dd3fc !important;
+}
+
+html[data-theme="dark"] .login-access-request-link:hover {
+  color: #bae6fd !important;
+}
+
 @layer components {
   .page-hero-surface {
     background: var(--hero-surface);

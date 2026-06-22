@@ -263,6 +263,24 @@ export type UserRecord = {
   display_name?: string | null;
 };
 
+export type AccessRequestStatus = "approved" | "denied" | "pending";
+
+export type AccessRequestRecord = {
+  id: number;
+  full_name: string;
+  email: string;
+  status: AccessRequestStatus;
+  reviewed_by_user_id?: string | null;
+  reviewed_by_username?: string | null;
+  reviewed_by_display_name?: string | null;
+  approved_user_id?: string | null;
+  approved_username?: string | null;
+  approved_display_name?: string | null;
+  reviewed_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
 export type DepartmentRecord = {
   id: string;
   name: string;
@@ -291,6 +309,13 @@ export type MutationResponse = {
   message: string;
   temporary_password?: string | null;
   user?: UserRecord | null;
+};
+
+export type AccessRequestMutationResponse = {
+  success: boolean;
+  message: string;
+  temporary_password?: string | null;
+  request?: AccessRequestRecord | null;
 };
 
 export type ProjectStatus = "configured" | "empty" | "results";

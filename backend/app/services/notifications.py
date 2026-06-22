@@ -16,6 +16,7 @@ from psycopg.errors import UndefinedTable
 NotificationType = Literal[
     "analysis_completed",
     "analysis_failed",
+    "access_request_created",
     "project_access_changed",
     "project_ownership_transferred",
     "project_shared",
@@ -236,6 +237,60 @@ def _send_email_for_notification(
         message=message,
         action_label=action_label,
         action_url=build_absolute_frontend_url(action_url) if action_url else None,
+    )
+
+
+def notify_access_request_created(
+    *,
+    recipient_user_id: str,
+    request_id: int,
+    requester_name: str,
+    request_email: str,
+) -> None:
+    title = "Nueva solicitud de acceso"
+    message = (
+        f"{requester_name.strip()} ha solicitado acceso a ATOM con el email "
+        f"{request_email.strip().lower()}."
+    )
+    action_label = "Revisar solicitudes"
+    action_url = "/dashboard/users#requests"
+    try:
+        execute(
+            """
+            INSERT INTO internal.notifications (
+              user_id,
+              notification_type,
+              title,
+              message,
+              action_label,
+              action_url
+            )
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """,
+            (
+                recipient_user_id,
+                "access_request_created",
+                title,
+                message,
+                action_label,
+                action_url,
+            ),
+        )
+    except UndefinedTable:
+        return
+
+    recipient = get_email_user_context(recipient_user_id)
+    if not recipient:
+        return
+
+    send_notification_email(
+        to_email=recipient.email,
+        recipient_name=recipient.display_name,
+        subject=f"ATOM · {title}",
+        title=title,
+        message=message,
+        action_label=action_label,
+        action_url=build_absolute_frontend_url(action_url),
     )
 
 
