@@ -217,9 +217,21 @@ def write_project_settings(
     study_type: object | None = None,
 ) -> dict[str, object]:
     current_settings = read_project_settings(project_dir)
-    analysis_profile_source = analysis_profile if analysis_profile is not None else current_settings.get("analysis_profile")
-    enabled_variants_source = enabled_analysis_variants if enabled_analysis_variants is not None else current_settings.get("enabled_analysis_variants")
-    primary_variant_source = primary_analysis_variant if primary_analysis_variant is not None else current_settings.get("primary_analysis_variant")
+    analysis_profile_source = (
+        analysis_profile
+        if analysis_profile is not None
+        else current_settings.get("analysis_profile")
+    )
+    enabled_variants_source = (
+        enabled_analysis_variants
+        if enabled_analysis_variants is not None
+        else current_settings.get("enabled_analysis_variants")
+    )
+    primary_variant_source = (
+        primary_analysis_variant
+        if primary_analysis_variant is not None
+        else current_settings.get("primary_analysis_variant")
+    )
     if analysis_profile is not None and enabled_analysis_variants is None and primary_analysis_variant is None:
         legacy_profile = normalize_project_analysis_profile(analysis_profile)
         enabled_variants_source = ["enhanced"] if legacy_profile == "enhanced" else ["basic"]
@@ -354,14 +366,30 @@ def _build_project_payload(owner: str, project_dir: Path, metadata: dict[str, An
         metadata_study_type if metadata_study_type is not None else project_settings.get("study_type"),
     )
     resolved_enabled_variants = normalize_enabled_analysis_variants(
-        metadata_enabled_variants if metadata_enabled_variants is not None else project_settings.get("enabled_analysis_variants"),
-        fallback_profile=metadata_analysis_profile if metadata_analysis_profile is not None else project_settings.get("analysis_profile"),
+        (
+            metadata_enabled_variants
+            if metadata_enabled_variants is not None
+            else project_settings.get("enabled_analysis_variants")
+        ),
+        fallback_profile=(
+            metadata_analysis_profile
+            if metadata_analysis_profile is not None
+            else project_settings.get("analysis_profile")
+        ),
         study_type=resolved_study_type,
     )
     resolved_primary_variant = normalize_primary_analysis_variant(
-        metadata_primary_variant if metadata_primary_variant is not None else project_settings.get("primary_analysis_variant"),
+        (
+            metadata_primary_variant
+            if metadata_primary_variant is not None
+            else project_settings.get("primary_analysis_variant")
+        ),
         enabled_variants=resolved_enabled_variants,
-        fallback_profile=metadata_analysis_profile if metadata_analysis_profile is not None else project_settings.get("analysis_profile"),
+        fallback_profile=(
+            metadata_analysis_profile
+            if metadata_analysis_profile is not None
+            else project_settings.get("analysis_profile")
+        ),
         study_type=resolved_study_type,
     )
     resolved_analysis_profile = (

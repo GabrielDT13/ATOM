@@ -22,13 +22,13 @@ from backend.app.services.project_inventory import (
     _save_upload,
     _template_storage_name,
     allowed_template_file,
-    normalize_enabled_analysis_variants,
     get_project_dir,
+    normalize_enabled_analysis_variants,
+    normalize_primary_analysis_variant,
     normalize_project_analysis_profile,
     normalize_project_lifecycle_status,
     normalize_project_name,
     normalize_project_study_type,
-    normalize_primary_analysis_variant,
     write_project_settings,
 )
 from backend.app.services.project_inventory import (

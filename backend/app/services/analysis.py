@@ -18,7 +18,6 @@ from backend.app.services.projects import get_project_dir
 from backend.app.services.users import _get_profile_by_username
 from openpyxl import load_workbook
 
-
 DEFAULT_REPORT_AUTHOR = "Juan Vladimir de la Rosa Medina"
 
 
@@ -327,8 +326,15 @@ def _sync_python_report_artifacts(output_dir: Path, design_id: str) -> None:
 
 
 def _resolve_report_branding(project_owner_username: str, project_name: str) -> dict[str, str]:
-    project_record = _get_project_record(project_owner_username, project_name) or {}
-    owner_profile = _get_profile_by_username(project_owner_username) or {}
+    try:
+        project_record = _get_project_record(project_owner_username, project_name) or {}
+    except Exception:
+        project_record = {}
+
+    try:
+        owner_profile = _get_profile_by_username(project_owner_username) or {}
+    except Exception:
+        owner_profile = {}
 
     owner_display_name = str(owner_profile.get("full_name") or "").strip()
     owner_username = str(owner_profile.get("username") or "").strip() or project_owner_username
@@ -700,7 +706,11 @@ def iter_analysis_events(
                 process.wait()
                 exit_code = process.returncode
         except FileNotFoundError as exc:
-            message = "Rscript no está disponible en el entorno actual" if str(exc).strip() == "[Errno 2] No such file or directory: 'Rscript'" else str(exc)
+            message = (
+                "Rscript no está disponible en el entorno actual"
+                if str(exc).strip() == "[Errno 2] No such file or directory: 'Rscript'"
+                else str(exc)
+            )
             yield {
                 "type": "design_failed",
                 "analysis_type": script_key,

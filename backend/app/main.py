@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from backend.app.api.routes.analysis import router as analysis_router
 from backend.app.api.routes.access_requests import router as access_requests_router
+from backend.app.api.routes.analysis import router as analysis_router
 from backend.app.api.routes.auth import router as auth_router
 from backend.app.api.routes.dashboard import router as dashboard_router
 from backend.app.api.routes.departments import router as departments_router
