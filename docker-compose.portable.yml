@@ -1,0 +1,10 @@
+services:
+  atom-db:
+    volumes:
+      - ./.atom-portable/postgres:/var/lib/postgresql/data
+      - ./docker/postgres/initdb:/docker-entrypoint-initdb.d:ro
+  atom-frontend:
+    volumes:
+      - ./frontend:/app/frontend
+      - ./.atom-portable/frontend-node_modules:/app/frontend/node_modules
+      - ./.atom-portable/frontend-next:/app/frontend/.next

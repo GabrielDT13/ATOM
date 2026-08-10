@@ -20,8 +20,10 @@ El proyecto se ejecuta con `FastAPI` en backend y `Next.js` en frontend. La base
 - `scripts/down.sh`: detiene stack local
 - `scripts/rebuild.sh`: reconstruye imágenes
 - `scripts/test.sh`: comando central para lanzar todos los checks
+- `scripts/windows/`: equivalentes PowerShell y `.cmd` para Windows
 - `scripts/checks/`: checks internos agrupados por dominio
 - `docs/postgres-migration.md`: resumen técnico de la migración completada
+- `docs/portable-windows.md`: estudio de uso en Windows y disco externo
 
 ## Variables de entorno
 
@@ -125,6 +127,24 @@ Comandos útiles:
 ./scripts/rebuild.sh
 ```
 
+Equivalentes en Windows:
+
+```powershell
+.\scripts\windows\up.ps1
+.\scripts\windows\logs.ps1
+.\scripts\windows\down.ps1
+.\scripts\windows\rebuild.ps1
+```
+
+Tambien existen wrappers `.cmd`:
+
+```bat
+scripts\windows\up.cmd
+scripts\windows\start.cmd
+scripts\windows\down.cmd
+scripts\windows\stop.cmd
+```
+
 Cambiar puertos publicados:
 
 ```bash
@@ -145,6 +165,15 @@ Si quieres ejecutar solo una parte:
 ./scripts/test.sh backend
 ./scripts/test.sh frontend
 ./scripts/test.sh postgres
+```
+
+En Windows:
+
+```powershell
+.\scripts\windows\test.ps1
+.\scripts\windows\test.ps1 backend
+.\scripts\windows\test.ps1 frontend
+.\scripts\windows\test.ps1 postgres
 ```
 
 `./scripts/test.sh` es el punto de entrada recomendado para trabajo diario y para CI. Por debajo llama a checks internos agrupados en `scripts/checks/`, pero la interfaz pública es una sola.
@@ -184,6 +213,16 @@ Se ha añadido una base inicial reproducible en `docker/postgres/initdb/001_atom
 La cobertura SQL mínima del stack vive en `docker/postgres/tests/001_schema_smoke.sql` y se ejecuta dentro del flujo Docker con `./scripts/test.sh postgres`.
 
 Consulta el plan técnico en `docs/postgres-migration.md`.
+
+## Windows y disco externo
+
+Consulta `docs/portable-windows.md`.
+
+Resumen: el proyecto puede ejecutarse desde un disco externo si cada equipo tiene Docker Desktop. No es totalmente portable sin instalar Docker. Para guardar PostgreSQL y caches dentro del disco externo en Windows:
+
+```powershell
+.\scripts\windows\up.ps1 -Portable
+```
 
 ## Solución de problemas
 

@@ -18,6 +18,7 @@ samples/
 # Generated backend runtime data
 /projects/
 /data/
+/.atom-portable/
 
 # Local environment files
 .env.local
