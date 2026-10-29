@@ -29,7 +29,7 @@ describe("DashboardActivityChart", () => {
 
     expect(
       screen.getByText(
-        "Aún no hay suficientes eventos registrados para dibujar una tendencia con datos reales en la ventana seleccionada.",
+        "Aún no hay suficientes eventos reales para dibujar tendencia en rango seleccionado.",
       ),
     ).toBeInTheDocument();
   });
@@ -68,17 +68,24 @@ describe("DashboardActivityChart", () => {
 
     expect(screen.getByText("Evolución reciente de actividad")).toBeInTheDocument();
     expect(screen.getByText("Último mes")).toBeInTheDocument();
-    expect(screen.getByText("5 mov.")).toBeInTheDocument();
-    expect(screen.getByText("3 mov.")).toBeInTheDocument();
+    expect(screen.getByText("Movimientos registrados")).toBeInTheDocument();
     expect(screen.getByText("Análisis completados")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Aún no hay suficientes eventos reales para dibujar tendencia en rango seleccionado.",
+      ),
+    ).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText("Seleccionar rango temporal"), {
       target: { value: "7" },
     });
 
     expect(screen.getByText("Última semana")).toBeInTheDocument();
-    expect(screen.getByText("5 mov.")).toBeInTheDocument();
-    expect(screen.getByText("3 mov.")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Aún no hay suficientes eventos reales para dibujar tendencia en rango seleccionado.",
+      ),
+    ).not.toBeInTheDocument();
   });
 });
 

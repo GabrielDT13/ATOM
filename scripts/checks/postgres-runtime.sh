@@ -5,6 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="${ENV_FILE:-.env.local}"
+POSTGRES_PORT_HOST_OVERRIDE="${POSTGRES_PORT_HOST:-}"
+ATOM_BACKEND_BUILD_TARGET_OVERRIDE="${ATOM_BACKEND_BUILD_TARGET:-}"
 if [[ ! -f "$ENV_FILE" ]]; then
   ENV_FILE=".env"
 fi
@@ -19,7 +21,15 @@ set -a
 source "$ENV_FILE"
 set +a
 
-export ATOM_BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}"
+if [[ -n "$POSTGRES_PORT_HOST_OVERRIDE" ]]; then
+  export POSTGRES_PORT_HOST="$POSTGRES_PORT_HOST_OVERRIDE"
+fi
+
+if [[ -n "$ATOM_BACKEND_BUILD_TARGET_OVERRIDE" ]]; then
+  export ATOM_BACKEND_BUILD_TARGET="$ATOM_BACKEND_BUILD_TARGET_OVERRIDE"
+else
+  export ATOM_BACKEND_BUILD_TARGET="${ATOM_BACKEND_BUILD_TARGET:-backend-analysis}"
+fi
 
 if [[ -z "${JWT_SECRET:-}" ]]; then
   echo "Falta JWT_SECRET en el archivo de entorno." >&2
@@ -44,7 +54,7 @@ if [[ "$status" != "healthy" ]]; then
   exit 1
 fi
 
-docker exec atom-api python - <<'PY'
+docker exec -i atom-api python - <<'PY'
 import json
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError

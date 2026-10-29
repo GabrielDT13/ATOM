@@ -16,6 +16,7 @@ describe("project-execution-target", () => {
         resolvedProjectRef: "rna-atlas",
       }),
     ).toEqual({
+      analysisVariant: null,
       autoStart: true,
       projectRef: "rna-atlas",
       runId: null,
@@ -33,6 +34,7 @@ describe("project-execution-target", () => {
         resolvedProjectRef: "rna-atlas",
       }),
     ).toEqual({
+      analysisVariant: null,
       autoStart: false,
       projectRef: "rna-atlas",
       runId: "run-123",
@@ -54,6 +56,7 @@ describe("project-execution-target", () => {
         resolvedProjectRef: null,
       }),
     ).toEqual({
+      analysisVariant: null,
       autoStart: false,
       owner: "ana",
       projectName: "Proteoma",

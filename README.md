@@ -185,6 +185,7 @@ Checks actuales:
 - smoke import de la app FastAPI
 - `pytest` sobre `backend/tests`
 - `npm run lint`
+- `npm run test`
 - `npm run build`
 - smoke de esquema y runtime dockerizado de PostgreSQL (`./scripts/test.sh postgres`)
 
@@ -202,7 +203,7 @@ El workflow está en `.github/workflows/ci.yml` y se lanza en cada `push` y `pul
 Jobs actuales:
 
 - `backend`: construye la imagen de checks backend y ejecuta lint, smoke de app y tests dentro del contenedor
-- `frontend`: construye la imagen frontend y ejecuta typecheck y build dentro del contenedor
+- `frontend`: construye la imagen frontend y ejecuta typecheck, tests con Vitest y build dentro del contenedor
 
 Esto deja un baseline estable antes de añadir E2E, TDD más profundo o despliegue.
 

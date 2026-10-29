@@ -100,7 +100,11 @@ describe("project-detail-preview", () => {
     });
 
     expect(preview).toEqual({
-      content: "<html><body>report</body></html>",
+      content: `<base href="${buildProjectFileUrl(
+        "demo",
+        "project",
+        "results/report.html",
+      )}"><html><body>report</body></html>`,
       label: "results/report.html",
       mode: "html",
     });

@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
 
 ENV_FILE="${ENV_FILE:-.env.local}"
+POSTGRES_PORT_HOST_OVERRIDE="${POSTGRES_PORT_HOST:-}"
 if [[ ! -f "$ENV_FILE" ]]; then
   ENV_FILE=".env"
 fi
@@ -18,6 +19,10 @@ set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
+
+if [[ -n "$POSTGRES_PORT_HOST_OVERRIDE" ]]; then
+  export POSTGRES_PORT_HOST="$POSTGRES_PORT_HOST_OVERRIDE"
+fi
 
 docker compose --env-file "$ENV_FILE" up -d atom-db
 

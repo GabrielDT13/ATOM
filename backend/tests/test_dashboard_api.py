@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -135,6 +136,16 @@ def test_get_dashboard_overview_aggregates_projects_examples_and_workflows(
     monkeypatch,
 ) -> None:
     from backend.app.services import dashboard as dashboard_service
+
+    timeline_end = date(2026, 3, 15)
+    monkeypatch.setattr(
+        dashboard_service,
+        "_day_window",
+        lambda window_size: [
+            timeline_end - timedelta(days=offset)
+            for offset in range(window_size - 1, -1, -1)
+        ],
+    )
 
     project_root = isolated_app_env["projects_dir"].parent
     examples_dir = isolated_app_env["examples_dir"]
